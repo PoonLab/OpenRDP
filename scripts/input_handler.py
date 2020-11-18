@@ -1,6 +1,7 @@
 import argparse
-import re
 import sys
+from rdp import Sequence
+from rdp import Alignment
 
 DNA_ALPHABET = ['A', 'T', 'G', 'C', '-', '*']
 
@@ -102,6 +103,15 @@ def main():
 
     if not valid_arguments(aln) and not valid_arguments(aln):
         sys.exit(1)
+
+    # Create sequence objects
+    seqs_in_aln = []
+    for a in aln:
+        seq = Sequence(a, aln[a])
+        seqs_in_aln.append(seq)
+
+    # Create alignment
+    alignment = Alignment(seqs_in_aln)
 
 
 if __name__ == '__main__':

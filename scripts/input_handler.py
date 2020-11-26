@@ -106,9 +106,11 @@ def main():
 
     # Create sequence objects
     seqs_in_aln = []
+    num = 0
     for a in aln:
-        seq = Sequence(a, aln[a])
+        seq = Sequence(a, aln[a], num)
         seqs_in_aln.append(seq)
+        num += 1
 
     # Create alignment
     alignment = Alignment(seqs_in_aln)

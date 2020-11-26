@@ -119,10 +119,14 @@ class Alignment:
         for seq1 in self.sequences:
             for seq2 in self.sequences:
                 if seq1 != seq2:
-                    h_dist = hamming(seq1.sequence, seq2.sequence)
-                    norm_h_dist = (1 - h_dist) / len_seq
-                    # h_dist = seq1.bit_seq ^ seq2.bit_seq
-                    # norm_h_dist = h_dist / len_seq
+                    # h_dist = hamming(seq1.sequence, seq2.sequence)
+                    # norm_h_dist = (1 - h_dist) / len_seq
+                    h_dist = seq1.bit_seq ^ seq2.bit_seq
+                    matches = 0
+                    while h_dist > 0:
+                        matches += 1
+                        h_dist >>= 1
+                    norm_h_dist = h_dist / len_seq
 
                     pairwise_dists[seq1.num][seq2.num] = norm_h_dist
 

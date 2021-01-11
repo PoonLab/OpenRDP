@@ -75,19 +75,41 @@ def convert_clustal(handle):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description='An open source implementation of RDP4.\n'
+        description='An open source implementation of RDP5.\n'
     )
 
     parser.add_argument('infile',
                         help='File containing sequence alignment (FASTA or CLUSTAL) format')
+
+    parser.add_argument('-geneconv',
+                        help='Perform GeneConv analysis',
+                        action='store_true')
+
+    parser.add_argument('-bootscan',
+                        help='Perform Bootscan analysis',
+                        action='store_true')
+
+    parser.add_argument('-maxchi',
+                        help='Perform MaxChi analysis',
+                        action='store_true')
+
+    parser.add_argument('-siscan',
+                        help='Perform siscan analysis',
+                        action='store_true')
+
+    parser.add_argument('-chimaera',
+                        help='Perform chimarea analysis',
+                        action='store_true')
+
+    parser.add_argument('-seq3',
+                        help='Perform 3Seq analysis',
+                        action='store_true')
 
     parser.add_argument('-am', '-o',
                         help='Optimize auto-masking for maximum recombination detection')
 
     parser.add_argument('-winsize',
                         help='The window size used for the RDP analysis')
-
-    # TODO: Add arguments for GENECONV, Bootscan, MaxChi, Chimaera, Siscan, 3Seq
 
     return parser.parse_args()
 
@@ -114,6 +136,10 @@ def main():
 
     # Create alignment
     alignment = Alignment(seqs_in_aln)
+
+    # Run GENECONV
+    scanner = ScanInvoker(args.geneconv, args.bootscan, args.maxchi, args.siscan, args.chimaera, args.seq3)
+
 
 
 if __name__ == '__main__':

@@ -12,7 +12,7 @@ class Sequence:
         self.sequence = np.array(list(sequence))
         self.seq_name = seq_name
         self.gap_pos = self.find_gaps()
-        self.bit_seq = self.encode_seq()
+        # self.bit_seq = self.encode_seq()
         self.num = num  # Used for indexing distance matrix
 
     def gap_at_pos(self, pos):
@@ -50,7 +50,7 @@ class Sequence:
         if len(self.sequence) % 2 != 0:
             np.concatenate((seq, ['-']), axis=None)
 
-        i =0
+        i = 0
         # Read sequence 2 at a time
         while i < len(seq):
             byte_arr = np.concatenate(alpha_bin[str(seq[i])], alpha_bin[str(seq[i+1])])
@@ -119,14 +119,14 @@ class Alignment:
         for seq1 in self.sequences:
             for seq2 in self.sequences:
                 if seq1 != seq2:
-                    # h_dist = hamming(seq1.sequence, seq2.sequence)
-                    # norm_h_dist = (1 - h_dist) / len_seq
-                    h_dist = seq1.bit_seq ^ seq2.bit_seq
-                    matches = 0
-                    while h_dist > 0:
-                        matches += 1
-                        h_dist >>= 1
-                    norm_h_dist = h_dist / len_seq
+                    h_dist = hamming(seq1.sequence, seq2.sequence)
+                    norm_h_dist = (1 - h_dist) / len_seq
+                    # h_dist = seq1.bit_seq ^ seq2.bit_seq
+                    # matches = 0
+                    # while h_dist > 0:
+                    #     matches += 1
+                    #     h_dist >>= 1
+                    # norm_h_dist = h_dist / len_seq
 
                     pairwise_dists[seq1.num][seq2.num] = norm_h_dist
 

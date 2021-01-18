@@ -2,6 +2,7 @@ import argparse
 import sys
 from rdp import Sequence
 from rdp import Alignment
+from do_scans import GeneConv
 
 DNA_ALPHABET = ['A', 'T', 'G', 'C', '-', '*']
 
@@ -113,6 +114,10 @@ def parse_args():
 
     return parser.parse_args()
 
+def parse_configs(config_file):
+    pass
+
+
 
 def main():
     args = parse_args()
@@ -126,6 +131,13 @@ def main():
     if not valid_arguments(aln) and not valid_arguments(aln):
         sys.exit(1)
 
+    # Check that the OS is valid
+    platform = sys.platform
+    try:
+        platform.startswith("win") or platform.startswith("linux") or sys.platform == "darwin"
+    except OSError:
+        print("OSError: {} is not supported".format(sys.platform))
+
     # Create sequence objects
     seqs_in_aln = []
     num = 0
@@ -138,7 +150,9 @@ def main():
     alignment = Alignment(seqs_in_aln)
 
     # Run GENECONV
-    scanner = ScanInvoker(args.geneconv, args.bootscan, args.maxchi, args.siscan, args.chimaera, args.seq3)
+    if args.geneconv:
+        geneconv = GeneConv()
+        results = geneconv.do_geneconv()
 
 
 

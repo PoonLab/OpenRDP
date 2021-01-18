@@ -1,7 +1,7 @@
-from utils import geneconv
-
 import os
-from utils.geneconv import run_geneconv
+import sys
+import logging
+import subprocess
 
 
 class RdpMethod:
@@ -9,28 +9,35 @@ class RdpMethod:
     Executes command for RDP method
     """
 
-    def __init__(self, aln, win_size, automask):
-        self._aln = aln
+    def __init__(self, win_size=30, reference=None):
         self._win_size = win_size
-        self._automask = automask
+        self.reference = None
 
-    def do_rdp(self):
+    def load_config(self):
+        pass
+
+    def execute(self, data_path):
         pass
 
 
-class GeneConvMethod:
-    def __init__(self, gscale, ignore_indels, min_length, min_poly, min_score, max_overlap):
-        self.gscale = gscale                # Mismatch penalty (default = 1)
+class GeneConv:
+    def __init__(self, gscale=1, ignore_indels=False, min_length=1, min_poly=2, min_score=2, max_overlap=1):
+        self.gscale = gscale                # Mismatch penalty
         self.ignore_indels = ignore_indels  # Ignore indels or treat indels as one polymorphism (default = False)
-        self.min_length = min_length        # Default = 1
-        self.min_poly = min_poly            # Default = 2
-        self.min_score = min_score          # Default = 2
-        self.max_overlap = max_overlap      # Default = 1
+        self.min_length = min_length
+        self.min_poly = min_poly
+        self.min_score = min_score
+        self.max_overlap = max_overlap
 
-    def make_cfg(self):
+    def load_config(self):
+        pass
+
+    def execute(self, data_path):
+
+        # Create config file
         with open("geneconv.cfg", 'w+') as cfg_handle:
             cfg_handle.write('#GCONV_CONFIG\n')
-            cfg.handle.write('  -inputpath={}\n'.format(os.path.realpath(cfg_handle.name)))
+            cfg_handle.write('  -inputpath={}\n'.format(os.path.realpath(data_path.name)))
 
             if not self.ignore_indels:
                 cfg_handle.write('  -Indel_blocs\n')
@@ -41,28 +48,53 @@ class GeneConvMethod:
             cfg_handle.write('  -Minscore={}\n'.format(self.min_score))
             cfg_handle.write('  -Maxoverlap={}\n'.format(self.max_overlap))
 
-            return cfg_handle.name
+            cfg_path = format(os.path.realpath(cfg_handle.name))
 
-    def do_geneconv(self):
-        cfg_path = self.make_cfg()
-        raw_output = run_geneconv(cfg_path)
+        # Path to GENECONV executables
+        script_path = os.path.dirname(os.path.abspath(__file__))
+
+        if sys.platform.startswith("win"):
+            bin_path = os.path.join(script_path, 'bin/GENECONV/Windows/geneconv.exe')
+        else:
+            bin_path = os.path.join(script_path, 'bin/GENECONV/Unix/geneconv.exe')
+
+        if not os.path.isfile(bin_path):
+            logging.error("No file exists")
+
+        # Run GENECONV
+        if sys.platform.startswith("win"):
+            gc_output = subprocess.check_output([bin_path, cfg_path], shell=False, stderr=subprocess.DEVNULL)
+        else:
+            gc_output = subprocess.check_output([bin_path, cfg_path], shell=False, stderr=subprocess.STDOUT)
+
+        # Remove file
+        os.remove(cfg_path)
+
+        return gc_output
 
 
-class Scan_Invoker:
-    """
-    Receives the command for the scan and invokes the appropriate receiver
-    """
-    def __init__(self, geneconv, bootscan, maxchi, siscan, chimaera, seq3):
-        self._method_name = ''
+class ThreeSeq:
+    def __init__(self, p_value_table=None):
+        self.p_value_table = p_value_table
 
-    def set_name(self, method_name):
-        self._method_name = method_name
+    def execute(self, data_path):
+        # Path to 3Seq executables
+        script_path = os.path.dirname(os.path.abspath(__file__))
 
-    @staticmethod
-    def on_start(method_name):
-        print('Starting {}'.format(method_name))
+        if sys.platform.startswith("win"):
+            bin_path = os.path.join(script_path, 'bin/3Seq/Windows/3seq.exe')
+        else:
+            bin_path = os.path.join(script_path, 'bin/GENECONV/Unix/3seq')
 
-    @staticmethod
-    def on_finish(method_name):
-        print('Finished {}'.format(method_name))
+        if not os.path.isfile(bin_path):
+            logging.error("No file exists")
 
+        # Run 3Seq
+        if sys.platform.startswith("win"):
+            tseq_output = subprocess.check_output([bin_path, '-f', os.path.realpath(data_path.name)],
+                                                  shell=False, stderr=subprocess.DEVNULL)
+        else:
+            tseq_output = subprocess.check_output([bin_path, '-f', os.path.realpath(data_path.name)],
+                                                  shell=False, stderr=subprocess.STDOUT)
+
+        return tseq_output

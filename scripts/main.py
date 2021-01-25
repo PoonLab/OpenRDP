@@ -2,7 +2,8 @@ import argparse
 import sys
 from rdp import Sequence
 from rdp import Alignment
-from do_scans import GeneConv
+from do_scans import GeneConv, ThreeSeq
+import configparser
 
 DNA_ALPHABET = ['A', 'T', 'G', 'C', '-', '*']
 
@@ -82,6 +83,9 @@ def parse_args():
     parser.add_argument('infile',
                         help='File containing sequence alignment (FASTA or CLUSTAL) format')
 
+    parser.add_argument('-cfg_file',
+                        help='Config file that contains parameters')
+
     parser.add_argument('-geneconv',
                         help='Perform GeneConv analysis',
                         action='store_true')
@@ -102,7 +106,7 @@ def parse_args():
                         help='Perform chimarea analysis',
                         action='store_true')
 
-    parser.add_argument('-seq3',
+    parser.add_argument('-threeseq',
                         help='Perform 3Seq analysis',
                         action='store_true')
 
@@ -114,9 +118,12 @@ def parse_args():
 
     return parser.parse_args()
 
-def parse_configs(config_file):
-    pass
 
+def parse_configs(config_file):
+    config = configparser.ConfigParser()
+    config.read(config_file)
+
+    #TODO: Validate sections and options
 
 
 def main():
@@ -146,13 +153,20 @@ def main():
         seqs_in_aln.append(seq)
         num += 1
 
-    # Create alignment
+    # Create alignment object
     alignment = Alignment(seqs_in_aln)
 
     # Run GENECONV
     if args.geneconv:
         geneconv = GeneConv()
-        results = geneconv.do_geneconv()
+        geneconv.validate_options()
+        gc_results = geneconv.execute(args.infile)
+
+    # Run 3Seq
+    if args.threeseq:
+        three_seq = ThreeSeq()
+        ts_results = three_seq.execute(args.infile)
+
 
 
 

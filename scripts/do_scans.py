@@ -8,10 +8,9 @@ class RdpMethod:
     """
     Executes command for RDP method
     """
-
     def __init__(self, win_size=30, reference=None):
         self._win_size = win_size
-        self.reference = None
+        self.reference = reference
 
     def load_config(self):
         pass
@@ -29,10 +28,17 @@ class GeneConv:
         self.min_score = min_score
         self.max_overlap = max_overlap
 
-    def load_config(self):
+    def set_options_from_config(self, settings={}):
+        pass
+
+    def validate_options(self):
         pass
 
     def execute(self, data_path):
+
+        # Check if valid options
+        if not self.validate_options():
+            return None
 
         # Create config file
         with open("geneconv.cfg", 'w+') as cfg_handle:
@@ -54,9 +60,9 @@ class GeneConv:
         script_path = os.path.dirname(os.path.abspath(__file__))
 
         if sys.platform.startswith("win"):
-            bin_path = os.path.join(script_path, 'bin/GENECONV/Windows/geneconv.exe')
+            bin_path = os.path.join(script_path, 'bin/GENECONV/windows_geneconv.exe')
         else:
-            bin_path = os.path.join(script_path, 'bin/GENECONV/Unix/geneconv.exe')
+            bin_path = os.path.join(script_path, 'bin/GENECONV/unix_geneconv.exe')
 
         if not os.path.isfile(bin_path):
             logging.error("No file exists")
@@ -77,14 +83,17 @@ class ThreeSeq:
     def __init__(self, p_value_table=None):
         self.p_value_table = p_value_table
 
+    def load_config(self):
+        pass
+
     def execute(self, data_path):
         # Path to 3Seq executables
         script_path = os.path.dirname(os.path.abspath(__file__))
 
         if sys.platform.startswith("win"):
-            bin_path = os.path.join(script_path, 'bin/3Seq/Windows/3seq.exe')
+            bin_path = os.path.join(script_path, 'bin/3Seq/windows_3seq.exe')
         else:
-            bin_path = os.path.join(script_path, 'bin/GENECONV/Unix/3seq')
+            bin_path = os.path.join(script_path, 'bin/GENECONV/unix_3seq.exe')
 
         if not os.path.isfile(bin_path):
             logging.error("No file exists")

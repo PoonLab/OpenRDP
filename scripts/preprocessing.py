@@ -1,7 +1,6 @@
 from itertools import combinations
 import numpy as np
 from scipy.spatial.distance import hamming
-# from Bio.Phylo.TreeConstruction import DistanceCalculator, DistanceTreeConstructor
 
 
 class Sequence:
@@ -10,10 +9,12 @@ class Sequence:
     """
     def __init__(self, seq_name, sequence, num):
         self.sequence = np.array(list(sequence))
+        self.length = len(self.sequence)
         self.seq_name = seq_name
         self.gap_pos = self.find_gaps()
         # self.bit_seq = self.encode_seq()
         self.num = num  # Used for indexing distance matrix
+        self.ungapped = self.remove_gaps()
 
     def gap_at_pos(self, pos):
         """
@@ -38,7 +39,7 @@ class Sequence:
         Encodes 2 nucleotides as 1 byte
         :return: the sequence encoded as a uint8 numpy array
         """
-        # FIXME: cleaner (numpy-less) way to do this?
+        # TODO: cleaner (numpy-less) way to do this?
         # Note: Using 4 bits for ease of implementation
         alpha_bin = {'A': [1, 1, 0, 0], 'T': [0, 0, 1, 1],
                      'G': [1, 0, 1, 0], 'C': [0, 1, 0, 1], '-': [0, 0, 0, 0]}
@@ -59,6 +60,9 @@ class Sequence:
 
         bit_seq = np.packbits(encoded_seq)
         return bit_seq
+
+    def remove_gaps(self):
+        return str(self.sequence).replace('-', '')
 
 
 class Alignment:
@@ -131,23 +135,3 @@ class Alignment:
                     pairwise_dists[seq1.num][seq2.num] = norm_h_dist
 
         return pairwise_dists
-
-
-# def rdp_method(aln, win_size, automask):
-#     pass
-#
-#     # Calculate distances between sequences (Module 2)-- MakeCatCountSeq2P
-#
-#     # UPGMA
-#
-#
-#     for triplet in combinations(aln, 3):
-#         print(triplet)
-#
-#         # Remove unimformative sites
-#         subtriplet = remove_uninformative_sites(triplet)
-#         # ...
-#
-#
-# def remove_uninformative_sites(triplet):
-#     pass

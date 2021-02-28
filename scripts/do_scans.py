@@ -5,6 +5,7 @@ import subprocess
 import random
 import numpy as np
 from itertools import combinations
+from scipy.stats import chi2_contingency
 
 
 class RdpMethod:
@@ -287,3 +288,74 @@ class Siscan:
                     sum_pat_zscore.append(z)
 
         return pat_zscore, sum_pat_zscore
+
+
+class MaxChi:
+    def __init__(self, win_size=200, strip_gaps=True):
+        self.win_size = win_size
+        self.strip_gaps = strip_gaps
+
+    def set_options_from_config(self, settings={}):
+        pass
+
+    def validate_options(self):
+        pass
+
+    def execute(self, align, triplets):
+        """
+        Executes the MaxChi algorithm
+        :param align: a n x m numpy array where n is the length of the alignment and m is the number of sequences
+        :param triplets: list of all combinations of
+        :return:
+        """
+
+        # 1. Remove monomorphic sites
+        poly_sites = []
+        # Find positions of sites
+        for i in range(len(align)):
+            col = align[:, i]
+            if not np.all(col == col[0]):
+                poly_sites.append(i)
+
+        # Build "new alignment"
+        new_align = align[:, poly_sites]
+
+        maxchi_out = []
+
+        # 2. Select 3 sequences
+        for a, b, c in triplets:
+            trps = [new_align[a], new_align[b], new_align[c]]
+
+            # 3. Sample two sequences
+            pairs = [(0, 1), (1, 2), (2, 0)]
+            for i, j in pairs:
+                seq1 = trps[i]
+                seq2 = trps[j]
+
+                # Slide along the sequences
+                for k in range(len(new_align)):
+                    reg1_r = seq1[k: self.win_size/2]
+                    reg2_r = seq2[k: self.win_size/2]
+                    reg1_l = seq1[self.win_size/2: self.win_size]
+                    reg2_l = seq2[self.win_size/2: self.win_size]
+
+                    c_table = [[0, 0],
+                               [0, 0]]
+
+                    # Compute contingency table for each window position
+                    left_matches = np.sum((reg1_l == reg2_l))
+                    print(left_matches)
+                    c_table[0][0] = int(left_matches)
+                    c_table[0][1] = int(self.win_size / 2) - left_matches
+
+                    right_matches = np.sum((reg1_r == reg2_r))
+                    print(right_matches)
+                    c_table[1][0] = int(right_matches)
+                    c_table[1][1] = int(self.win_size / 2) - right_matches
+
+                    # Compute chi-squared value
+                    chi2, p_value, _, _ = chi2_contingency(c_table)
+
+                    maxchi_out.append((chi2, p_value))
+
+        return maxchi_out

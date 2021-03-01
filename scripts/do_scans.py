@@ -16,10 +16,13 @@ class RdpMethod:
         self._win_size = win_size
         self.reference = reference
 
-    def load_config(self):
+    def set_options_from_config(self, settings={}):
         pass
 
-    def execute(self, data_path):
+    def validate_options(self):
+        pass
+
+    def execute(self, align):
         pass
 
 
@@ -311,7 +314,7 @@ class MaxChi:
 
         # 1. Remove monomorphic sites
         poly_sites = []
-        # Find positions of sites
+        # Find positions of polymorphic sites
         for i in range(len(align)):
             col = align[:, i]
             if not np.all(col == col[0]):
@@ -359,3 +362,82 @@ class MaxChi:
                     maxchi_out.append((chi2, p_value))
 
         return maxchi_out
+
+
+class Chimaera:
+    def __init__(self, win_size=200, strip_gaps=True):
+        self.win_size = win_size
+        self.strip_gaps =strip_gaps
+
+    def set_options_from_config(self, settings={}):
+        pass
+
+    def validate_options(self):
+        pass
+
+    def execute(self, align, triplets):
+
+        # 1. Remove monomorphic sites
+        poly_sites = []
+        # Find positions of polymorphic sites
+        for i in range(len(align)):
+            col = align[:, i]
+            if not np.all(col == col[0]):
+                poly_sites.append(i)
+
+        # Build "new alignment"
+        new_align = align[:, poly_sites]
+
+        chimaera_out = []
+
+        for a, b, c in triplets:
+            trps = [new_align[a], new_align[b], new_align[c]]
+
+            combos = [(0, 1, 2), (1, 2, 0), (2, 1, 0)]
+            for run in combos:
+                recombinant = trps[run[0]]
+                parental_1 = trps[run[1]]
+                parental_2 = trps[run[2]]
+
+                # Remove sites where neither the parental match the recombinant
+                informative_sites = []
+                aln = np.array([recombinant, parental_1, parental_2])
+                # Find indices for informative sites
+                for i in range(len(aln)):
+                    col = align[:, i]
+                    if len(np.unique(col)) != 3:
+                        informative_sites += i
+
+                # Build new alignment with uninformative sites removed
+                new_aln = aln[:, informative_sites]
+
+                # 2. Compress "recombinant" into bitstrings
+                comp_seq = []
+                for i in range(len(new_align)):
+                    if new_align[i, 0] == new_align[i, 1]:
+                        comp_seq.append(0)
+                    elif new_align[i, 0] == new_align[i, 2]:
+                        comp_seq.append(1)
+
+                # Move sliding window along compressed sequence , 1 position at a time
+                # Slide along the sequences
+                for k in range(len(comp_seq)):
+                    reg_r = comp_seq[k: self.win_size/2]
+                    reg_l = comp_seq[self.win_size/2: self.win_size]
+
+                    c_table = [[0, 0],
+                               [0, 0]]
+
+                    # Compute contingency table for each window position
+                    count_left_ones = np.count_nonzero(reg_l)
+                    c_table[0][0] = count_left_ones
+                    c_table[0][1] = self.win_size/2 - count_left_ones
+
+                    count_right_ones = np.count_nonzero(reg_r)
+                    c_table[1][0] = count_right_ones
+                    c_table[1][1] = self.win_size/2 - count_right_ones
+
+                    # Compute chi-squared value
+                    chi2, p_value, _, _ = chi2_contingency(c_table)
+
+                    chimaera_out.append((chi2, p_value))

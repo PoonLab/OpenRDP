@@ -1,19 +1,26 @@
-import os
-import sys
 import logging
-import subprocess
+import os
 import random
-import numpy as np
+import subprocess
+import sys
 from itertools import combinations
+import re
+
+import numpy as np
+from Bio import AlignIO
+from Bio.Phylo.TreeConstruction import DistanceTreeConstructor
+from Bio.Phylo.TreeConstruction import DistanceCalculator
 from scipy.stats import chi2_contingency
+
+# TODO: multiple comparison correction
 
 
 class RdpMethod:
     """
-    Executes command for RDP method
+    Executes RDP method
     """
     def __init__(self, win_size=30, reference=None):
-        self._win_size = win_size
+        self.win_size = win_size
         self.reference = reference
 
     def set_options_from_config(self, settings={}):
@@ -22,8 +29,81 @@ class RdpMethod:
     def validate_options(self):
         pass
 
-    def execute(self, align):
-        pass
+    def execute(self, align, triplet):
+        """
+        Performs RDP detection method for one triplet of sequences
+        :param align: the Alignment object
+        :param triplet: the triplet
+        :return: the coordinates of the potential recombinant region and the p_value
+        """
+        # 1. Remove uninformative sites
+        informative_sites = set()
+        ref_diffs = set()
+        # Find positions of polymorphic sites
+        for i in range(len(triplet)):
+            col = triplet[:, i]
+            # All sites are the same or different
+            if not np.all(col == col[0]) or np.all(col == col[0]):
+                informative_sites.add(col)
+
+            # Find positions that are different in the reference sequence
+            if self.reference is not None:
+                for j in range(len(triplet)):
+                    pair = np.array(j, self.reference)
+                    c = pair[:, j]
+                    if not np.all(c == c[0]):
+                        ref_diffs.add(c)
+
+        sites = informative_sites.union(ref_diffs)
+
+        # Build "new alignment"
+        new_align = align[:, sites]
+        ab = np.array(new_align[0], new_align[1])
+        bc = np.array(new_align[1], new_align[2])
+        ac = np.array(new_align[0], new_align[2])
+
+        # 2. Sliding window over subsequence and calculate average percent identity at each position
+        recombinant_regions = ''        # Recombinant regions denoted by ones
+        for i in range(len(new_align)):
+            reg_ab = ab[i, self.win_size]
+            reg_bc = bc[i, self.win_size]
+            reg_ac = ac[i, self.win_size]
+            percent_identity_ab = np.all(reg_ab) / len(new_align) * 100
+            percent_identity_bc = np.all(reg_bc) / len(new_align) * 100
+            percent_identity_ac = np.all(reg_ac) / len(new_align) * 100
+
+            # Identify recombinant regions
+            if percent_identity_ac > percent_identity_ab or percent_identity_bc > percent_identity_ab:
+                recombinant_regions += 1
+            else:
+                recombinant_regions += 0
+
+        # 3. Record significance of events
+        recomb = re.match('1', recombinant_regions)
+        recomb_idx = recomb.span()
+
+        rdp_res = []
+
+        for idx in recomb_idx:
+            n = idx[1] - idx[0]
+            G = idx[1]   # num windows involved
+            l = len(new_align)
+
+            # m is the proportion of nts in common between either A or B and C in the recombinant region
+            m = np.all(new_align[0][:, l], new_align[2][:, l]).sum()
+
+            # p is the proportion of nts in common between either A or B and C in the entire sequence
+            p = np.all(align[0], align[1]).sum() / align.length
+
+            # Calculate p_value
+            val = 0
+            for i in range(m, n):
+                val += (np.math.factorial(n) / (np.math.factorial(i) * np.math.factorial(n-i))) * p**n * (1-p)**(n-i)
+            p_value = G * (l/n) * val
+
+            rdp_res.append(p_value, idx)
+
+        return rdp_res
 
 
 class GeneConv:

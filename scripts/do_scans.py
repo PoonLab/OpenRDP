@@ -11,6 +11,7 @@ from Bio import AlignIO
 from Bio.Phylo.TreeConstruction import DistanceTreeConstructor
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from scipy.stats import chi2_contingency
+from scipy.signal import find_peaks
 
 # TODO: multiple comparison correction
 
@@ -521,3 +522,137 @@ class Chimaera:
                     chi2, p_value, _, _ = chi2_contingency(c_table)
 
                     chimaera_out.append((chi2, p_value))
+
+
+class Bootscan:
+    def __init__(self, win_size=200, step_size=20, use_distances=True, num_replicates=100, random_seed=3,
+                 cutoff=0.7, p_val_calc='binomial', model='JC69'):
+        self.win_size = win_size
+        self.step_size = step_size
+        self.use_distances = use_distances
+        self.num_replicates = num_replicates
+        self.random_seed = random_seed
+        self.cutoff = cutoff
+        self.p_val_calc = p_val_calc
+        self.model = model
+
+    def set_options_from_config(self, settings={}):
+        pass
+
+    def validate_options(self):
+        pass
+
+    def percent_diff(self, s1, s2):
+        alphabet = ['A', 'T', 'G', 'C']
+        diffs = 0
+        num_valid = 0
+        for x, y in zip(s1, s2):
+            if x in alphabet and y in alphabet:
+                num_valid += 1
+                if x != y:
+                    diffs += 1
+        return diffs / num_valid if num_valid else 0
+
+    def jc_distance(self, s1, s2):
+        p_dist = self.percent_diff(s1, s2)
+        return 0.75 * np.log(1 - (p_dist*4/3)) if p_dist else 0
+
+    def jc_matrix(self, aln):
+        mat = []    # Linearized distances
+        for s1 in aln:
+            for s2 in aln:
+                mat.append(self.jc_distance(s1, s2))
+        return mat
+
+    def binomial_p(self, G, l, n, m, p):
+        # Calculate p_value
+        val = 0
+        for i in range(m, n):
+            val += (np.math.factorial(n) / (np.math.factorial(i) * np.math.factorial(n - i))) * p ** n * (1 - p) ** (
+                        n - i)
+        p_value = G * (l / n) * val
+        return p_value
+
+    def find_potential_events(self, pair1, pair2):
+        # Loop over coordinates for peaks to high bootstrap support that alternates between two pairs
+        putative_regions = []
+        possible_start = False
+        possible_region = False
+        possible_end = False
+        start = 0
+        end = 0
+
+        for val in range(len(pair1)):
+            # Find regions of high bootstrap support in one sequence
+            if pair1[val] >= self.cutoff and pair1[val+1] > self.cutoff:
+                possible_start = True
+                start = val
+
+            if possible_start:
+                if pair2[val] < self.cutoff and pair2[val+1] < self.cutoff:
+                    possible_region = True
+
+            if possible_region:
+                if pair2[val] > self.cutoff:
+                    possible_end = True
+                    end = val
+
+            if possible_end:
+                putative_regions.append((start, end))
+
+        return putative_regions
+
+    def execute(self, align, trp_list, trp_pos_in_mat):
+        random.seed(self.random_seed)
+        # Scanning phase
+        p_values = []
+        all_dists = []
+        for i in range(len(align), self.step_size):
+            window = align[i:i+self.win_size]
+            dists = {}
+
+            # Make bootstrap replicates of alignment
+            for rep in range(self.num_replicates):
+                rep_window = np.random.choice(window, replace=True)  # Shuffle columns
+                dist_mat = self.jc_matrix(rep_window)
+                dists[align](dist_mat)
+            all_dists.append(dists)
+
+            for trp in trp_list:
+                a = align.sequence[trp[0]]
+                b = align.sequence[trp[1]]
+                c = align.sequence[trp[2]]
+
+                # Look at boostrap support for sequence pairs
+                ab_dists = all_dists[trp_pos_in_mat[a]]
+                bc_dists = all_dists[trp_pos_in_mat[b]]
+                ca_dists = all_dists[trp_pos_in_mat[c]]
+
+                # Find peaks
+                ab_max = find_peaks(ab_dists)
+                bc_max = find_peaks(bc_dists)
+                ca_max = find_peaks(ca_dists)
+
+                # Loop over coordinates for peaks to high bootstrap support that alternates between two pairs
+                pairs = [(ab_max, bc_max), (bc_max, ca_max), (ab_max, ca_max)]
+                possible_regions = []
+                for pair1, pair2 in pairs:
+                    possible_regions.append(self.find_potential_events(pair1, pair2))
+
+                # Find p-value for regions
+                for event in possible_regions:
+                    n = align[event[0]] - align[event[1]]
+                    G = align[event[1]]  # num windows involved
+                    l = event[1] - event[0]
+
+                    # m is the proportion of nts in common between either A or B and C in the recombinant region
+                    m = np.all(align[event[0]][:, l], align[event[1]][:, l]).sum()
+
+                    # p is the proportion of nts in common between either A or B and C in the entire sequence
+                    p = np.all(align[event[0]], align[event[1]]).sum() / align.length
+
+                    p_val = self.binomial_p(G, l, n, m, p)
+
+                    p_values.append((p_val, event))
+
+        return p_values

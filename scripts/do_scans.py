@@ -3,8 +3,8 @@ import os
 import random
 import subprocess
 import sys
-from itertools import combinations
 import re
+import glob
 
 import numpy as np
 from Bio import AlignIO
@@ -168,34 +168,87 @@ class GeneConv:
 
 
 class ThreeSeq:
-    def __init__(self, p_value_table=None):
-        self.p_value_table = p_value_table
+    def __init__(self, in_path):
+        self.in_path = os.path.realpath(in_path)
+        self.in_name = os.path.basename(in_path)
 
-    def load_config(self):
-        pass
+    def execute(self):
+        """
+        Execute the 3Seq algorithm.
+            Lam HM, Ratmann O, Boni MF.
+            Improved algorithmic complexity for the 3SEQ recombination detection algorithm.
+            Mol Biol Evol, 35(1):247-251, 2018.
+        :return: A list containing the results of the 3Seq analysis
+                    Format: [triplets, uncorrected p-value, corrected p-value, breakpoint locations]
+        """
+        ts_results = None
 
-    @staticmethod
-    def execute(data_path):
-        # Path to 3Seq executables
-        script_path = os.path.dirname(os.path.abspath(__file__))
+        # Clear output files
+        out_files = glob.glob('./*.3s.*')
+        for f in out_files:
+            try:
+                os.remove(f)
+            except OSError:
+                pass
 
+        # Set paths to 3Seq executables
         if sys.platform.startswith("win"):
-            bin_path = os.path.join(script_path, 'bin/3Seq/windows_3seq.exe')
+            bin_path = os.path.abspath('../utils/bin/3Seq/windows_3seq.exe')
         else:
-            bin_path = os.path.join(script_path, 'bin/GENECONV/unix_3seq.exe')
+            bin_path = os.path.abspath('../utils/bin/3Seq/unix_3seq.exe')
 
         if not os.path.isfile(bin_path):
             logging.error("No file exists")
 
         # Run 3Seq
         if sys.platform.startswith("win"):
-            tseq_output = subprocess.check_output([bin_path, '-f', os.path.realpath(data_path.name)],
-                                                  shell=False, stderr=subprocess.DEVNULL)
+            tseq_output = subprocess.check_output(
+                [bin_path, "-f", self.in_path, "-d",  "-id", self.in_name],
+                shell=False,
+                stderr=subprocess.DEVNULL,
+                input=b"Y\n")  # Respond to prompt
         else:
-            tseq_output = subprocess.check_output([bin_path, '-f', os.path.realpath(data_path.name)],
-                                                  shell=False, stderr=subprocess.STDOUT)
+            tseq_output = subprocess.check_output(
+                [bin_path, "-f", self.in_path, "-d",  "-id", self.in_name],
+                shell=False,
+                stderr=subprocess.STDOUT,
+                input=b"Y\n")  # Respond to prompt
 
-        return tseq_output
+        # Parse the output of 3Seq
+        tseq_out = self.in_name + '.3s.rec'
+        out_path = os.path.join(os.getcwd(), tseq_out)
+        if tseq_output is not None:
+            ts_results = self.parse_output(out_path)
+        else:
+            print("Error running 3Seq Analysis")
+
+        return ts_results
+
+    def parse_output(self, out_path):
+        """
+        Parse the output of the 3Seq analysis
+        :param out_path: Path to the output file containing information about recombinant sequences
+        :return: List of triplets, corrected and uncorrected p-values, and breakpoint locations
+        """
+        ts_results = []
+
+        # Check that the out file exists
+        if os.path.isfile(out_path):
+            with open(out_path) as out_handle:
+                out_handle.readline()   # Read first line
+
+                for line in out_handle:
+                    line = line.split('\t')
+                    line = [l.strip() for l in line]
+                    triplet = ([line[0], line[1], line[2]])  # Record the triplets
+                    uncorr_p_value = line[6]    # Uncorrected p-value
+                    corr_p_value = line[10]     # Dunn-Sidak corrected p-value
+                    locations = line[12:]       # Breakpoint locations
+                    ts_results.append([triplet, uncorr_p_value, corr_p_value, locations])
+        else:
+            print("No 3Seq output file exists.")
+
+        return ts_results
 
 
 class Siscan:
@@ -296,10 +349,9 @@ class Siscan:
 
         return sum_pat_counts
 
-    def execute(self, alignment):
+    def execute(self, alignment, triplet):
         """
         Do Sister-scanning as described in Gibbs, Armstrong, and Gibbs (2000)
-
         """
         random.seed(self.random_seed)
 
@@ -309,67 +361,64 @@ class Siscan:
             for s in alignment.sequences:
                 ungapped.append(s.ungapped)
 
-        # Generate all pairs of triplet sequences
-        for triplet in list(combinations(alignment.sequences, 3)):
+        # TODO: pad sequences if not divisible by window length
+        # Based on leading edge of the window
+        for window in range(len(alignment.sequences.length), self.step_size):
+            win_start = 0
+            win_end = win_start + self.win_size
 
-            # TODO: pad sequences if not divisible by window length
-            # Based on leading edge of the window
-            for window in range(len(alignment.sequences.length), self.step_size):
-                win_start = 0
-                win_end = win_start + self.win_size
+            # Label sequences
+            a = triplet[0][win_start: win_end]
+            b = triplet[1][win_start: win_end]
+            c = triplet[2][win_start: win_end]
 
-                # Label sequences
-                a = triplet[0][win_start: win_end]
-                b = triplet[1][win_start: win_end]
-                c = triplet[2][win_start: win_end]
+            # Create the fourth sequence through horizontal randomization
+            selected_seq = random.choice(('a', 'b', 'c'))
+            d = np.array([selected_seq])[win_start: win_end]
+            random.shuffle(d)
 
-                # Create the fourth sequence through horizontal randomization
-                selected_seq = random.choice(('a', 'b', 'c'))
-                d = np.array([selected_seq])[win_start: win_end]
-                random.shuffle(d)
+            # (1) Count number of positions within a window that conform to each pattern
+            pat_counts = self.count_patterns(a, b, c, d)
 
-                # (1) Count number of positions within a window that conform to each pattern
-                pat_counts = self.count_patterns(a, b, c, d)
+            # (2) Sum counts where 2 sequences are identical
+            sum_pat_counts = self.sum_pattern_counts(pat_counts)
 
-                # (2) Sum counts where 2 sequences are identical
-                sum_pat_counts = self.sum_pattern_counts(pat_counts)
+            # (3) Sum counts of each kind of informative site for each window
+            sum_pat_counts[0] = pat_counts[1] + pat_counts[6] + pat_counts[7]  # 2 + 7 + 8
+            sum_pat_counts[1] = pat_counts[2] + pat_counts[5] + pat_counts[8]  # 3 + 6 + 9
+            sum_pat_counts[2] = pat_counts[3] + pat_counts[4] + pat_counts[9]  # 4 + 5 + 10
 
-                # (3) Sum counts of each kind of informative site for each window
-                sum_pat_counts[0] = pat_counts[1] + pat_counts[6] + pat_counts[7]  # 2 + 7 + 8
-                sum_pat_counts[1] = pat_counts[2] + pat_counts[5] + pat_counts[8]  # 3 + 6 + 9
-                sum_pat_counts[2] = pat_counts[3] + pat_counts[4] + pat_counts[9]  # 4 + 5 + 10
+            # (4) Create 4 vertically randomized sequences (steps 1 and 2), repeat for 100 times
+            p_counts = []
+            sum_p_counts = []
+            for i in range(100):
 
-                # (4) Create 4 vertically randomized sequences (steps 1 and 2), repeat for 100 times
-                p_counts = []
-                sum_p_counts = []
-                for i in range(100):
+                seq_array = np.array([a, b, c, d], axis=0)
+                # Generate 4 vertically randomized sequences (shuffle the columns)
+                a1 = seq_array.shuffle(axis=0)
+                b1 = seq_array.shuffle(axis=0)
+                c1 = seq_array.shuffle(axis=0)
+                d1 = seq_array.shuffle(axis=0)
 
-                    seq_array = np.array([a, b, c, d], axis=0)
-                    # Generate 4 vertically randomized sequences (shuffle the columns)
-                    a1 = seq_array.shuffle(axis=0)
-                    b1 = seq_array.shuffle(axis=0)
-                    c1 = seq_array.shuffle(axis=0)
-                    d1 = seq_array.shuffle(axis=0)
+                # Count number of patterns and sum counts
+                p_counts = self.count_patterns(a1, b1, c1, d1)
+                sum_p_counts = self.sum_pattern_counts(p_counts)
 
-                    # Count number of patterns and sum counts
-                    p_counts = self.count_patterns(a1, b1, c1, d1)
-                    sum_p_counts = self.sum_pattern_counts(p_counts)
+            # (5) Calculate Z-scores for each pattern and sum of patterns for each window
+            pop_mean_pcounts = np.mean(p_counts)
+            pop_mean_patsum = np.mean(sum_p_counts)
+            pop_std_pcounts = np.std(p_counts)
+            pop_std_patsum = np.std(sum_p_counts)
 
-                # (5) Calculate Z-scores for each pattern and sum of patterns for each window
-                pop_mean_pcounts = np.mean(p_counts)
-                pop_mean_patsum = np.mean(sum_p_counts)
-                pop_std_pcounts = np.std(p_counts)
-                pop_std_patsum = np.std(sum_p_counts)
+            pat_zscore = []
+            for val in pat_counts:
+                z = (val - pop_mean_pcounts) / pop_std_pcounts
+                pat_zscore.append(z)
 
-                pat_zscore = []
-                for val in pat_counts:
-                    z = (val - pop_mean_pcounts) / pop_std_pcounts
-                    pat_zscore.append(z)
-
-                sum_pat_zscore = []
-                for val in sum_pat_counts:
-                    z = (val - pop_mean_patsum) / pop_std_patsum
-                    sum_pat_zscore.append(z)
+            sum_pat_zscore = []
+            for val in sum_pat_counts:
+                z = (val - pop_mean_patsum) / pop_std_patsum
+                sum_pat_zscore.append(z)
 
         return pat_zscore, sum_pat_zscore
 
@@ -385,12 +434,11 @@ class MaxChi:
     def validate_options(self):
         pass
 
-    def execute(self, align, triplets):
+    def execute(self, align, triplet):
         """
         Executes the MaxChi algorithm
         :param align: a n x m numpy array where n is the length of the alignment and m is the number of sequences
-        :param triplets: list of all combinations of
-        :return:
+        :param triplet: a list of three sequences
         """
 
         # 1. Remove monomorphic sites
@@ -403,44 +451,39 @@ class MaxChi:
 
         # Build "new alignment"
         new_align = align[:, poly_sites]
-
         maxchi_out = []
 
-        # 2. Select 3 sequences
-        for a, b, c in triplets:
-            trps = [new_align[a], new_align[b], new_align[c]]
+        # 2. Sample two sequences
+        pairs = [(0, 1), (1, 2), (2, 0)]
+        for i, j in pairs:
+            seq1 = triplet[i]
+            seq2 = triplet[j]
 
-            # 3. Sample two sequences
-            pairs = [(0, 1), (1, 2), (2, 0)]
-            for i, j in pairs:
-                seq1 = trps[i]
-                seq2 = trps[j]
+            # Slide along the sequences
+            for k in range(len(new_align)):
+                reg1_r = seq1[k: self.win_size/2]
+                reg2_r = seq2[k: self.win_size/2]
+                reg1_l = seq1[self.win_size/2: self.win_size]
+                reg2_l = seq2[self.win_size/2: self.win_size]
 
-                # Slide along the sequences
-                for k in range(len(new_align)):
-                    reg1_r = seq1[k: self.win_size/2]
-                    reg2_r = seq2[k: self.win_size/2]
-                    reg1_l = seq1[self.win_size/2: self.win_size]
-                    reg2_l = seq2[self.win_size/2: self.win_size]
+                c_table = [[0, 0],
+                           [0, 0]]
 
-                    c_table = [[0, 0],
-                               [0, 0]]
+                # Compute contingency table for each window position
+                left_matches = np.sum((reg1_l == reg2_l))
+                print(left_matches)
+                c_table[0][0] = int(left_matches)
+                c_table[0][1] = int(self.win_size / 2) - left_matches
 
-                    # Compute contingency table for each window position
-                    left_matches = np.sum((reg1_l == reg2_l))
-                    print(left_matches)
-                    c_table[0][0] = int(left_matches)
-                    c_table[0][1] = int(self.win_size / 2) - left_matches
+                right_matches = np.sum((reg1_r == reg2_r))
+                print(right_matches)
+                c_table[1][0] = int(right_matches)
+                c_table[1][1] = int(self.win_size / 2) - right_matches
 
-                    right_matches = np.sum((reg1_r == reg2_r))
-                    print(right_matches)
-                    c_table[1][0] = int(right_matches)
-                    c_table[1][1] = int(self.win_size / 2) - right_matches
+                # Compute chi-squared value
+                chi2, p_value, _, _ = chi2_contingency(c_table)
 
-                    # Compute chi-squared value
-                    chi2, p_value, _, _ = chi2_contingency(c_table)
-
-                    maxchi_out.append((chi2, p_value))
+                maxchi_out.append((chi2, p_value))
 
         return maxchi_out
 
@@ -456,7 +499,7 @@ class Chimaera:
     def validate_options(self):
         pass
 
-    def execute(self, align, triplets):
+    def execute(self, align, triplet):
 
         # 1. Remove monomorphic sites
         poly_sites = []
@@ -471,57 +514,56 @@ class Chimaera:
 
         chimaera_out = []
 
-        for a, b, c in triplets:
-            trps = [new_align[a], new_align[b], new_align[c]]
+        combos = [(0, 1, 2), (1, 2, 0), (2, 1, 0)]
+        for run in combos:
+            recombinant = triplet[run[0]]
+            parental_1 = triplet[run[1]]
+            parental_2 = triplet[run[2]]
 
-            combos = [(0, 1, 2), (1, 2, 0), (2, 1, 0)]
-            for run in combos:
-                recombinant = trps[run[0]]
-                parental_1 = trps[run[1]]
-                parental_2 = trps[run[2]]
+            # Remove sites where neither the parental match the recombinant
+            informative_sites = []
+            aln = np.array([recombinant, parental_1, parental_2])
+            # Find indices for informative sites
+            for i in range(len(aln)):
+                col = align[:, i]
+                if len(np.unique(col)) != 3:
+                    informative_sites += i
 
-                # Remove sites where neither the parental match the recombinant
-                informative_sites = []
-                aln = np.array([recombinant, parental_1, parental_2])
-                # Find indices for informative sites
-                for i in range(len(aln)):
-                    col = align[:, i]
-                    if len(np.unique(col)) != 3:
-                        informative_sites += i
+            # Build new alignment with uninformative sites removed
+            new_aln = aln[:, informative_sites]
 
-                # Build new alignment with uninformative sites removed
-                new_aln = aln[:, informative_sites]
+            # 2. Compress "recombinant" into bitstrings
+            comp_seq = []
+            for i in range(len(new_align)):
+                if new_align[i, 0] == new_align[i, 1]:
+                    comp_seq.append(0)
+                elif new_align[i, 0] == new_align[i, 2]:
+                    comp_seq.append(1)
 
-                # 2. Compress "recombinant" into bitstrings
-                comp_seq = []
-                for i in range(len(new_align)):
-                    if new_align[i, 0] == new_align[i, 1]:
-                        comp_seq.append(0)
-                    elif new_align[i, 0] == new_align[i, 2]:
-                        comp_seq.append(1)
+            # Move sliding window along compressed sequence , 1 position at a time
+            # Slide along the sequences
+            for k in range(len(comp_seq)):
+                reg_r = comp_seq[k: self.win_size/2]
+                reg_l = comp_seq[self.win_size/2: self.win_size]
 
-                # Move sliding window along compressed sequence , 1 position at a time
-                # Slide along the sequences
-                for k in range(len(comp_seq)):
-                    reg_r = comp_seq[k: self.win_size/2]
-                    reg_l = comp_seq[self.win_size/2: self.win_size]
+                c_table = [[0, 0],
+                           [0, 0]]
 
-                    c_table = [[0, 0],
-                               [0, 0]]
+                # Compute contingency table for each window position
+                count_left_ones = np.count_nonzero(reg_l)
+                c_table[0][0] = count_left_ones
+                c_table[0][1] = self.win_size/2 - count_left_ones
 
-                    # Compute contingency table for each window position
-                    count_left_ones = np.count_nonzero(reg_l)
-                    c_table[0][0] = count_left_ones
-                    c_table[0][1] = self.win_size/2 - count_left_ones
+                count_right_ones = np.count_nonzero(reg_r)
+                c_table[1][0] = count_right_ones
+                c_table[1][1] = self.win_size/2 - count_right_ones
 
-                    count_right_ones = np.count_nonzero(reg_r)
-                    c_table[1][0] = count_right_ones
-                    c_table[1][1] = self.win_size/2 - count_right_ones
+                # Compute chi-squared value
+                chi2, p_value, _, _ = chi2_contingency(c_table)
 
-                    # Compute chi-squared value
-                    chi2, p_value, _, _ = chi2_contingency(c_table)
+                chimaera_out.append((chi2, p_value))
 
-                    chimaera_out.append((chi2, p_value))
+        return chimaera_out
 
 
 class Bootscan:
@@ -569,7 +611,7 @@ class Bootscan:
         val = 0
         for i in range(m, n):
             val += (np.math.factorial(n) / (np.math.factorial(i) * np.math.factorial(n - i))) * p ** n * (1 - p) ** (
-                        n - i)
+                    n - i)
         p_value = G * (l / n) * val
         return p_value
 
@@ -602,7 +644,7 @@ class Bootscan:
 
         return putative_regions
 
-    def execute(self, align, trp_list, trp_pos_in_mat):
+    def execute(self, align, triplet, trp_pos_in_mat):
         random.seed(self.random_seed)
         # Scanning phase
         p_values = []
@@ -618,41 +660,40 @@ class Bootscan:
                 dists[align](dist_mat)
             all_dists.append(dists)
 
-            for trp in trp_list:
-                a = align.sequence[trp[0]]
-                b = align.sequence[trp[1]]
-                c = align.sequence[trp[2]]
+            a = align.sequence[triplet[0]]
+            b = align.sequence[triplet[1]]
+            c = align.sequence[triplet[2]]
 
-                # Look at boostrap support for sequence pairs
-                ab_dists = all_dists[trp_pos_in_mat[a]]
-                bc_dists = all_dists[trp_pos_in_mat[b]]
-                ca_dists = all_dists[trp_pos_in_mat[c]]
+            # Look at boostrap support for sequence pairs
+            ab_dists = all_dists[trp_pos_in_mat[a]]
+            bc_dists = all_dists[trp_pos_in_mat[b]]
+            ca_dists = all_dists[trp_pos_in_mat[c]]
 
-                # Find peaks
-                ab_max = find_peaks(ab_dists)
-                bc_max = find_peaks(bc_dists)
-                ca_max = find_peaks(ca_dists)
+            # Find peaks
+            ab_max = find_peaks(ab_dists)
+            bc_max = find_peaks(bc_dists)
+            ca_max = find_peaks(ca_dists)
 
-                # Loop over coordinates for peaks to high bootstrap support that alternates between two pairs
-                pairs = [(ab_max, bc_max), (bc_max, ca_max), (ab_max, ca_max)]
-                possible_regions = []
-                for pair1, pair2 in pairs:
-                    possible_regions.append(self.find_potential_events(pair1, pair2))
+            # Loop over coordinates for peaks to high bootstrap support that alternates between two pairs
+            pairs = [(ab_max, bc_max), (bc_max, ca_max), (ab_max, ca_max)]
+            possible_regions = []
+            for pair1, pair2 in pairs:
+                possible_regions.append(self.find_potential_events(pair1, pair2))
 
-                # Find p-value for regions
-                for event in possible_regions:
-                    n = align[event[0]] - align[event[1]]
-                    G = align[event[1]]  # num windows involved
-                    l = event[1] - event[0]
+            # Find p-value for regions
+            for event in possible_regions:
+                n = align[event[0]] - align[event[1]]
+                G = align[event[1]]  # num windows involved
+                l = event[1] - event[0]
 
-                    # m is the proportion of nts in common between either A or B and C in the recombinant region
-                    m = np.all(align[event[0]][:, l], align[event[1]][:, l]).sum()
+                # m is the proportion of nts in common between either A or B and C in the recombinant region
+                m = np.all(align[event[0]][:, l], align[event[1]][:, l]).sum()
 
-                    # p is the proportion of nts in common between either A or B and C in the entire sequence
-                    p = np.all(align[event[0]], align[event[1]]).sum() / align.length
+                # p is the proportion of nts in common between either A or B and C in the entire sequence
+                p = np.all(align[event[0]], align[event[1]]).sum() / align.length
 
-                    p_val = self.binomial_p(G, l, n, m, p)
+                p_val = self.binomial_p(G, l, n, m, p)
 
-                    p_values.append((p_val, event))
+                p_values.append((p_val, event))
 
         return p_values

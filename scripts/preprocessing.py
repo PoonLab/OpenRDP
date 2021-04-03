@@ -74,8 +74,8 @@ class Alignment:
         self.num_seqs = len(aligned_seqs)
         self.start_pos = 0
         self.end_pos = len(aligned_seqs[0].sequence)
-        self.site_types = self.make_seq_cat_count()
-        self.pairwise_dists = self.pairwise_distances()
+        # self.site_types = self.make_seq_cat_count()
+        # self.pairwise_dists = self.pairwise_distances()
 
     def get_sequence(self, idx):
         return self.sequences[idx]

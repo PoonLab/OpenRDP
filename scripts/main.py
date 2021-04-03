@@ -1,20 +1,24 @@
 import argparse
 import sys
-from rdp import Sequence
-from rdp import Alignment
-from do_scans import GeneConv, ThreeSeq
+from do_scans import *
+from run_scans import Scanner
 import configparser
 
 DNA_ALPHABET = ['A', 'T', 'G', 'C', '-', '*']
 
 
 def valid_arguments(alignment):
-    aln_length = len(alignment[0])
-    for aln in alignment:
-        if len(aln) != aln_length:
-            print("Improper alignment! Not all alignments are the same length.")
-            return False
-    return True
+    """
+    Check that the input alignment is valid
+    :param alignment: a  dictionary where the keys are the sequence headers and the values are the aligned sequences
+    :return True of the alignment is valid, false otherwise
+    """
+    aln_len = len(alignment[next(iter(alignment))])
+    if all(len(s) == aln_len for s in alignment.values()):
+        return True
+
+    print("Improper alignment! Not all alignments are the same length.")
+    return False
 
 
 def valid_chars(alignment):
@@ -99,22 +103,19 @@ def parse_args():
                         action='store_true')
 
     parser.add_argument('-siscan',
-                        help='Perform siscan analysis',
+                        help='Perform Siscan analysis',
                         action='store_true')
 
     parser.add_argument('-chimaera',
-                        help='Perform chimarea analysis',
+                        help='Perform Chimaera analysis',
                         action='store_true')
 
     parser.add_argument('-threeseq',
                         help='Perform 3Seq analysis',
                         action='store_true')
-
-    parser.add_argument('-am', '-o',
-                        help='Optimize auto-masking for maximum recombination detection')
-
-    parser.add_argument('-winsize',
-                        help='The window size used for the RDP analysis')
+    parser.add_argument('-rdp',
+                        help='{Perform RDP analysis',
+                        action='store_true')
 
     return parser.parse_args()
 
@@ -145,29 +146,10 @@ def main():
     except OSError:
         print("OSError: {} is not supported".format(sys.platform))
 
-    # Create sequence objects
-    seqs_in_aln = []
-    num = 0
-    for a in aln:
-        seq = Sequence(a, aln[a], num)
-        seqs_in_aln.append(seq)
-        num += 1
+    scanner = Scanner(aln, args)
+    results = scanner.run_scans()
 
-    # Create alignment object
-    alignment = Alignment(seqs_in_aln)
-
-    # Run GENECONV
-    if args.geneconv:
-        geneconv = GeneConv()
-        geneconv.validate_options()
-        gc_results = geneconv.execute(args.infile)
-
-    # Run 3Seq
-    if args.threeseq:
-        three_seq = ThreeSeq()
-        ts_results = three_seq.execute(args.infile)
-
-
+    # print(results)
 
 
 if __name__ == '__main__':

@@ -2,7 +2,6 @@ import argparse
 import sys
 from do_scans import *
 from run_scans import Scanner
-import configparser
 
 DNA_ALPHABET = ['A', 'T', 'G', 'C', '-', '*']
 
@@ -87,8 +86,8 @@ def parse_args():
     parser.add_argument('infile',
                         help='File containing sequence alignment (FASTA or CLUSTAL) format')
 
-    parser.add_argument('-cfg_file',
-                        help='Config file that contains parameters')
+    parser.add_argument('-cfg',
+                        help='Path to file that contains parameters')
 
     parser.add_argument('-geneconv',
                         help='Perform GeneConv analysis',
@@ -113,18 +112,12 @@ def parse_args():
     parser.add_argument('-threeseq',
                         help='Perform 3Seq analysis',
                         action='store_true')
+
     parser.add_argument('-rdp',
                         help='{Perform RDP analysis',
                         action='store_true')
 
     return parser.parse_args()
-
-
-def parse_configs(config_file):
-    config = configparser.ConfigParser()
-    config.read(config_file)
-
-    #TODO: Validate sections and options
 
 
 def main():

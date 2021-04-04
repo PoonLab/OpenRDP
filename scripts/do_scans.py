@@ -1,17 +1,15 @@
+import glob
 import logging
 import os
 import random
+import re
 import subprocess
 import sys
-import re
-import glob
 
 import numpy as np
-from Bio import AlignIO
-from Bio.Phylo.TreeConstruction import DistanceTreeConstructor
-from Bio.Phylo.TreeConstruction import DistanceCalculator
-from scipy.stats import chi2_contingency
 from scipy.signal import find_peaks
+from scipy.stats import chi2_contingency
+
 
 # TODO: multiple comparison correction
 
@@ -20,6 +18,7 @@ class RdpMethod:
     """
     Executes RDP method
     """
+
     def __init__(self, win_size=30, reference=None):
         self.win_size = win_size
         self.reference = reference
@@ -64,7 +63,7 @@ class RdpMethod:
         ac = np.array(new_align[0], new_align[2])
 
         # 2. Sliding window over subsequence and calculate average percent identity at each position
-        recombinant_regions = ''        # Recombinant regions denoted by ones
+        recombinant_regions = ''  # Recombinant regions denoted by ones
         for i in range(len(new_align)):
             reg_ab = ab[i, self.win_size]
             reg_bc = bc[i, self.win_size]
@@ -87,7 +86,7 @@ class RdpMethod:
 
         for idx in recomb_idx:
             n = idx[1] - idx[0]
-            G = idx[1]   # num windows involved
+            G = idx[1]  # num windows involved
             l = len(new_align)
 
             # m is the proportion of nts in common between either A or B and C in the recombinant region
@@ -99,8 +98,9 @@ class RdpMethod:
             # Calculate p_value
             val = 0
             for i in range(m, n):
-                val += (np.math.factorial(n) / (np.math.factorial(i) * np.math.factorial(n-i))) * p**n * (1-p)**(n-i)
-            p_value = G * (l/n) * val
+                val += (np.math.factorial(n) / (np.math.factorial(i) * np.math.factorial(n - i))) * p ** n * (
+                            1 - p) ** (n - i)
+            p_value = G * (l / n) * val
 
             rdp_res.append(p_value, idx)
 
@@ -108,30 +108,91 @@ class RdpMethod:
 
 
 class GeneConv:
-    def __init__(self, gscale=1, ignore_indels=False, min_length=1, min_poly=2, min_score=2, max_overlap=1):
-        self.gscale = gscale                # Mismatch penalty
-        self.ignore_indels = ignore_indels  # Ignore indels or treat indels as one polymorphism (default = False)
-        self.min_length = min_length
-        self.min_poly = min_poly
-        self.min_score = min_score
-        self.max_overlap = max_overlap
+    def __init__(self, settings=None, gscale=1, ignore_indels=False, min_length=1, min_poly=2, min_score=2,
+                 max_overlap=1):
+        """
+        Constructs a GeneConv object
+        :param gscale: mismatch penalty
+        :param ignore_indels: Ignore indels or treat indels as one polymorphism (default = False)
+        :param min_length: Minimum length of the fragments
+        :param min_poly: Minimum number of polymorphic sites
+        :param min_score: Minimum pairwise score
+        :param max_overlap: Maximum number of overlapping pairs
+        """
+        if settings is not None:
+            self.set_options_from_config(settings)
+            self.validate_options()
 
-    def set_options_from_config(self, settings={}):
-        pass
+        else:
+            self.gscale = gscale
+            self.ignore_indels = ignore_indels
+            self.min_length = min_length
+            self.min_poly = min_poly
+            self.min_score = min_score
+            self.max_overlap = max_overlap
+
+    def set_options_from_config(self, settings):
+        """
+        Set the parameters of GENECONV from the config file
+        :param settings: a dictionary of settings
+        """
+        self.gscale = int(settings['mismatch_penalty'])
+
+        if settings['indels_as_polymorphisms'] == 'True':
+            self.ignore_indels = False
+        elif settings['indels_as_polymorphisms'] == 'False':
+            self.ignore_indels = True
+        else:
+            self.ignore_indels = None
+
+        self.min_length = int(settings['min_len'])
+        self.min_poly = int(settings['min_poly'])
+        self.min_score = int(settings['min_score'])
+        self.max_overlap = int(settings['max_num'])
 
     def validate_options(self):
-        pass
+        """
+        Check if the options from the config file are valid
+        If the options are invalid, the default value will be used instead
+        """
+        if not isinstance(self.ignore_indels, bool):
+            print("Invalid option: 'indels_as_polymorphisms'.\nUsing default value instead.\n")
+            self.ignore_indels = False
 
-    def execute(self, data_path):
+        if self.min_length <= 0:
+            print("Invalid option: 'min_len'.\nUsing default value instead.")
+            self.min_length = 1
 
-        # Check if valid options
-        if not self.validate_options():
-            return None
+        if self.min_poly < 1:
+            print("Invalid option: 'min_score'.\nUsing default value instead.")
+            self.min_poly = 2
+
+        if self.max_overlap < 0:
+            print("Invalid option: 'max_num'.\nUsing default value instead.")
+            self.min_score = 1
+
+    def execute(self, in_path):
+        """
+        Execute the GENECONV algorithm
+            S. A. Sawyer (1999)
+            GENECONV: A computer package for the statistical detection of gene conversion.
+            Distributed by the author, Department of Mathematics, Washington University in St. Louis,
+            Available at http://www.math.wustl.edu/~sawyer.
+        :param in_path: Path to the input alignment file
+        :return: A list of results
+        """
+        # Clear output files
+        out_files = glob.glob('../utils/bin/GENECONV/*.frags') + glob.glob('../utils/bin/GENECONV/*.sum')
+        for f in out_files:
+            try:
+                os.remove(f)
+            except OSError:
+                pass
 
         # Create config file
         with open("geneconv.cfg", 'w+') as cfg_handle:
             cfg_handle.write('#GCONV_CONFIG\n')
-            cfg_handle.write('  -inputpath={}\n'.format(os.path.realpath(data_path.name)))
+            cfg_handle.write('  -inputpath={}\n'.format(os.path.realpath(in_path)))
 
             if not self.ignore_indels:
                 cfg_handle.write('  -Indel_blocs\n')
@@ -142,29 +203,72 @@ class GeneConv:
             cfg_handle.write('  -Minscore={}\n'.format(self.min_score))
             cfg_handle.write('  -Maxoverlap={}\n'.format(self.max_overlap))
 
-            cfg_path = format(os.path.realpath(cfg_handle.name))
+            cfg_path = format(os.path.realpath("geneconv.cfg"))
 
         # Path to GENECONV executables
-        script_path = os.path.dirname(os.path.abspath(__file__))
-
         if sys.platform.startswith("win"):
-            bin_path = os.path.join(script_path, 'bin/GENECONV/windows_geneconv.exe')
+            bin_path = os.path.abspath('../utils/bin/GENECONV/windows_geneconv.exe')
         else:
-            bin_path = os.path.join(script_path, 'bin/GENECONV/unix_geneconv.exe')
+            bin_path = os.path.abspath('../utils/bin/GENECONV/unix_geneconv.exe')
 
         if not os.path.isfile(bin_path):
-            logging.error("No file exists")
+            logging.error("No GENECONV executable file exists")
 
         # Run GENECONV
         if sys.platform.startswith("win"):
-            gc_output = subprocess.check_output([bin_path, cfg_path], shell=False, stderr=subprocess.DEVNULL)
+            try:
+                subprocess.check_output([bin_path, "-Seqfile={}".format(in_path),
+                                         "-Config={}".format(cfg_path), "-nolog"], shell=False)
+            except subprocess.CalledProcessError as e:
+                print(e.output, e.returncode)
         else:
-            gc_output = subprocess.check_output([bin_path, cfg_path], shell=False, stderr=subprocess.STDOUT)
+            try:
+                subprocess.check_output([bin_path, "-Seqfile={}".format(in_path),
+                                         "-Config={}".format(cfg_path), "-nolog"], shell=False)
+            except subprocess.CalledProcessError as e:
+                print(e.output, e.returncode)
 
-        # Remove file
-        os.remove(cfg_path)
+        # Remove GENECONV config file
+        try:
+            os.remove(cfg_path)
+        except OSError:
+            pass
 
-        return gc_output
+        # Parse the output of 3Seq
+        in_name = os.path.basename(in_path).split('.')[0]
+        out_name = in_name + '.frags'
+        out_path = os.path.join(os.path.dirname(in_path), out_name)
+        gc_results = self.parse_output(out_path)
+
+        return gc_results
+
+    def parse_output(self, out_path):
+        """
+        Parse the output of the GENECONV analysis
+        :param out_path: Path to the output file
+        :return: List of results
+        """
+        gc_results = []
+
+        # Check that the out file exists
+        try:
+            with open(out_path) as out_handle:
+
+                for line in out_handle:
+                    if not line.startswith('#'):
+                        line = line.strip()
+                        line = line.split()
+                        seqs = line[1]  # Sequence pairs
+                        uncorr_p_value = line[2]  # Uncorrected p_value
+                        corr_p_value = line[3]  # Bonferroni Corrected - Karlin-Altschul
+                        locations = (line[4], line[5])  # Locations in alignment
+                        type = line[0]  # Global inner (GI), global outer (GO), additional inner (AI)
+                        gc_results.append([seqs, uncorr_p_value, corr_p_value, locations, type])
+
+        except FileNotFoundError as e:
+            print(e)
+
+        return gc_results
 
 
 class ThreeSeq:
@@ -181,8 +285,6 @@ class ThreeSeq:
         :return: A list containing the results of the 3Seq analysis
                     Format: [triplets, uncorrected p-value, corrected p-value, breakpoint locations]
         """
-        ts_results = None
-
         # Clear output files
         out_files = glob.glob('./*.3s.*')
         for f in out_files:
@@ -198,29 +300,26 @@ class ThreeSeq:
             bin_path = os.path.abspath('../utils/bin/3Seq/unix_3seq.exe')
 
         if not os.path.isfile(bin_path):
-            logging.error("No file exists")
+            logging.error("No 3Seq executable file exists.")
 
         # Run 3Seq
         if sys.platform.startswith("win"):
-            tseq_output = subprocess.check_output(
-                [bin_path, "-f", self.in_path, "-d",  "-id", self.in_name],
-                shell=False,
-                stderr=subprocess.DEVNULL,
-                input=b"Y\n")  # Respond to prompt
+            try:
+                subprocess.check_output([bin_path, "-f", self.in_path, "-d", "-id", self.in_name],
+                                        shell=False, input=b"Y\n")  # Respond to prompt
+            except subprocess.CalledProcessError as e:
+                print(e.output, e.returncode)
         else:
-            tseq_output = subprocess.check_output(
-                [bin_path, "-f", self.in_path, "-d",  "-id", self.in_name],
-                shell=False,
-                stderr=subprocess.STDOUT,
-                input=b"Y\n")  # Respond to prompt
+            try:
+                subprocess.check_output([bin_path, "-f", self.in_path, "-d", "-id", self.in_name],
+                                        shell=False, input=b"Y\n")  # Respond to prompt
+            except subprocess.CalledProcessError as e:
+                print(e.output, e.returncode)
 
         # Parse the output of 3Seq
         tseq_out = self.in_name + '.3s.rec'
         out_path = os.path.join(os.getcwd(), tseq_out)
-        if tseq_output is not None:
-            ts_results = self.parse_output(out_path)
-        else:
-            print("Error running 3Seq Analysis")
+        ts_results = self.parse_output(out_path)
 
         return ts_results
 
@@ -233,20 +332,20 @@ class ThreeSeq:
         ts_results = []
 
         # Check that the out file exists
-        if os.path.isfile(out_path):
+        try:
             with open(out_path) as out_handle:
-                out_handle.readline()   # Read first line
+                out_handle.readline()  # Read first line
 
                 for line in out_handle:
                     line = line.split('\t')
                     line = [l.strip() for l in line]
                     triplet = ([line[0], line[1], line[2]])  # Record the triplets
-                    uncorr_p_value = line[6]    # Uncorrected p-value
-                    corr_p_value = line[10]     # Dunn-Sidak corrected p-value
-                    locations = line[12:]       # Breakpoint locations
+                    uncorr_p_value = line[6]  # Uncorrected p-value
+                    corr_p_value = line[10]  # Dunn-Sidak corrected p-value
+                    locations = line[12:]  # Breakpoint locations
                     ts_results.append([triplet, uncorr_p_value, corr_p_value, locations])
-        else:
-            print("No 3Seq output file exists.")
+        except FileNotFoundError as e:
+            print(e)
 
         return ts_results
 
@@ -392,7 +491,6 @@ class Siscan:
             p_counts = []
             sum_p_counts = []
             for i in range(100):
-
                 seq_array = np.array([a, b, c, d], axis=0)
                 # Generate 4 vertically randomized sequences (shuffle the columns)
                 a1 = seq_array.shuffle(axis=0)
@@ -461,10 +559,10 @@ class MaxChi:
 
             # Slide along the sequences
             for k in range(len(new_align)):
-                reg1_r = seq1[k: self.win_size/2]
-                reg2_r = seq2[k: self.win_size/2]
-                reg1_l = seq1[self.win_size/2: self.win_size]
-                reg2_l = seq2[self.win_size/2: self.win_size]
+                reg1_r = seq1[k: self.win_size / 2]
+                reg2_r = seq2[k: self.win_size / 2]
+                reg1_l = seq1[self.win_size / 2: self.win_size]
+                reg2_l = seq2[self.win_size / 2: self.win_size]
 
                 c_table = [[0, 0],
                            [0, 0]]
@@ -491,7 +589,7 @@ class MaxChi:
 class Chimaera:
     def __init__(self, win_size=200, strip_gaps=True):
         self.win_size = win_size
-        self.strip_gaps =strip_gaps
+        self.strip_gaps = strip_gaps
 
     def set_options_from_config(self, settings={}):
         pass
@@ -543,8 +641,8 @@ class Chimaera:
             # Move sliding window along compressed sequence , 1 position at a time
             # Slide along the sequences
             for k in range(len(comp_seq)):
-                reg_r = comp_seq[k: self.win_size/2]
-                reg_l = comp_seq[self.win_size/2: self.win_size]
+                reg_r = comp_seq[k: self.win_size / 2]
+                reg_l = comp_seq[self.win_size / 2: self.win_size]
 
                 c_table = [[0, 0],
                            [0, 0]]
@@ -552,11 +650,11 @@ class Chimaera:
                 # Compute contingency table for each window position
                 count_left_ones = np.count_nonzero(reg_l)
                 c_table[0][0] = count_left_ones
-                c_table[0][1] = self.win_size/2 - count_left_ones
+                c_table[0][1] = self.win_size / 2 - count_left_ones
 
                 count_right_ones = np.count_nonzero(reg_r)
                 c_table[1][0] = count_right_ones
-                c_table[1][1] = self.win_size/2 - count_right_ones
+                c_table[1][1] = self.win_size / 2 - count_right_ones
 
                 # Compute chi-squared value
                 chi2, p_value, _, _ = chi2_contingency(c_table)
@@ -597,10 +695,10 @@ class Bootscan:
 
     def jc_distance(self, s1, s2):
         p_dist = self.percent_diff(s1, s2)
-        return 0.75 * np.log(1 - (p_dist*4/3)) if p_dist else 0
+        return 0.75 * np.log(1 - (p_dist * 4 / 3)) if p_dist else 0
 
     def jc_matrix(self, aln):
-        mat = []    # Linearized distances
+        mat = []  # Linearized distances
         for s1 in aln:
             for s2 in aln:
                 mat.append(self.jc_distance(s1, s2))
@@ -626,12 +724,12 @@ class Bootscan:
 
         for val in range(len(pair1)):
             # Find regions of high bootstrap support in one sequence
-            if pair1[val] >= self.cutoff and pair1[val+1] > self.cutoff:
+            if pair1[val] >= self.cutoff and pair1[val + 1] > self.cutoff:
                 possible_start = True
                 start = val
 
             if possible_start:
-                if pair2[val] < self.cutoff and pair2[val+1] < self.cutoff:
+                if pair2[val] < self.cutoff and pair2[val + 1] < self.cutoff:
                     possible_region = True
 
             if possible_region:
@@ -650,7 +748,7 @@ class Bootscan:
         p_values = []
         all_dists = []
         for i in range(len(align), self.step_size):
-            window = align[i:i+self.win_size]
+            window = align[i:i + self.win_size]
             dists = {}
 
             # Make bootstrap replicates of alignment

@@ -14,97 +14,83 @@ from scipy.stats import chi2_contingency
 # TODO: multiple comparison correction
 
 
-class RdpMethod:
-    """
-    Executes RDP method
-    """
+class ThreeSeq:
+    def __init__(self, in_path):
+        self.in_path = os.path.realpath(in_path)
+        self.in_name = os.path.basename(in_path)
 
-    def __init__(self, win_size=30, reference=None):
-        self.win_size = win_size
-        self.reference = reference
-
-    def set_options_from_config(self, settings={}):
-        pass
-
-    def validate_options(self):
-        pass
-
-    def execute(self, align, triplet):
+    def execute(self):
         """
-        Performs RDP detection method for one triplet of sequences
-        :param align: the Alignment object
-        :param triplet: the triplet
-        :return: the coordinates of the potential recombinant region and the p_value
+        Execute the 3Seq algorithm.
+            Lam HM, Ratmann O, Boni MF.
+            Improved algorithmic complexity for the 3SEQ recombination detection algorithm.
+            Mol Biol Evol, 35(1):247-251, 2018.
+        :return: A list containing the results of the 3Seq analysis
+                    Format: [triplets, uncorrected p-value, corrected p-value, breakpoint locations]
         """
-        # 1. Remove uninformative sites
-        informative_sites = set()
-        ref_diffs = set()
-        # Find positions of polymorphic sites
-        for i in range(len(triplet)):
-            col = triplet[:, i]
-            # All sites are the same or different
-            if not np.all(col == col[0]) or np.all(col == col[0]):
-                informative_sites.add(col)
+        # Clear output files
+        out_files = glob.glob('./*.3s.*')
+        for f in out_files:
+            try:
+                os.remove(f)
+            except OSError:
+                pass
 
-            # Find positions that are different in the reference sequence
-            if self.reference is not None:
-                for j in range(len(triplet)):
-                    pair = np.array(j, self.reference)
-                    c = pair[:, j]
-                    if not np.all(c == c[0]):
-                        ref_diffs.add(c)
+        # Set paths to 3Seq executables
+        if sys.platform.startswith("win"):
+            bin_path = os.path.abspath('../utils/bin/3Seq/windows_3seq.exe')
+        else:
+            bin_path = os.path.abspath('../utils/bin/3Seq/unix_3seq.exe')
 
-        sites = informative_sites.union(ref_diffs)
+        if not os.path.isfile(bin_path):
+            logging.error("No 3Seq executable file exists.")
 
-        # Build "new alignment"
-        new_align = align[:, sites]
-        ab = np.array(new_align[0], new_align[1])
-        bc = np.array(new_align[1], new_align[2])
-        ac = np.array(new_align[0], new_align[2])
+        # Run 3Seq
+        if sys.platform.startswith("win"):
+            try:
+                subprocess.check_output([bin_path, "-f", self.in_path, "-d", "-id", self.in_name],
+                                        shell=False, input=b"Y\n")  # Respond to prompt
+            except subprocess.CalledProcessError as e:
+                print(e.output, e.returncode)
+        else:
+            try:
+                subprocess.check_output([bin_path, "-f", self.in_path, "-d", "-id", self.in_name],
+                                        shell=False, input=b"Y\n")  # Respond to prompt
+            except subprocess.CalledProcessError as e:
+                print(e.output, e.returncode)
 
-        # 2. Sliding window over subsequence and calculate average percent identity at each position
-        recombinant_regions = ''  # Recombinant regions denoted by ones
-        for i in range(len(new_align)):
-            reg_ab = ab[i, self.win_size]
-            reg_bc = bc[i, self.win_size]
-            reg_ac = ac[i, self.win_size]
-            percent_identity_ab = np.all(reg_ab) / len(new_align) * 100
-            percent_identity_bc = np.all(reg_bc) / len(new_align) * 100
-            percent_identity_ac = np.all(reg_ac) / len(new_align) * 100
+        # Parse the output of 3Seq
+        tseq_out = self.in_name + '.3s.rec'
+        out_path = os.path.join(os.getcwd(), tseq_out)
+        ts_results = self.parse_output(out_path)
 
-            # Identify recombinant regions
-            if percent_identity_ac > percent_identity_ab or percent_identity_bc > percent_identity_ab:
-                recombinant_regions += 1
-            else:
-                recombinant_regions += 0
+        return ts_results
 
-        # 3. Record significance of events
-        recomb = re.match('1', recombinant_regions)
-        recomb_idx = recomb.span()
+    def parse_output(self, out_path):
+        """
+        Parse the output of the 3Seq analysis
+        :param out_path: Path to the output file containing information about recombinant sequences
+        :return: List of triplets, corrected and uncorrected p-values, and breakpoint locations
+        """
+        ts_results = []
 
-        rdp_res = []
+        # Check that the out file exists
+        try:
+            with open(out_path) as out_handle:
+                out_handle.readline()  # Read first line
 
-        for idx in recomb_idx:
-            n = idx[1] - idx[0]
-            G = idx[1]  # num windows involved
-            l = len(new_align)
+                for line in out_handle:
+                    line = line.split('\t')
+                    line = [l.strip() for l in line]
+                    triplet = ([line[0], line[1], line[2]])  # Record the triplets
+                    uncorr_p_value = line[6]  # Uncorrected p-value
+                    corr_p_value = line[10]  # Dunn-Sidak corrected p-value
+                    locations = line[12:]  # Breakpoint locations
+                    ts_results.append([triplet, uncorr_p_value, corr_p_value, locations])
+        except FileNotFoundError as e:
+            print(e)
 
-            # m is the proportion of nts in common between either A or B and C in the recombinant region
-            m = np.all(new_align[0][:, l], new_align[2][:, l]).sum()
-
-            # p is the proportion of nts in common between either A or B and C in the entire sequence
-            p = np.all(align[0], align[1]).sum() / align.length
-
-            # Calculate p_value
-            val = 0
-            for i in range(m, n):
-                val += (np.math.factorial(n) / (np.math.factorial(i) * np.math.factorial(n - i))) * p ** n * (
-                            1 - p) ** (n - i)
-            p_value = G * (l / n) * val
-
-            rdp_res.append(p_value, idx)
-
-        return rdp_res
+        return ts_results
 
 
 class GeneConv:
@@ -156,19 +142,19 @@ class GeneConv:
         If the options are invalid, the default value will be used instead
         """
         if not isinstance(self.ignore_indels, bool):
-            print("Invalid option: 'indels_as_polymorphisms'.\nUsing default value instead.\n")
+            print("Invalid option for 'indels_as_polymorphisms'.\nUsing default value (False) instead.\n")
             self.ignore_indels = False
 
         if self.min_length <= 0:
-            print("Invalid option: 'min_len'.\nUsing default value instead.")
+            print("Invalid option for 'min_len'.\nUsing default value (1) instead.")
             self.min_length = 1
 
         if self.min_poly < 1:
-            print("Invalid option: 'min_score'.\nUsing default value instead.")
+            print("Invalid option for 'min_score'.\nUsing default value (2) instead.")
             self.min_poly = 2
 
         if self.max_overlap < 0:
-            print("Invalid option: 'max_num'.\nUsing default value instead.")
+            print("Invalid option for 'max_num'.\nUsing default value (1) instead.")
             self.min_score = 1
 
     def execute(self, in_path):
@@ -271,83 +257,366 @@ class GeneConv:
         return gc_results
 
 
-class ThreeSeq:
-    def __init__(self, in_path):
-        self.in_path = os.path.realpath(in_path)
-        self.in_name = os.path.basename(in_path)
-
-    def execute(self):
+class MaxChi:
+    def __init__(self, settings=None, win_size=200, strip_gaps=True, fixed_win_size=True, num_var_sites=None,
+                 frac_var_sites=None):
         """
-        Execute the 3Seq algorithm.
-            Lam HM, Ratmann O, Boni MF.
-            Improved algorithmic complexity for the 3SEQ recombination detection algorithm.
-            Mol Biol Evol, 35(1):247-251, 2018.
-        :return: A list containing the results of the 3Seq analysis
-                    Format: [triplets, uncorrected p-value, corrected p-value, breakpoint locations]
+        Constructs a MaxChi Object
+        :param win_size: Size of the sliding window
+        :param strip_gaps: Determines whether gaps are stripped or kept
+        :param fixed_win_size: Determines the type of sliding window (fixed or variable)
+        :param num_var_sites: The number of variable sites in a variable length sliding window
+        :param frac_var_sites: The fraction of variable sites in a variable length sliding window
         """
-        # Clear output files
-        out_files = glob.glob('./*.3s.*')
-        for f in out_files:
-            try:
-                os.remove(f)
-            except OSError:
-                pass
 
-        # Set paths to 3Seq executables
-        if sys.platform.startswith("win"):
-            bin_path = os.path.abspath('../utils/bin/3Seq/windows_3seq.exe')
+        if settings is not None:
+            self.set_options_from_config(settings)
+            self.validate_options()
+
         else:
-            bin_path = os.path.abspath('../utils/bin/3Seq/unix_3seq.exe')
+            self.win_size = win_size
+            self.strip_gaps = strip_gaps
+            self.fixed_win_size = fixed_win_size
+            self.num_var_sites = num_var_sites
+            self.frac_var_sites = frac_var_sites
 
-        if not os.path.isfile(bin_path):
-            logging.error("No 3Seq executable file exists.")
+    def set_options_from_config(self, settings):
+        """
+        Set the parameters of MaxChi from the config file
+        :param settings: a dictionary of settings
+        """
+        self.win_size = int(settings['win_size'])
 
-        # Run 3Seq
-        if sys.platform.startswith("win"):
-            try:
-                subprocess.check_output([bin_path, "-f", self.in_path, "-d", "-id", self.in_name],
-                                        shell=False, input=b"Y\n")  # Respond to prompt
-            except subprocess.CalledProcessError as e:
-                print(e.output, e.returncode)
+        if settings['strip_gaps'] == 'False':
+            self.strip_gaps = False
         else:
-            try:
-                subprocess.check_output([bin_path, "-f", self.in_path, "-d", "-id", self.in_name],
-                                        shell=False, input=b"Y\n")  # Respond to prompt
-            except subprocess.CalledProcessError as e:
-                print(e.output, e.returncode)
+            self.strip_gaps = True
 
-        # Parse the output of 3Seq
-        tseq_out = self.in_name + '.3s.rec'
-        out_path = os.path.join(os.getcwd(), tseq_out)
-        ts_results = self.parse_output(out_path)
+        if settings['fixed_win_size'] == 'True':
+            self.fixed_win_size = True
+        else:
+            self.fixed_win_size = False
 
-        return ts_results
+        self.num_var_sites = int(settings['num_var_sites'])
+        self.frac_var_sites = float(settings['frac_var_sites'])
 
-    def parse_output(self, out_path):
+    def validate_options(self):
         """
-        Parse the output of the 3Seq analysis
-        :param out_path: Path to the output file containing information about recombinant sequences
-        :return: List of triplets, corrected and uncorrected p-values, and breakpoint locations
+        Check if the options from the config file are valid
+        If the options are invalid, the default value will be used instead
         """
-        ts_results = []
+        if self.win_size < 0:
+            print("Invalid option for 'win_size'.\nUsing default value (200) instead.")
+            self.win_size = 200
 
-        # Check that the out file exists
-        try:
-            with open(out_path) as out_handle:
-                out_handle.readline()  # Read first line
+        if not self.fixed_win_size:
+            if self.num_var_sites < 0:
+                print("Invalid option for 'num_var_sites'.\nUsing default value (70) instead.")
+                self.num_var_sites = 70
 
-                for line in out_handle:
-                    line = line.split('\t')
-                    line = [l.strip() for l in line]
-                    triplet = ([line[0], line[1], line[2]])  # Record the triplets
-                    uncorr_p_value = line[6]  # Uncorrected p-value
-                    corr_p_value = line[10]  # Dunn-Sidak corrected p-value
-                    locations = line[12:]  # Breakpoint locations
-                    ts_results.append([triplet, uncorr_p_value, corr_p_value, locations])
-        except FileNotFoundError as e:
-            print(e)
+            if self.frac_var_sites > 1 or self.frac_var_sites < 0:
+                print("Invalid option for 'frac_var_sites'.\nUsing default value (0.1) instead.")
+                self.frac_var_sites = 0.1
 
-        return ts_results
+    def execute(self, align, triplet):
+        """
+        Executes the MaxChi algorithm
+        :param align: a n x m numpy array where n is the length of the alignment and m is the number of sequences
+        :param triplet: a list of three sequences
+        """
+
+        # 1. Remove monomorphic sites
+        poly_sites = []
+        # Find positions of polymorphic sites
+        for i in range(len(align)):
+            col = align[:, i]
+            if not np.all(col == col[0]):
+                poly_sites.append(i)
+
+        # Build "new alignment"
+        new_align = align[:, poly_sites]
+        maxchi_out = []
+
+        # 2. Sample two sequences
+        pairs = [(0, 1), (1, 2), (2, 0)]
+        for i, j in pairs:
+            seq1 = triplet[i]
+            seq2 = triplet[j]
+
+            # Slide along the sequences
+            for k in range(len(new_align)):
+                reg1_r = seq1[k: self.win_size / 2]
+                reg2_r = seq2[k: self.win_size / 2]
+                reg1_l = seq1[self.win_size / 2: self.win_size]
+                reg2_l = seq2[self.win_size / 2: self.win_size]
+
+                c_table = [[0, 0],
+                           [0, 0]]
+
+                # Compute contingency table for each window position
+                left_matches = np.sum((reg1_l == reg2_l))
+                print(left_matches)
+                c_table[0][0] = int(left_matches)
+                c_table[0][1] = int(self.win_size / 2) - left_matches
+
+                right_matches = np.sum((reg1_r == reg2_r))
+                print(right_matches)
+                c_table[1][0] = int(right_matches)
+                c_table[1][1] = int(self.win_size / 2) - right_matches
+
+                # Compute chi-squared value
+                chi2, p_value, _, _ = chi2_contingency(c_table)
+
+                maxchi_out.append((chi2, p_value))
+
+        return maxchi_out
+
+
+class Chimaera:
+    def __init__(self, settings=None, win_size=200, strip_gaps=True, fixed_win_size=True, num_var_sites=None,
+                 frac_var_sites=None):
+        """
+        Constructs a Chimaera Object
+        :param win_size: Size of the sliding window
+        :param strip_gaps: Determines whether gaps are stripped or kept
+        :param fixed_win_size: Determines the type of sliding window (fixed or variable)
+        :param num_var_sites: The number of variable sites in a variable length sliding window
+        :param frac_var_sites: The fraction of variable sites in a variable length sliding window
+        """
+        if settings:
+            self.set_options_from_config(settings)
+            self.validate_options()
+        else:
+            self.win_size = win_size
+            self.strip_gaps = strip_gaps
+            self.fixed_win_size = fixed_win_size
+            self.num_var_sites = num_var_sites
+            self.frac_var_sites = frac_var_sites
+
+    def set_options_from_config(self, settings):
+        """
+        Set the parameters of MaxChi from the config file
+        :param settings: a dictionary of settings
+        """
+        self.win_size = int(settings['win_size'])
+
+        if settings['strip_gaps'] == 'False':
+            self.strip_gaps = False
+        else:
+            self.strip_gaps = True
+
+        if settings['fixed_win_size'] == 'True':
+            self.fixed_win_size = True
+        else:
+            self.fixed_win_size = False
+
+        self.num_var_sites = int(settings['num_var_sites'])
+        self.frac_var_sites = float(settings['frac_var_sites'])
+
+    def validate_options(self):
+        """
+        Check if the options from the config file are valid
+        If the options are invalid, the default value will be used instead
+        """
+        if self.win_size < 0:
+            print("Invalid option for 'win_size'.\nUsing default value (200) instead.")
+            self.win_size = 200
+
+        if not self.fixed_win_size:
+            if self.num_var_sites < 0:
+                print("Invalid option for 'num_var_sites'.\nUsing default value (60) instead.")
+                self.num_var_sites = 60
+
+            if self.frac_var_sites > 1 or self.frac_var_sites < 0:
+                print("Invalid option for 'frac_var_sites'.\nUsing default value (0.1) instead.")
+                self.frac_var_sites = 0.1
+
+    def execute(self, align, triplet):
+
+        # 1. Remove monomorphic sites
+        poly_sites = []
+        # Find positions of polymorphic sites
+        for i in range(len(align)):
+            col = align[:, i]
+            if not np.all(col == col[0]):
+                poly_sites.append(i)
+
+        # Build "new alignment"
+        new_align = align[:, poly_sites]
+
+        chimaera_out = []
+
+        combos = [(0, 1, 2), (1, 2, 0), (2, 1, 0)]
+        for run in combos:
+            recombinant = triplet[run[0]]
+            parental_1 = triplet[run[1]]
+            parental_2 = triplet[run[2]]
+
+            # Remove sites where neither the parental match the recombinant
+            informative_sites = []
+            aln = np.array([recombinant, parental_1, parental_2])
+            # Find indices for informative sites
+            for i in range(len(aln)):
+                col = align[:, i]
+                if len(np.unique(col)) != 3:
+                    informative_sites += i
+
+            # Build new alignment with uninformative sites removed
+            new_aln = aln[:, informative_sites]
+
+            # 2. Compress "recombinant" into bitstrings
+            comp_seq = []
+            for i in range(len(new_align)):
+                if new_align[i, 0] == new_align[i, 1]:
+                    comp_seq.append(0)
+                elif new_align[i, 0] == new_align[i, 2]:
+                    comp_seq.append(1)
+
+            # Move sliding window along compressed sequence , 1 position at a time
+            # Slide along the sequences
+            for k in range(len(comp_seq)):
+                reg_r = comp_seq[k: self.win_size / 2]
+                reg_l = comp_seq[self.win_size / 2: self.win_size]
+
+                c_table = [[0, 0],
+                           [0, 0]]
+
+                # Compute contingency table for each window position
+                count_left_ones = np.count_nonzero(reg_l)
+                c_table[0][0] = count_left_ones
+                c_table[0][1] = self.win_size / 2 - count_left_ones
+
+                count_right_ones = np.count_nonzero(reg_r)
+                c_table[1][0] = count_right_ones
+                c_table[1][1] = self.win_size / 2 - count_right_ones
+
+                # Compute chi-squared value
+                chi2, p_value, _, _ = chi2_contingency(c_table)
+
+                chimaera_out.append((chi2, p_value))
+
+        return chimaera_out
+
+
+class RdpMethod:
+    """
+    Executes RDP method
+    """
+
+    def __init__(self, settings=None, win_size=30, reference=None, min_id=0, max_id=100):
+        if settings:
+            self.set_options_from_config(settings)
+            self.validate_options()
+
+        else:
+            self.win_size = win_size
+            self.reference = reference
+            self.min_id = min_id
+            self.max_id = max_id
+
+    def set_options_from_config(self, settings):
+        """
+        Set the parameters of the RDP method from the config file
+        :param settings: a dictionary of settings
+        """
+        self.win_size = int(settings['window_size'])
+        self.reference = settings['reference']
+        self.min_id = int(settings['min_identity'])
+        self.max_id = int(settings['max_identity'])
+
+    def validate_options(self):
+        """
+        Check if the options from the config file are valid
+        If the options are invalid, the default value will be used instead
+        """
+        if self.win_size < 0:
+            print("Invalid option for 'window_size'.\nUsing default value (30) instead.")
+            self.win_size = 30
+
+        if self.min_id < 0 or self.min_id > 100:
+            print("Invalid option for 'min_identity'.\nUsing default value (0) instead.")
+            self.min_id = 0
+
+        if self.max_id < 0 or self.max_id > 100:
+            print("Invalid option for 'max_identity'.\nUsing default value (100) instead.")
+            self.min_id = 100
+
+    def execute(self, align, triplet):
+        """
+        Performs RDP detection method for one triplet of sequences
+        :param align: the Alignment object
+        :param triplet: the triplet
+        :return: the coordinates of the potential recombinant region and the p_value
+        """
+        # 1. Remove uninformative sites
+        informative_sites = set()
+        ref_diffs = set()
+        # Find positions of polymorphic sites
+        for i in range(len(triplet)):
+            col = triplet[:, i]
+            # All sites are the same or different
+            if not np.all(col == col[0]) or np.all(col == col[0]):
+                informative_sites.add(col)
+
+            # Find positions that are different in the reference sequence
+            if self.reference is not None:
+                for j in range(len(triplet)):
+                    pair = np.array(j, self.reference)
+                    c = pair[:, j]
+                    if not np.all(c == c[0]):
+                        ref_diffs.add(c)
+
+        sites = informative_sites.union(ref_diffs)
+
+        # Build "new alignment"
+        new_align = align[:, sites]
+        ab = np.array(new_align[0], new_align[1])
+        bc = np.array(new_align[1], new_align[2])
+        ac = np.array(new_align[0], new_align[2])
+
+        # 2. Sliding window over subsequence and calculate average percent identity at each position
+        recombinant_regions = ''  # Recombinant regions denoted by ones
+        for i in range(len(new_align)):
+            reg_ab = ab[i, self.win_size]
+            reg_bc = bc[i, self.win_size]
+            reg_ac = ac[i, self.win_size]
+            percent_identity_ab = np.all(reg_ab) / len(new_align) * 100
+            percent_identity_bc = np.all(reg_bc) / len(new_align) * 100
+            percent_identity_ac = np.all(reg_ac) / len(new_align) * 100
+
+            # Identify recombinant regions
+            if percent_identity_ac > percent_identity_ab or percent_identity_bc > percent_identity_ab:
+                recombinant_regions += 1
+            else:
+                recombinant_regions += 0
+
+        # 3. Record significance of events
+        recomb = re.match('1', recombinant_regions)
+        recomb_idx = recomb.span()
+
+        rdp_res = []
+
+        for idx in recomb_idx:
+            n = idx[1] - idx[0]
+            G = idx[1]  # num windows involved
+            l = len(new_align)
+
+            # m is the proportion of nts in common between either A or B and C in the recombinant region
+            m = np.all(new_align[0][:, l], new_align[2][:, l]).sum()
+
+            # p is the proportion of nts in common between either A or B and C in the entire sequence
+            p = np.all(align[0], align[1]).sum() / align.length
+
+            # Calculate p_value
+            val = 0
+            for i in range(m, n):
+                val += (np.math.factorial(n) / (np.math.factorial(i) * np.math.factorial(n - i))) * p ** n * (
+                        1 - p) ** (n - i)
+            p_value = G * (l / n) * val
+
+            rdp_res.append(p_value, idx)
+
+        return rdp_res
 
 
 class Siscan:
@@ -366,6 +635,10 @@ class Siscan:
         pass
 
     def validate_options(self):
+        """
+        Check if the options from the config file are valid
+        If the options are invalid, the default value will be used instead
+        """
         pass
 
     def count_patterns(self, a, b, c, d):
@@ -521,149 +794,6 @@ class Siscan:
         return pat_zscore, sum_pat_zscore
 
 
-class MaxChi:
-    def __init__(self, win_size=200, strip_gaps=True):
-        self.win_size = win_size
-        self.strip_gaps = strip_gaps
-
-    def set_options_from_config(self, settings={}):
-        pass
-
-    def validate_options(self):
-        pass
-
-    def execute(self, align, triplet):
-        """
-        Executes the MaxChi algorithm
-        :param align: a n x m numpy array where n is the length of the alignment and m is the number of sequences
-        :param triplet: a list of three sequences
-        """
-
-        # 1. Remove monomorphic sites
-        poly_sites = []
-        # Find positions of polymorphic sites
-        for i in range(len(align)):
-            col = align[:, i]
-            if not np.all(col == col[0]):
-                poly_sites.append(i)
-
-        # Build "new alignment"
-        new_align = align[:, poly_sites]
-        maxchi_out = []
-
-        # 2. Sample two sequences
-        pairs = [(0, 1), (1, 2), (2, 0)]
-        for i, j in pairs:
-            seq1 = triplet[i]
-            seq2 = triplet[j]
-
-            # Slide along the sequences
-            for k in range(len(new_align)):
-                reg1_r = seq1[k: self.win_size / 2]
-                reg2_r = seq2[k: self.win_size / 2]
-                reg1_l = seq1[self.win_size / 2: self.win_size]
-                reg2_l = seq2[self.win_size / 2: self.win_size]
-
-                c_table = [[0, 0],
-                           [0, 0]]
-
-                # Compute contingency table for each window position
-                left_matches = np.sum((reg1_l == reg2_l))
-                print(left_matches)
-                c_table[0][0] = int(left_matches)
-                c_table[0][1] = int(self.win_size / 2) - left_matches
-
-                right_matches = np.sum((reg1_r == reg2_r))
-                print(right_matches)
-                c_table[1][0] = int(right_matches)
-                c_table[1][1] = int(self.win_size / 2) - right_matches
-
-                # Compute chi-squared value
-                chi2, p_value, _, _ = chi2_contingency(c_table)
-
-                maxchi_out.append((chi2, p_value))
-
-        return maxchi_out
-
-
-class Chimaera:
-    def __init__(self, win_size=200, strip_gaps=True):
-        self.win_size = win_size
-        self.strip_gaps = strip_gaps
-
-    def set_options_from_config(self, settings={}):
-        pass
-
-    def validate_options(self):
-        pass
-
-    def execute(self, align, triplet):
-
-        # 1. Remove monomorphic sites
-        poly_sites = []
-        # Find positions of polymorphic sites
-        for i in range(len(align)):
-            col = align[:, i]
-            if not np.all(col == col[0]):
-                poly_sites.append(i)
-
-        # Build "new alignment"
-        new_align = align[:, poly_sites]
-
-        chimaera_out = []
-
-        combos = [(0, 1, 2), (1, 2, 0), (2, 1, 0)]
-        for run in combos:
-            recombinant = triplet[run[0]]
-            parental_1 = triplet[run[1]]
-            parental_2 = triplet[run[2]]
-
-            # Remove sites where neither the parental match the recombinant
-            informative_sites = []
-            aln = np.array([recombinant, parental_1, parental_2])
-            # Find indices for informative sites
-            for i in range(len(aln)):
-                col = align[:, i]
-                if len(np.unique(col)) != 3:
-                    informative_sites += i
-
-            # Build new alignment with uninformative sites removed
-            new_aln = aln[:, informative_sites]
-
-            # 2. Compress "recombinant" into bitstrings
-            comp_seq = []
-            for i in range(len(new_align)):
-                if new_align[i, 0] == new_align[i, 1]:
-                    comp_seq.append(0)
-                elif new_align[i, 0] == new_align[i, 2]:
-                    comp_seq.append(1)
-
-            # Move sliding window along compressed sequence , 1 position at a time
-            # Slide along the sequences
-            for k in range(len(comp_seq)):
-                reg_r = comp_seq[k: self.win_size / 2]
-                reg_l = comp_seq[self.win_size / 2: self.win_size]
-
-                c_table = [[0, 0],
-                           [0, 0]]
-
-                # Compute contingency table for each window position
-                count_left_ones = np.count_nonzero(reg_l)
-                c_table[0][0] = count_left_ones
-                c_table[0][1] = self.win_size / 2 - count_left_ones
-
-                count_right_ones = np.count_nonzero(reg_r)
-                c_table[1][0] = count_right_ones
-                c_table[1][1] = self.win_size / 2 - count_right_ones
-
-                # Compute chi-squared value
-                chi2, p_value, _, _ = chi2_contingency(c_table)
-
-                chimaera_out.append((chi2, p_value))
-
-        return chimaera_out
-
-
 class Bootscan:
     def __init__(self, win_size=200, step_size=20, use_distances=True, num_replicates=100, random_seed=3,
                  cutoff=0.7, p_val_calc='binomial', model='JC69'):
@@ -680,6 +810,10 @@ class Bootscan:
         pass
 
     def validate_options(self):
+        """
+        Check if the options from the config file are valid
+        If the options are invalid, the default value will be used instead
+        """
         pass
 
     def percent_diff(self, s1, s2):

@@ -1,4 +1,3 @@
-from preprocessing import *
 from do_scans import *
 from itertools import combinations
 import configparser
@@ -75,13 +74,15 @@ class Scanner:
 
         # Setup Chimaera
         if self.chimaera:
+            print("Starting Chimaera Analysis")
             if config:
-                chimaera = Chimaera(settings=config['Chimaera'])
+                chimaera = Chimaera(alignment, settings=config['Chimaera'])
             else:
-                chimaera = Chimaera()
+                chimaera = Chimaera(alignment)
 
         # Setup Siscan
         if self.siscan:
+            print("Starting Siscan Analysis")
             if config:
                 siscan = Siscan(settings=config['SisScan'])
             else:
@@ -101,24 +102,21 @@ class Scanner:
             else:
                 rdp = RdpMethod()
 
+        i = 1
+        num_trp = len(list(combinations(seq_num, 3)))
         for triplet in list(combinations(seq_num, 3)):
+            print("Scanning triplet {} / {}".format(i, num_trp))
             # Run MaxChi
             if self.maxchi:
                 maxchi.execute(triplet)
 
             # Run Chimaera
             if self.chimaera:
-                print("Starting Chimaera Analysis")
-                cm_results = chimaera.execute(self.aln, triplet)
-                print("Finished Chimaera Analysis")
-                print(cm_results)
+                chimaera.execute(triplet)
 
             # Run Siscan
             if self.siscan:
-                print("Starting Siscan Analysis")
                 ss_results = siscan.execute(self.aln, triplet)
-                print("Finished Siscan Analysis")
-                print(ss_results)
 
             # Run Bootscan
             if self.bootscan:
@@ -134,5 +132,16 @@ class Scanner:
                 print("Finished RDP Analysis")
                 print(rdp_results)
 
-        print("Finished MaxChi Analysis")
-        print(maxchi.results)
+            i += 1
+
+        if self.maxchi:
+            print("Finished MaxChi Analysis")
+            print(maxchi.results)
+
+        if self.chimaera:
+            print("Finished Chimaera Analysis")
+            print(chimaera.results)
+
+        if self.siscan:
+            print("Finished Siscan Analysis")
+            print(siscan.results)

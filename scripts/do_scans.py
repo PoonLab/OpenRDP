@@ -386,7 +386,7 @@ class MaxChi:
 
 
 class Chimaera:
-    def __init__(self, settings=None, win_size=200, strip_gaps=True, fixed_win_size=True, num_var_sites=None,
+    def __init__(self, align, settings=None, win_size=200, strip_gaps=True, fixed_win_size=True, num_var_sites=None,
                  frac_var_sites=None):
         """
         Constructs a Chimaera Object
@@ -405,6 +405,9 @@ class Chimaera:
             self.fixed_win_size = fixed_win_size
             self.num_var_sites = num_var_sites
             self.frac_var_sites = frac_var_sites
+
+        self.new_align, self.poly_sites = self.remove_monomorphic_sites(align)
+        self.results = []
 
     def set_options_from_config(self, settings):
         """
@@ -444,12 +447,16 @@ class Chimaera:
                 print("Invalid option for 'frac_var_sites'.\nUsing default value (0.1) instead.")
                 self.frac_var_sites = 0.1
 
-    def execute(self, align, triplet):
-
-        # 1. Remove monomorphic sites
+    @staticmethod
+    def remove_monomorphic_sites(align):
+        """
+        Remove monomorphic sites
+        :param align: n x m numpy array where n is the length of the alignment and m is the number of sequences
+        :return: a tuple containing the polymorphic sites and the positions of polymorphic sites
+        """
         poly_sites = []
         # Find positions of polymorphic sites
-        for i in range(len(align)):
+        for i in range(align.shape[1]):
             col = align[:, i]
             if not np.all(col == col[0]):
                 poly_sites.append(i)
@@ -457,58 +464,70 @@ class Chimaera:
         # Build "new alignment"
         new_align = align[:, poly_sites]
 
-        chimaera_out = []
+        return new_align, poly_sites
+
+    def execute(self, triplet):
+        """
+        Executes the Chimaera algorithm
+        :param triplet: a list of three sequences
+        """
+
+        # Get the triplet sequences
+        trp_seqs = []
+        for seq_num in triplet:
+            trp_seqs.append(self.new_align[seq_num])
 
         combos = [(0, 1, 2), (1, 2, 0), (2, 1, 0)]
         for run in combos:
-            recombinant = triplet[run[0]]
-            parental_1 = triplet[run[1]]
-            parental_2 = triplet[run[2]]
+            recombinant = trp_seqs[run[0]]
+            parental_1 = trp_seqs[run[1]]
+            parental_2 = trp_seqs[run[2]]
 
             # Remove sites where neither the parental match the recombinant
             informative_sites = []
             aln = np.array([recombinant, parental_1, parental_2])
             # Find indices for informative sites
-            for i in range(len(aln)):
-                col = align[:, i]
-                if len(np.unique(col)) != 3:
-                    informative_sites += i
+            for i in range(aln.shape[1]):
+                col = aln[:, i]
+                if col[0] == col[1] or col[0] == col[2]:
+                    informative_sites.append(i)
 
             # Build new alignment with uninformative sites removed
             new_aln = aln[:, informative_sites]
 
-            # 2. Compress "recombinant" into bitstrings
+            # 2. Compress "recombinant" into bit-strings
             comp_seq = []
-            for i in range(len(new_align)):
-                if new_align[i, 0] == new_align[i, 1]:
+            for i in range(new_aln.shape[1]):
+                if new_aln[0][i] == new_aln[1][i]:
                     comp_seq.append(0)
-                elif new_align[i, 0] == new_align[i, 2]:
+                elif new_aln[0][i] == new_aln[2][i]:
                     comp_seq.append(1)
 
             # Move sliding window along compressed sequence , 1 position at a time
             # Slide along the sequences
-            for k in range(len(comp_seq)):
-                reg_r = comp_seq[k: self.win_size / 2]
-                reg_l = comp_seq[self.win_size / 2: self.win_size]
+            half_win_size = int(self.win_size // 2)
+            for k in range(len(comp_seq) - self.win_size):
+                reg_left = comp_seq[k: half_win_size + k]
+                reg_right = comp_seq[k + half_win_size: k + self.win_size]
 
                 c_table = [[0, 0],
                            [0, 0]]
 
                 # Compute contingency table for each window position
-                count_left_ones = np.count_nonzero(reg_l)
-                c_table[0][0] = count_left_ones
-                c_table[0][1] = self.win_size / 2 - count_left_ones
+                count_r_ones = np.count_nonzero(reg_right)
+                c_table[0][0] = count_r_ones
+                c_table[0][1] = half_win_size - count_r_ones
 
-                count_right_ones = np.count_nonzero(reg_r)
-                c_table[1][0] = count_right_ones
-                c_table[1][1] = self.win_size / 2 - count_right_ones
+                count_l_ones = np.count_nonzero(reg_left)
+                c_table[1][0] = count_l_ones
+                c_table[1][1] = half_win_size - count_l_ones
 
                 # Compute chi-squared value
                 chi2, p_value, _, _ = chi2_contingency(c_table)
 
-                chimaera_out.append((chi2, p_value))
+                self.results.append((triplet, run, chi2, p_value))
 
-        return chimaera_out
+        return 
 
 
 class RdpMethod:

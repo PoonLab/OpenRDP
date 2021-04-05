@@ -8,13 +8,9 @@ class Sequence:
     Represents an aligned sequence
     """
     def __init__(self, seq_name, sequence, num):
-        self.sequence = np.array(list(sequence))
+        self.sequence = sequence
         self.length = len(self.sequence)
         self.seq_name = seq_name
-        self.gap_pos = self.find_gaps()
-        # self.bit_seq = self.encode_seq()
-        self.num = num  # Used for indexing distance matrix
-        self.ungapped = self.remove_gaps()
 
     def gap_at_pos(self, pos):
         """

@@ -258,7 +258,7 @@ class GeneConv:
 
 
 class MaxChi:
-    def __init__(self, settings=None, win_size=200, strip_gaps=True, fixed_win_size=True, num_var_sites=None,
+    def __init__(self, align, settings=None, win_size=200, strip_gaps=True, fixed_win_size=True, num_var_sites=None,
                  frac_var_sites=None):
         """
         Constructs a MaxChi Object
@@ -268,7 +268,6 @@ class MaxChi:
         :param num_var_sites: The number of variable sites in a variable length sliding window
         :param frac_var_sites: The fraction of variable sites in a variable length sliding window
         """
-
         if settings is not None:
             self.set_options_from_config(settings)
             self.validate_options()
@@ -279,6 +278,10 @@ class MaxChi:
             self.fixed_win_size = fixed_win_size
             self.num_var_sites = num_var_sites
             self.frac_var_sites = frac_var_sites
+
+        self.align = align
+        self.new_align, self.poly_sites = self.remove_monomorphic_sites(align)
+        self.results = []
 
     def set_options_from_config(self, settings):
         """
@@ -318,58 +321,68 @@ class MaxChi:
                 print("Invalid option for 'frac_var_sites'.\nUsing default value (0.1) instead.")
                 self.frac_var_sites = 0.1
 
-    def execute(self, align, triplet):
+    @staticmethod
+    def remove_monomorphic_sites(align):
         """
-        Executes the MaxChi algorithm
-        :param align: a n x m numpy array where n is the length of the alignment and m is the number of sequences
-        :param triplet: a list of three sequences
+        Remove monomorphic sites
+        :param align: n x m numpy array where n is the length of the alignment and m is the number of sequences
+        :return: a tuple containing the polymorphic sites and the positions of polymorphic sites
         """
-
-        # 1. Remove monomorphic sites
         poly_sites = []
         # Find positions of polymorphic sites
-        for i in range(len(align)):
+        for i in range(align.shape[1]):
             col = align[:, i]
             if not np.all(col == col[0]):
                 poly_sites.append(i)
 
         # Build "new alignment"
         new_align = align[:, poly_sites]
-        maxchi_out = []
+
+        return new_align, poly_sites
+
+    def execute(self, triplet):
+        """
+        Executes the MaxChi algorithm
+        :param triplet: a list of three sequences
+        """
+
+        # Get the triplet sequences
+        trp_seqs = []
+        for seq_num in triplet:
+            trp_seqs.append(self.new_align[seq_num])
 
         # 2. Sample two sequences
         pairs = [(0, 1), (1, 2), (2, 0)]
         for i, j in pairs:
-            seq1 = triplet[i]
-            seq2 = triplet[j]
+            seq1 = trp_seqs[i]
+            seq2 = trp_seqs[j]
 
             # Slide along the sequences
-            for k in range(len(new_align)):
-                reg1_r = seq1[k: self.win_size / 2]
-                reg2_r = seq2[k: self.win_size / 2]
-                reg1_l = seq1[self.win_size / 2: self.win_size]
-                reg2_l = seq2[self.win_size / 2: self.win_size]
+            half_win_size = int(self.win_size // 2)
+            for k in range(self.new_align.shape[1] - self.win_size):
+                reg1_left = seq1[k: half_win_size + k]
+                reg2_left = seq2[k: half_win_size + k]
+                reg1_right = seq1[k + half_win_size: k + self.win_size]
+                reg2_right = seq2[k + half_win_size: k + self.win_size]
 
                 c_table = [[0, 0],
                            [0, 0]]
 
                 # Compute contingency table for each window position
-                left_matches = np.sum((reg1_l == reg2_l))
-                print(left_matches)
-                c_table[0][0] = int(left_matches)
-                c_table[0][1] = int(self.win_size / 2) - left_matches
+                r_matches = np.sum((reg1_right == reg2_right))
+                c_table[0][0] = int(r_matches)
+                c_table[0][1] = half_win_size - r_matches
 
-                right_matches = np.sum((reg1_r == reg2_r))
-                print(right_matches)
-                c_table[1][0] = int(right_matches)
-                c_table[1][1] = int(self.win_size / 2) - right_matches
+                l_matches = np.sum((reg1_left == reg2_left))
+                c_table[1][0] = int(l_matches)
+                c_table[1][1] = half_win_size - l_matches
 
                 # Compute chi-squared value
                 chi2, p_value, _, _ = chi2_contingency(c_table)
 
-                maxchi_out.append((chi2, p_value))
+                self.results.append((triplet, (i, j), chi2, p_value))
 
-        return maxchi_out
+        return
 
 
 class Chimaera:

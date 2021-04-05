@@ -32,16 +32,14 @@ class Scanner:
         else:
             config = None
 
-        # Create sequence objects
-        seqs_in_aln = []
-        num = 0
-        for a in self.aln:
-            seq = Sequence(a, self.aln, num)
-            seqs_in_aln.append(seq)
-            num += 1
+        seq_num = []
+        aln_seqs = []
+        for i, pair in enumerate(self.aln):
+            seq_num.append(i)
+            aln_seqs.append(pair[1])
 
-        # Create alignment object
-        alignment = Alignment(seqs_in_aln)
+        # Create an m x n array of sequences (n = length, m = number of sequences)
+        alignment = np.array(list(map(list, aln_seqs)))
 
         # Run 3Seq
         if self.threeseq:
@@ -69,10 +67,11 @@ class Scanner:
 
         # Setup MaxChi
         if self.maxchi:
+            print("Starting MaxChi Analysis")
             if config:
-                maxchi = MaxChi(settings=config['MaxChi'])
+                maxchi = MaxChi(alignment, settings=config['MaxChi'])
             else:
-                maxchi = MaxChi()
+                maxchi = MaxChi(alignment)
 
         # Setup Chimaera
         if self.chimaera:
@@ -102,13 +101,10 @@ class Scanner:
             else:
                 rdp = RdpMethod()
 
-        for triplet in list(combinations(alignment.sequences, 3)):
+        for triplet in list(combinations(seq_num, 3)):
             # Run MaxChi
             if self.maxchi:
-                print("Starting MaxChi Analysis")
-                mc_results = maxchi.execute(self.aln, triplet)
-                print("Finished MaxChi Analysis")
-                print(mc_results)
+                maxchi.execute(triplet)
 
             # Run Chimaera
             if self.chimaera:
@@ -137,3 +133,6 @@ class Scanner:
                 rdp_results = rdp.execute(self.aln, triplet)
                 print("Finished RDP Analysis")
                 print(rdp_results)
+
+        print("Finished MaxChi Analysis")
+        print(maxchi.results)

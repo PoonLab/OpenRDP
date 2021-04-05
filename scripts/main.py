@@ -9,15 +9,15 @@ DNA_ALPHABET = ['A', 'T', 'G', 'C', '-', '*']
 def valid_arguments(alignment):
     """
     Check that the input alignment is valid
-    :param alignment: a  dictionary where the keys are the sequence headers and the values are the aligned sequences
+    :param alignment: a list of lists containing the sequence headers and the aligned sequences
     :return True of the alignment is valid, false otherwise
     """
-    aln_len = len(alignment[next(iter(alignment))])
-    if all(len(s) == aln_len for s in alignment.values()):
-        return True
-
-    print("Improper alignment! Not all alignments are the same length.")
-    return False
+    aln_len = len(alignment[0][1])
+    for pair in alignment:
+        if len(pair[1]) != aln_len:
+            print("Improper alignment! Not all alignments are the same length.")
+            return False
+    return True
 
 
 def valid_chars(alignment):
@@ -29,7 +29,7 @@ def valid_chars(alignment):
 
 
 def convert_fasta(handle):
-    result = {}
+    result = []
     sequence, h = '', ''
 
     # Verifies files have the correct formatting
@@ -51,30 +51,13 @@ def convert_fasta(handle):
             continue
         elif line.startswith('>') or line.startswith('#'):
             if len(sequence) > 0:
-                result[h] = sequence
+                result.append([h, sequence])
                 sequence = ''
-            h = line.strip('>#\n\r')
+            h = line.strip('>#\t\n\r')
         else:
             sequence += line.strip('\n\r').upper()
 
-    result[h] = sequence
-    return result
-
-
-def convert_clustal(handle):
-    result = {}
-    # Loop over each sequence in the clustal alignment
-    for ln in handle[3]:
-        # Skip first 3 lines
-        if len(ln) > 0:
-            # Match sequence label and build up sequence
-            if ln[0].isalpha():
-                line = ln.split()
-                header = line[0].strip()
-                seq = line[1].strip()
-                result.setdefault(header, {})
-                result[header] += seq
-
+    result.append([h, sequence])
     return result
 
 
@@ -126,8 +109,6 @@ def main():
     with open(args.infile) as in_handle:
         if args.infile.endswith('.fa') or args.infile.endswith('.fasta'):
             aln = convert_fasta(in_handle)
-        elif args.infile.endswith('.aln'):
-            aln = convert_clustal(in_handle)
 
     if not valid_arguments(aln) and not valid_arguments(aln):
         sys.exit(1)

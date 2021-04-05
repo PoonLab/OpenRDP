@@ -84,9 +84,17 @@ class Scanner:
         if self.siscan:
             print("Starting Siscan Analysis")
             if config:
-                siscan = Siscan(settings=config['SisScan'])
+                siscan = Siscan(alignment, settings=config['SisScan'])
             else:
-                siscan = Siscan()
+                siscan = Siscan(alignment)
+
+        # Setup RDP
+        if self.rdp:
+            print("Starting RDP Analysis")
+            if config:
+                rdp = RdpMethod(settings=config['RDP'])
+            else:
+                rdp = RdpMethod()
 
         # Setup Bootscan
         if self.bootscan:
@@ -94,13 +102,6 @@ class Scanner:
                 bootscan = Bootscan(settings=config['Bootscan'])
             else:
                 bootscan = Bootscan()
-
-        # Setup RDP
-        if self.rdp:
-            if config:
-                rdp = RdpMethod(settings=config['RDP'])
-            else:
-                rdp = RdpMethod()
 
         i = 1
         num_trp = len(list(combinations(seq_num, 3)))
@@ -116,7 +117,11 @@ class Scanner:
 
             # Run Siscan
             if self.siscan:
-                ss_results = siscan.execute(self.aln, triplet)
+                siscan.execute(alignment, triplet)
+
+            # Run RDP Method
+            if self.rdp:
+                rdp.execute(alignment, triplet)
 
             # Run Bootscan
             if self.bootscan:
@@ -125,15 +130,9 @@ class Scanner:
                 print("Finished Bootscan Analysis")
                 print(bs_results)
 
-            # Run RDP Method
-            if self.rdp:
-                print("Starting RDP Analysis")
-                rdp_results = rdp.execute(self.aln, triplet)
-                print("Finished RDP Analysis")
-                print(rdp_results)
-
             i += 1
 
+        # Report the results
         if self.maxchi:
             print("Finished MaxChi Analysis")
             print(maxchi.results)
@@ -145,3 +144,7 @@ class Scanner:
         if self.siscan:
             print("Finished Siscan Analysis")
             print(siscan.results)
+
+        if self.rdp:
+            print("Finished RDP Analysis")
+            print(rdp.results)

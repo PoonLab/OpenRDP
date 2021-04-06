@@ -92,9 +92,9 @@ class Scanner:
         if self.rdp:
             print("Starting RDP Analysis")
             if config:
-                rdp = RdpMethod(settings=config['RDP'])
+                rdp = RdpMethod(alignment, settings=config['RDP'])
             else:
-                rdp = RdpMethod()
+                rdp = RdpMethod(alignment)
 
         # Setup Bootscan
         if self.bootscan:
@@ -121,7 +121,7 @@ class Scanner:
 
             # Run RDP Method
             if self.rdp:
-                rdp.execute(alignment, triplet)
+                rdp.execute(alignment, triplet, num_trp)
 
             # Run Bootscan
             if self.bootscan:

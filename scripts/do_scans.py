@@ -8,7 +8,6 @@ import sys
 import copy
 
 import numpy as np
-from scipy.signal import find_peaks
 from scipy.stats import chi2_contingency
 
 

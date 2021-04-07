@@ -12,9 +12,6 @@ from scipy.signal import find_peaks
 from scipy.stats import chi2_contingency
 
 
-# TODO: multiple comparison correction
-
-
 class ThreeSeq:
     def __init__(self, in_path):
         self.in_path = os.path.realpath(in_path)
@@ -918,9 +915,11 @@ class RdpMethod:
 
                 # Calculate p_value
                 val = 0
+                log_n_fact = np.sum(np.log(np.arange(1, n+1)))  # Convert to log space to prevent integer overflow
                 for i in range(m, n):
-                    val += (np.math.factorial(n) / (np.math.factorial(i) * np.math.factorial(n - i))) * p ** n * (
-                            1 - p) ** (n - i)
+                    log_i_fact = np.sum(np.log(np.arange(1, i+1)))
+                    log_ni_fact = np.sum(np.log(np.arange(1, n-i+1)))
+                    val += np.math.exp((log_n_fact - (log_i_fact + log_ni_fact)) + np.log(p**n) + np.log((1-p)**(n-i)))
 
                 uncorr_pvalue = (len_trp / n) * val
                 corr_p_value = G * uncorr_pvalue
@@ -935,26 +934,63 @@ class RdpMethod:
 
 
 class Bootscan:
-    def __init__(self, win_size=200, step_size=20, use_distances=True, num_replicates=100, random_seed=3,
-                 cutoff=0.7, p_val_calc='binomial', model='JC69'):
-        self.win_size = win_size
-        self.step_size = step_size
-        self.use_distances = use_distances
-        self.num_replicates = num_replicates
-        self.random_seed = random_seed
-        self.cutoff = cutoff
-        self.p_val_calc = p_val_calc
-        self.model = model
+    def __init__(self, alignment, settings=None, win_size=200, step_size=20, use_distances=True, num_replicates=100,
+                 random_seed=3, cutoff=0.7, model='JC69'):
+        if settings:
+            self.set_options_from_config(settings)
+            self.validate_options(alignment)
+        else:
+            self.win_size = win_size
+            self.step_size = step_size
+            self.use_distances = use_distances
+            self.num_replicates = num_replicates
+            self.random_seed = random_seed
+            self.cutoff = cutoff
+            self.model = model
 
-    def set_options_from_config(self, settings={}):
-        pass
+        random.seed(self.random_seed)
+        print('Starting Scanning Phase of Bootscan/Recscan')
+        self.dists = self.do_scanning_phase(alignment)
+        print('Finished Scanning Phase of Bootscan/Recscan')
 
-    def validate_options(self):
+    def set_options_from_config(self, settings):
+        """
+        Set the parameters of Siscan from the  config file
+        :param settings: a dictionary of settings
+        """
+        self.win_size = int(settings['win_size'])
+        self.step_size = int(settings['step_size'])
+        self.num_replicates = int(settings['num_replicates'])
+        self.random_seed = int(settings['random_seed'])
+        self.cutoff = float(settings['cutoff_percentage'])
+
+        if settings['scan'] == 'distances':
+            self.use_distances = True
+
+    def validate_options(self, alignment):
         """
         Check if the options from the config file are valid
         If the options are invalid, the default value will be used instead
         """
-        pass
+        if self.win_size < 0 or self.win_size > alignment.shape[1]:
+            print("Invalid option for 'window_size'.\nUsing default value (200) instead.")
+            self.win_size = 200
+
+        if self.step_size < 0 or self.step_size >= self.win_size:
+            print("Invalid option for 'step_size'.\nUsing default value (20) instead.")
+            self.step_size = 20
+
+        if self.num_replicates < 0:
+            print("Invalid option for 'num_replicates'.\nUsing default value (100) instead.")
+            self.num_replicates = 100
+
+        if self.random_seed < 0:
+            print("Invalid option for 'random_seed'.\nUsing default value (3) instead.")
+            self.random_seed = 3
+
+        if self.cutoff <= 0 or self.cutoff > 1:
+            print("Invalid option for 'cutoff_percentage'.\nUsing default value (0.7) instead.")
+            self.cutoff = 0.7
 
     def percent_diff(self, s1, s2):
         alphabet = ['A', 'T', 'G', 'C']
@@ -968,24 +1004,28 @@ class Bootscan:
         return diffs / num_valid if num_valid else 0
 
     def jc_distance(self, s1, s2):
+        """
+        Calculate the pairwise Jukes-Cantor distance between 2 sequences
+        :param s1: the first sequence
+        :param s2: the second sequence
+        :return: the pairwise JC69 distance between 2 sequences
+        """
         p_dist = self.percent_diff(s1, s2)
-        return 0.75 * np.log(1 - (p_dist * 4 / 3)) if p_dist else 0
+        if p_dist >= 0.75:
+            return 1
+        return -0.75 * np.log(1 - (p_dist * 4 / 3)) if p_dist else 0
 
     def jc_matrix(self, aln):
-        mat = []  # Linearized distances
-        for s1 in aln:
-            for s2 in aln:
-                mat.append(self.jc_distance(s1, s2))
+        """
+        Compute a pairwise distance matrix for all sequences in the alignment using the JC69 model
+        :param aln: a n x m array of sequences
+        :return: a matrix of distances
+        """
+        mat = np.zeros((aln.shape[0], aln.shape[0]))  # Linearized distances
+        for i, s1 in enumerate(aln):
+            for j, s2 in enumerate(aln):
+                mat[i, j] = self.jc_distance(s1, s2)
         return mat
-
-    def binomial_p(self, G, l, n, m, p):
-        # Calculate p_value
-        val = 0
-        for i in range(m, n):
-            val += (np.math.factorial(n) / (np.math.factorial(i) * np.math.factorial(n - i))) * p ** n * (1 - p) ** (
-                    n - i)
-        p_value = G * (l / n) * val
-        return p_value
 
     def find_potential_events(self, pair1, pair2):
         # Loop over coordinates for peaks to high bootstrap support that alternates between two pairs
@@ -1016,56 +1056,122 @@ class Bootscan:
 
         return putative_regions
 
-    def execute(self, align, triplet, trp_pos_in_mat):
-        random.seed(self.random_seed)
-        # Scanning phase
-        p_values = []
+    def do_scanning_phase(self, align):
+        """
+        Perform scanning phase of the Bootscan/Recscan algorithm
+        :param align: a n x m array of aligned sequences
+        :return:
+        """
         all_dists = []
-        for i in range(len(align), self.step_size):
-            window = align[i:i + self.win_size]
-            dists = {}
+        for i in range(0, align.shape[1], self.step_size):
+            window = align[:, i:i + self.win_size]
 
             # Make bootstrap replicates of alignment
+            dists = []
             for rep in range(self.num_replicates):
-                rep_window = np.random.choice(window, replace=True)  # Shuffle columns
+                # Shuffle columns with replacement
+                rep_window = window[:, np.random.randint(0, window.shape[1], window.shape[1])]
                 dist_mat = self.jc_matrix(rep_window)
-                dists[align](dist_mat)
+                dists.append(dist_mat)
+
             all_dists.append(dists)
 
-            a = align.sequence[triplet[0]]
-            b = align.sequence[triplet[1]]
-            c = align.sequence[triplet[2]]
+        return all_dists
 
-            # Look at boostrap support for sequence pairs
-            ab_dists = all_dists[trp_pos_in_mat[a]]
-            bc_dists = all_dists[trp_pos_in_mat[b]]
-            ca_dists = all_dists[trp_pos_in_mat[c]]
+    def execute(self, align, triplet, num_trp):
+        """
+        Executes the exploratory version of the BOOTSCAN from RDP5 uses the RECSCAN algorithm,
+            which does not require that recombinants are known
+        :param align:
+        :param triplet:
+        :return:
+        """
+        num_seqs = align.shape[0]
+        # Get the triplet sequences
+        trp_seqs = []
+        for seq_num in triplet:
+            trp_seqs.append(align[seq_num])
+        trp_seqs = np.array(trp_seqs)
+        # Detection phase
+        p_values = []
 
-            # Find peaks
-            ab_max = find_peaks(ab_dists)
-            bc_max = find_peaks(bc_dists)
-            ca_max = find_peaks(ca_dists)
+        pairs = ((0,1), (1,2), (0,2))
 
-            # Loop over coordinates for peaks to high bootstrap support that alternates between two pairs
-            pairs = [(ab_max, bc_max), (bc_max, ca_max), (ab_max, ca_max)]
-            possible_regions = []
-            for pair1, pair2 in pairs:
-                possible_regions.append(self.find_potential_events(pair1, pair2))
+        # Look at boostrap support for sequence pairs
+        ab_support = []
+        bc_support = []
+        ac_support = []
+        for dists in self.dists:
+            supports = []
+            for dist_mat in dists:
+                # Access pairwise distances for each pair
+                ab_dist = dist_mat[triplet[0], triplet[1]]
+                bc_dist = dist_mat[triplet[1], triplet[2]]
+                ac_dist = dist_mat[triplet[0], triplet[2]]
+                supports.append(np.argmin([ab_dist, bc_dist, ac_dist]))
 
-            # Find p-value for regions
-            for event in possible_regions:
-                n = align[event[0]] - align[event[1]]
-                G = align[event[1]]  # num windows involved
-                l = event[1] - event[0]
+            ab_support.append(np.sum(np.equal(supports, 0)) / self.num_replicates)
+            bc_support.append(np.sum(np.equal(supports, 1)) / self.num_replicates)
+            ac_support.append(np.sum(np.equal(supports, 2)) / self.num_replicates)
 
-                # m is the proportion of nts in common between either A or B and C in the recombinant region
-                m = np.all(align[event[0]][:, l], align[event[1]][:, l]).sum()
+        supports = np.array([ab_support, bc_support, ac_support])
+        supports_max = np.argmax(supports, axis=0)
+        supports_thresh = supports > self.cutoff
 
-                # p is the proportion of nts in common between either A or B and C in the entire sequence
-                p = np.all(align[event[0]], align[event[1]]).sum() / align.length
 
-                p_val = self.binomial_p(G, l, n, m, p)
+        transition_window_locations = []
+        for i in range(1, supports.shape[1] - self.step_size):
+            if np.any(supports_thresh[:,i]):
+                max1 = np.argmax(supports_thresh[:,i])
+                if not supports_thresh[max1,i+1]:
+                    for j in range(1,self.step_size):
+                        max2 = supports_max[i+j]
+                        if max2 != max1 and supports_thresh[max2, i+j]:
+                            transition_window_locations.append(i)
+                            transition_window_locations.append(i+j)
+                            break
 
-                p_values.append((p_val, event))
+        transition_window_locations = [0] + transition_window_locations + [supports.shape[1] - 1]
+        possible_regions = []
+        groupings = ((0, 2), (0, 1), (1, 2))
+        trps = (0,1,2)
+        for rec_pot in range(3):
+            for i in range(len(transition_window_locations) - 1):
+                begin = transition_window_locations[i]
+                end = transition_window_locations[i + 1]
+                pair = supports_max[begin]
+                if np.all(supports_thresh[pair, begin:end+1]) and pair in groupings[rec_pot]:
+                    region = (rec_pot, (begin * self.step_size + self.win_size // 2, end * self.step_size + self.win_size // 2))
+                    possible_regions.append(region)
+
+        # Find p-value for regions
+        for recomb_candidate, event in possible_regions:
+            n = event[1] - event[0]
+            G = num_trp
+            l = align.shape[1]
+
+            # m is the proportion of nts in common between either A or B and C in the recombinant region
+            recomb_region_cand = trp_seqs[recomb_candidate, event[0]: event[1]]
+            other_seqs = trp_seqs[trps[:recomb_candidate] + trps[recomb_candidate+1:], event[0]: event[1]]
+            m = np.sum(np.any(recomb_region_cand == other_seqs, axis=0))
+
+            # p is the proportion of nts in common between either A or B and C in the entire sequence
+            recomb_region_cand = trp_seqs[recomb_candidate, :]
+            other_seqs = trp_seqs[trps[:recomb_candidate] + trps[recomb_candidate + 1:], :]
+            p = np.sum(np.any(recomb_region_cand == other_seqs, axis=0)) / l
+
+            # Calculate p_value
+            val = 0
+            log_n_fact = np.sum(np.log(np.arange(1, n + 1)))  # Convert to log space to prevent integer overflow
+            for i in range(m, n):
+                log_i_fact = np.sum(np.log(np.arange(1, i + 1)))
+                log_ni_fact = np.sum(np.log(np.arange(1, n - i + 1)))
+                val += np.math.exp(
+                    (log_n_fact - (log_i_fact + log_ni_fact)) + np.log(p ** n) + np.log((1 - p) ** (n - i)))
+
+            uncorr_pvalue = (l / n) * val
+            corr_p_value = G * uncorr_pvalue
+
+            p_values.append((uncorr_pvalue, corr_p_value, triplet[recomb_candidate], event))
 
         return p_values

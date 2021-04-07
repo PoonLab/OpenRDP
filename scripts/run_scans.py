@@ -99,9 +99,9 @@ class Scanner:
         # Setup Bootscan
         if self.bootscan:
             if config:
-                bootscan = Bootscan(settings=config['Bootscan'])
+                bootscan = Bootscan(alignment, settings=config['Bootscan'])
             else:
-                bootscan = Bootscan()
+                bootscan = Bootscan(alignment)
 
         i = 1
         num_trp = len(list(combinations(seq_num, 3)))
@@ -126,7 +126,7 @@ class Scanner:
             # Run Bootscan
             if self.bootscan:
                 print("Starting Bootscan Analysis")
-                bs_results = bootscan.execute(self.aln, triplet)
+                bs_results = bootscan.execute(alignment, triplet, num_trp)
                 print("Finished Bootscan Analysis")
                 print(bs_results)
 

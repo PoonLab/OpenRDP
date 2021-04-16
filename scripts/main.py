@@ -1,12 +1,12 @@
 import argparse
 import sys
-from do_scans import *
-from run_scans import Scanner
+from scripts.run_scans import Scanner
+from datetime import datetime
 
 DNA_ALPHABET = ['A', 'T', 'G', 'C', '-', '*']
 
 
-def valid_arguments(alignment):
+def valid_alignment(alignment):
     """
     Check that the input alignment is valid
     :param alignment: a list of lists containing the sequence headers and the aligned sequences
@@ -21,8 +21,8 @@ def valid_arguments(alignment):
 
 
 def valid_chars(alignment):
-    for aln in alignment:
-        if not all(pos in DNA_ALPHABET for pos in aln.upper()):
+    for h, s in alignment:
+        if not all(pos in DNA_ALPHABET for pos in s):
             print("Alignment contains invalid characters.")
             return False
     return True
@@ -110,7 +110,7 @@ def main():
         if args.infile.endswith('.fa') or args.infile.endswith('.fasta'):
             aln = convert_fasta(in_handle)
 
-    if not valid_arguments(aln) and not valid_arguments(aln):
+    if not valid_alignment(aln) and not valid_chars(aln):
         sys.exit(1)
 
     # Check that the OS is valid
@@ -120,10 +120,10 @@ def main():
     except OSError:
         print("OSError: {} is not supported".format(sys.platform))
 
+    startTime = datetime.now()
     scanner = Scanner(aln, args)
-    results = scanner.run_scans()
-
-    # print(results)
+    scanner.run_scans()
+    print(datetime.now() - startTime)
 
 
 if __name__ == '__main__':

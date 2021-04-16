@@ -1,6 +1,15 @@
-from do_scans import *
 from itertools import combinations
 import configparser
+import numpy as np
+import json
+
+from geneconv import GeneConv
+from maxchi import MaxChi
+from threeseq import ThreeSeq
+from chimaera import Chimaera
+from rdp import RdpMethod
+from siscan import Siscan
+from bootscan import Bootscan
 
 
 class Scanner:
@@ -19,6 +28,15 @@ class Scanner:
             self.cfg_file = args.cfg
         else:
             self.cfg_file = None
+
+    def get_seq_names(self):
+        """
+        Return a list of sequence headers
+        """
+        names = []
+        for h, s in self.aln:
+            names.append(h)
+        return names
 
     def run_scans(self):
         """
@@ -40,68 +58,81 @@ class Scanner:
         # Create an m x n array of sequences (n = length, m = number of sequences)
         alignment = np.array(list(map(list, aln_seqs)))
 
-        # Run 3Seq
-        if self.threeseq:
-            three_seq = ThreeSeq(self.infile)
-            print("Staring 3Seq Analysis")
-            ts_results = three_seq.execute()
-            print("Finished 3Seq Analysis")
-            print(ts_results)
+        with open('results.txt', 'w+') as outfile:
+            # Run 3Seq
+            if self.threeseq:
+                three_seq = ThreeSeq(self.infile)
+                print("Staring 3Seq Analysis")
+                ts_results = three_seq.execute()
+                print("Finished 3Seq Analysis")
+                print(ts_results)
+                outfile.write('3Seq\n')
+                for res in ts_results:
+                    outfile.write(json.dumps(res))
+                    outfile.write('\n')
 
-        # Run GENECONV
-        if self.geneconv:
-            if config:
-                geneconv = GeneConv(settings=config['Geneconv'])
-            else:
-                geneconv = GeneConv()
-            print("Starting GENECONV Analysis")
-            gc_results = geneconv.execute(self.infile)
+            # Run GENECONV
+            if self.geneconv:
+                if config:
+                    geneconv = GeneConv(settings=config['Geneconv'])
+                else:
+                    geneconv = GeneConv()
+                print("Starting GENECONV Analysis")
+                gc_results = geneconv.execute(self.infile)
 
-            print("Finished GENECONV Analysis")
-            print(gc_results)
+                print("Finished GENECONV Analysis")
+                print(gc_results)
+
+                outfile.write('Geneconv\n')
+                for res in gc_results:
+                    outfile.write(json.dumps(res))
+                    outfile.write('\n')
 
         # Exit early if 3Seq and Geneconv are the only methods selected
         if not self.maxchi and not self.chimaera and not self.siscan and not self.rdp and not self.bootscan:
             return
 
+        # Get list of sequence names
+        s_names = self.get_seq_names()
+
         # Setup MaxChi
         if self.maxchi:
             print("Starting MaxChi Analysis")
             if config:
-                maxchi = MaxChi(alignment, settings=config['MaxChi'])
+                maxchi = MaxChi(alignment, s_names, settings=config['MaxChi'])
             else:
-                maxchi = MaxChi(alignment)
+                maxchi = MaxChi(alignment, s_names)
 
         # Setup Chimaera
         if self.chimaera:
             print("Starting Chimaera Analysis")
             if config:
-                chimaera = Chimaera(alignment, settings=config['Chimaera'])
+                chimaera = Chimaera(alignment, s_names, settings=config['Chimaera'])
             else:
-                chimaera = Chimaera(alignment)
+                chimaera = Chimaera(alignment, s_names)
 
         # Setup Siscan
         if self.siscan:
             print("Starting Siscan Analysis")
             if config:
-                siscan = Siscan(alignment, settings=config['SisScan'])
+                siscan = Siscan(alignment, s_names, settings=config['SisScan'])
             else:
-                siscan = Siscan(alignment)
+                siscan = Siscan(alignment, s_names)
 
         # Setup RDP
         if self.rdp:
             print("Starting RDP Analysis")
             if config:
-                rdp = RdpMethod(alignment, settings=config['RDP'])
+                rdp = RdpMethod(alignment, s_names, settings=config['RDP'])
             else:
-                rdp = RdpMethod(alignment)
+                rdp = RdpMethod(alignment, s_names)
 
         # Setup Bootscan
         if self.bootscan:
             if config:
-                bootscan = Bootscan(alignment, settings=config['Bootscan'])
+                bootscan = Bootscan(alignment, s_names, settings=config['Bootscan'])
             else:
-                bootscan = Bootscan(alignment)
+                bootscan = Bootscan(alignment, s_names)
 
         i = 1
         num_trp = len(list(combinations(seq_num, 3)))
@@ -125,26 +156,50 @@ class Scanner:
 
             # Run Bootscan
             if self.bootscan:
-                print("Starting Bootscan Analysis")
-                bs_results = bootscan.execute(alignment, triplet, num_trp)
-                print("Finished Bootscan Analysis")
-                print(bs_results)
+                bootscan.execute(alignment, triplet, num_trp)
 
             i += 1
 
-        # Report the results
-        if self.maxchi:
-            print("Finished MaxChi Analysis")
-            print(maxchi.results)
+        with open('results.txt', 'a') as outfile:
+            # Report the results
+            if self.maxchi:
+                print("Finished MaxChi Analysis")
+                outfile.write('MaxChi\n')
+                for res in maxchi.results:
+                    outfile.write(json.dumps(res))
+                    outfile.write('\n')
 
-        if self.chimaera:
-            print("Finished Chimaera Analysis")
-            print(chimaera.results)
+                print(maxchi.results)
 
-        if self.siscan:
-            print("Finished Siscan Analysis")
-            print(siscan.results)
+            if self.chimaera:
+                print("Finished Chimaera Analysis")
+                outfile.write('Chimaera\n')
+                for res in chimaera.results:
+                    outfile.write(json.dumps(res))
+                    outfile.write('\n')
 
-        if self.rdp:
-            print("Finished RDP Analysis")
-            print(rdp.results)
+                print(chimaera.results)
+
+            if self.siscan:
+                print("Finished Siscan Analysis")
+                outfile.write('Siscan\n')
+                for res in siscan.results:
+                    outfile.write(json.dumps(res))
+                    outfile.write('\n')
+                print(siscan.results)
+
+            if self.rdp:
+                print("Finished RDP Analysis")
+                outfile.write('RDP\n')
+                for res in rdp.results:
+                    outfile.write(json.dumps(res))
+                    outfile.write('\n')
+                print(rdp.results)
+
+            if self.bootscan:
+                print("Finished Bootscan Analysis")
+                outfile.write('Bootscan\n')
+                for res in bootscan.results:
+                    outfile.write(json.dumps(res))
+                    outfile.write('\n')
+                print(bootscan.results)

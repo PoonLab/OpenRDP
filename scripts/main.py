@@ -10,7 +10,7 @@ def valid_alignment(alignment):
     """
     Check that the input alignment is valid
     :param alignment: a list of lists containing the sequence headers and the aligned sequences
-    :return True of the alignment is valid, false otherwise
+    :return True if the alignment is valid, false otherwise
     """
     aln_len = len(alignment[0][1])
     for pair in alignment:
@@ -21,6 +21,11 @@ def valid_alignment(alignment):
 
 
 def valid_chars(alignment):
+    """
+    Check that the alignment only contains valid characters
+    :param alignment: a list of lists containing the sequence headers and the aligned sequences
+    :return: True if the alignment contains only valid characters, False otherwise
+    """
     for h, s in alignment:
         if not all(pos in DNA_ALPHABET for pos in s):
             print("Alignment contains invalid characters.")
@@ -29,6 +34,11 @@ def valid_chars(alignment):
 
 
 def convert_fasta(handle):
+    """
+    Converts a FASTA formatted file to a list of lists of the form [(header, sequence), ...]
+    :param handle: file stream for the FASTA file
+    :return: list of lists of the form [(header, sequence), ...]
+    """
     result = []
     sequence, h = '', ''
 
@@ -36,7 +46,7 @@ def convert_fasta(handle):
     for i, line in enumerate(handle):
         if line.startswith('$'):
             continue
-        elif line.startswith('>') or line.startswith('#'):
+        elif line.startswith('>'):
             break
         else:
             print("No header")
@@ -49,11 +59,11 @@ def convert_fasta(handle):
     for line in handle:
         if line.startswith('$'):
             continue
-        elif line.startswith('>') or line.startswith('#'):
+        elif line.startswith('>'):
             if len(sequence) > 0:
                 result.append([h, sequence])
                 sequence = ''
-            h = line.strip('>#\t\n\r')
+            h = line.strip('>\t\n\r')
         else:
             sequence += line.strip('\n\r').upper()
 
@@ -120,8 +130,20 @@ def main():
     except OSError:
         print("OSError: {} is not supported".format(sys.platform))
 
+    # Retrieve arguments
+    infile = args.infile
+    cfg = args.cfg
+    run_geneconv = args.geneconv
+    run_three_seq = args.three_seq
+    run_rdp = args.rdp
+    run_siscan = args.siscan
+    run_maxchi = args.maxchi
+    run_chimaera = args.chimaera
+    run_bootscan = args.bootscan
+
     startTime = datetime.now()
-    scanner = Scanner(aln, args)
+    scanner = Scanner(aln, infile, cfg, run_geneconv, run_three_seq, run_rdp,
+                      run_siscan, run_chimaera, run_maxchi, run_bootscan)
     scanner.run_scans()
     print(datetime.now() - startTime)
 

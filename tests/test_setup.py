@@ -1,5 +1,6 @@
 import unittest
 from scripts.main import *
+from scripts.run_scans import *
 
 
 class TestMain(unittest.TestCase):
@@ -39,3 +40,18 @@ class TestMain(unittest.TestCase):
         expected = True
         result = valid_chars(aln)
         self.assertEqual(expected, result)
+
+
+class TestRunScans(unittest.TestCase):
+
+    def setUp(self):
+        infile = 'CRF07_test.fasta'
+        with open(infile) as in_handle:
+            aln = convert_fasta(in_handle)
+
+        self.scanner = Scanner(aln, None, infile, run_maxchi=True)
+
+    def test_get_seq_names(self):
+        exp_names = ['B', 'C', '07_BC']
+        res_names = self.scanner.get_seq_names()
+        self.assertEqual(exp_names, res_names)

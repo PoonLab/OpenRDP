@@ -3,31 +3,28 @@ import configparser
 import numpy as np
 import json
 
-from geneconv import GeneConv
-from maxchi import MaxChi
-from threeseq import ThreeSeq
-from chimaera import Chimaera
-from rdp import RdpMethod
-from siscan import Siscan
-from bootscan import Bootscan
+from scripts.geneconv import GeneConv
+from scripts.maxchi import MaxChi
+from scripts.threeseq import ThreeSeq
+from scripts.chimaera import Chimaera
+from scripts.rdp import RdpMethod
+from scripts.siscan import Siscan
+from scripts.bootscan import Bootscan
 
 
 class Scanner:
-    def __init__(self, aln, args):
-        self.infile = args.infile
+    def __init__(self, aln, cfg, infile, run_geneconv=False, run_three_seq=False, run_rdp=False,
+                 run_siscan=False, run_maxchi=False, run_chimaera=False, run_bootscan=False):
         self.aln = aln
-        self.rdp = True if args.rdp else False
-        self.geneconv = True if args.geneconv else False
-        self.threeseq = True if args.threeseq else False
-        self.maxchi = True if args.maxchi else False
-        self.chimaera = True if args.chimaera else False
-        self.siscan = True if args.siscan else False
-        self.bootscan = True if args.bootscan else False
-
-        if args.cfg:
-            self.cfg_file = args.cfg
-        else:
-            self.cfg_file = None
+        self.cfg_file = cfg
+        self.infile = infile
+        self.geneconv = run_geneconv
+        self.threeseq = run_three_seq
+        self.rdp = run_rdp
+        self.siscan = run_siscan
+        self.maxchi = run_maxchi
+        self.chimaera = run_chimaera
+        self.bootscan = run_bootscan
 
     def get_seq_names(self):
         """
@@ -35,7 +32,7 @@ class Scanner:
         """
         names = []
         for h, s in self.aln:
-            names.append(h)
+            names.append(h.lstrip('>'))
         return names
 
     def run_scans(self):

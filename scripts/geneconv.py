@@ -146,7 +146,7 @@ class GeneConv:
         :param out_path: Path to the output file
         :return: List of results
         """
-        gc_results = []
+        gc_results = {}
 
         # Check that the out file exists
         try:
@@ -161,7 +161,7 @@ class GeneConv:
                         corr_p_value = line[3]  # Bonferroni Corrected - Karlin-Altschul
                         locations = (line[4], line[5])  # Locations in alignment
                         type = line[0]  # Global inner (GI), global outer (GO), additional inner (AI)
-                        gc_results.append([seqs, uncorr_p_value, corr_p_value, locations, type])
+                        gc_results[locations] = [seqs, uncorr_p_value, corr_p_value, type]
 
         except FileNotFoundError as e:
             print(e)

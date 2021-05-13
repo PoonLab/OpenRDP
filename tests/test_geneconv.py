@@ -8,13 +8,13 @@ class TestGeneConv(unittest.TestCase):
     def setUp(self):
         # Test with default settings
         self.config = configparser.ConfigParser()
-        self.config.read('default_config.ini')
+        self.config.read('default.ini')
         self.settings = self.config['Geneconv']
         self.gc_default = GeneConv(self.settings)
 
         # Test with modified parameters
         self.test_config = configparser.ConfigParser()
-        self.test_config.read('test_config.ini')
+        self.test_config.read('test_long.ini')
         self.test_settings = self.test_config['Geneconv']
         self.gc_test = GeneConv(self.test_settings)
 
@@ -36,7 +36,7 @@ class TestGeneConv(unittest.TestCase):
     def test_parse_results(self):
         random.seed(9)
         # Test small example with default settings
-        self.gc_default.execute('test.fasta')
+        self.gc_default.execute('long.fasta')
         expected = {('1', '204'): ['Test2;Test3', '0.0000', '0.00002', 'GI'],
                     ('151', '193'): ['Test4', '0.0085', '0.02202', 'GO'],
                     ('151', '195'): ['Test1;Test3', '0.0004', '0.00210', 'GI'],
@@ -49,7 +49,7 @@ class TestGeneConv(unittest.TestCase):
         self.assertEqual(expected.keys(), result.keys())
 
         # Test small example with modified parameters
-        self.gc_test.execute('test.fasta')
+        self.gc_test.execute('long.fasta')
         result = self.gc_test.parse_output('test.frags')
         # Check the breakpoint locations as p-values can vary
         self.assertEqual(expected.keys(), result.keys())

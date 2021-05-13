@@ -13,11 +13,12 @@ from scripts.bootscan import Bootscan
 
 
 class Scanner:
-    def __init__(self, aln, cfg, infile, run_geneconv=False, run_three_seq=False, run_rdp=False,
+    def __init__(self, aln, names, infile, cfg, run_geneconv=False, run_three_seq=False, run_rdp=False,
                  run_siscan=False, run_maxchi=False, run_chimaera=False, run_bootscan=False):
         self.aln = aln
-        self.cfg_file = cfg
+        self.seq_names = names
         self.infile = infile
+        self.cfg_file = cfg
         self.geneconv = run_geneconv
         self.threeseq = run_three_seq
         self.rdp = run_rdp
@@ -25,15 +26,6 @@ class Scanner:
         self.maxchi = run_maxchi
         self.chimaera = run_chimaera
         self.bootscan = run_bootscan
-
-    def get_seq_names(self):
-        """
-        Return a list of sequence headers
-        """
-        names = []
-        for h, s in self.aln:
-            names.append(h.lstrip('>'))
-        return names
 
     def run_scans(self):
         """
@@ -43,17 +35,18 @@ class Scanner:
         if self.cfg_file:
             config = configparser.ConfigParser()
             config.read(self.cfg_file)
+            print(config.sections())
         else:
             config = None
 
-        seq_num = []
-        aln_seqs = []
-        for i, pair in enumerate(self.aln):
-            seq_num.append(i)
-            aln_seqs.append(pair[1])
+        # seq_num = []
+        # aln_seqs = []
+        # for i, pair in enumerate(self.aln):
+        #     seq_num.append(i)
+        #     aln_seqs.append(pair[1])
 
         # Create an m x n array of sequences (n = length, m = number of sequences)
-        alignment = np.array(list(map(list, aln_seqs)))
+        alignment = np.array(list(map(list, self.aln)))
 
         with open('results.txt', 'w+') as outfile:
             # Run 3Seq
@@ -89,47 +82,44 @@ class Scanner:
         if not self.maxchi and not self.chimaera and not self.siscan and not self.rdp and not self.bootscan:
             return
 
-        # Get list of sequence names
-        s_names = self.get_seq_names()
-
         # Setup MaxChi
         if self.maxchi:
             print("Starting MaxChi Analysis")
             if config:
-                maxchi = MaxChi(alignment, s_names, settings=config['MaxChi'])
+                maxchi = MaxChi(alignment, self.seq_names, settings=config['MaxChi'])
             else:
-                maxchi = MaxChi(alignment, s_names)
+                maxchi = MaxChi(alignment, self.seq_names)
 
         # Setup Chimaera
         if self.chimaera:
             print("Starting Chimaera Analysis")
             if config:
-                chimaera = Chimaera(alignment, s_names, settings=config['Chimaera'])
+                chimaera = Chimaera(alignment, self.seq_names, settings=config['Chimaera'])
             else:
-                chimaera = Chimaera(alignment, s_names)
+                chimaera = Chimaera(alignment, self.seq_names)
 
         # Setup Siscan
         if self.siscan:
             print("Starting Siscan Analysis")
             if config:
-                siscan = Siscan(alignment, s_names, settings=config['SisScan'])
+                siscan = Siscan(alignment, self.seq_names, settings=config['SisScan'])
             else:
-                siscan = Siscan(alignment, s_names)
+                siscan = Siscan(alignment, self.seq_names)
 
         # Setup RDP
         if self.rdp:
             print("Starting RDP Analysis")
             if config:
-                rdp = RdpMethod(alignment, s_names, settings=config['RDP'])
+                rdp = RdpMethod(alignment, self.seq_names, settings=config['RDP'])
             else:
-                rdp = RdpMethod(alignment, s_names)
+                rdp = RdpMethod(alignment, self.seq_names)
 
         # Setup Bootscan
         if self.bootscan:
             if config:
-                bootscan = Bootscan(alignment, s_names, settings=config['Bootscan'])
+                bootscan = Bootscan(alignment, self.seq_names, settings=config['Bootscan'])
             else:
-                bootscan = Bootscan(alignment, s_names)
+                bootscan = Bootscan(alignment, self.seq_names)
 
         i = 1
         num_trp = len(list(combinations(seq_num, 3)))

@@ -1,10 +1,11 @@
 from scipy.stats import chi2_contingency
 from scipy.signal import find_peaks
 import numpy as np
+from scripts.common import remove_monomorphic_sites
 
 
 class MaxChi:
-    def __init__(self, align, s_names, settings=None, win_size=200, strip_gaps=True, fixed_win_size=True, num_var_sites=None,
+    def __init__(self, align, names, settings=None, win_size=200, strip_gaps=True, fixed_win_size=True, num_var_sites=None,
                  frac_var_sites=None):
         """
         Constructs a MaxChi Object
@@ -25,9 +26,9 @@ class MaxChi:
             self.num_var_sites = num_var_sites
             self.frac_var_sites = frac_var_sites
 
-        self.s_names = s_names
+        self.s_names = names
         self.align = align
-        self.new_align, self.poly_sites = self.remove_monomorphic_sites(align)
+        self.new_align, self.poly_sites = remove_monomorphic_sites(align)
         self.results = []
 
     def set_options_from_config(self, settings):
@@ -66,25 +67,6 @@ class MaxChi:
         if self.frac_var_sites > 1 or self.frac_var_sites < 0:
             print("Invalid option for 'frac_var_sites'.\nUsing default value (0.1) instead.")
             self.frac_var_sites = 0.1
-
-    @staticmethod
-    def remove_monomorphic_sites(align):
-        """
-        Remove monomorphic sites
-        :param align: n x m numpy array where n is the length of the alignment and m is the number of sequences
-        :return: a tuple containing the polymorphic sites and the positions of polymorphic sites
-        """
-        poly_sites = []
-        # Find positions of polymorphic sites
-        for i in range(align.shape[1]):
-            col = align[:, i]
-            if not np.all(col == col[0]):
-                poly_sites.append(i)
-
-        # Build "new alignment"
-        new_align = align[:, poly_sites]
-
-        return new_align, poly_sites
 
     def execute(self, triplet):
         """
@@ -154,4 +136,4 @@ class MaxChi:
 
                 self.results.append((seq1_name, seq2_name, *aln_pos, p_values[i]))
 
-        return
+        return self.results

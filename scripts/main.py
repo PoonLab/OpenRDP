@@ -12,9 +12,9 @@ def valid_alignment(alignment):
     :param alignment: a list of lists containing the sequence headers and the aligned sequences
     :return True if the alignment is valid, false otherwise
     """
-    aln_len = len(alignment[0][1])
-    for pair in alignment:
-        if len(pair[1]) != aln_len:
+    aln_len = len(alignment[0])
+    for seq in alignment:
+        if len(seq) != aln_len:
             print("Improper alignment! Not all alignments are the same length.")
             return False
     return True
@@ -26,27 +26,26 @@ def valid_chars(alignment):
     :param alignment: a list of lists containing the sequence headers and the aligned sequences
     :return: True if the alignment contains only valid characters, False otherwise
     """
-    for h, s in alignment:
+    for s in alignment:
         if not all(pos in DNA_ALPHABET for pos in s):
             print("Alignment contains invalid characters.")
             return False
     return True
 
 
-def convert_fasta(handle):
+def read_fasta(handle):
     """
-    Converts a FASTA formatted file to a list of lists of the form [(header, sequence), ...]
+    Converts a FASTA formatted file to a tuple containing a list of headers and sequences
     :param handle: file stream for the FASTA file
-    :return: list of lists of the form [(header, sequence), ...]
+    :return: tuple of headers and sequences
     """
     result = []
+    headers, seqs = [], []
     sequence, h = '', ''
 
     # Verifies files have the correct formatting
     for i, line in enumerate(handle):
-        if line.startswith('$'):
-            continue
-        elif line.startswith('>'):
+        if line.startswith('>'):
             break
         else:
             print("No header")
@@ -57,18 +56,20 @@ def convert_fasta(handle):
         handle.seek(0)
 
     for line in handle:
-        if line.startswith('$'):
-            continue
-        elif line.startswith('>'):
+        if line.startswith('>'):
             if len(sequence) > 0:
-                result.append([h, sequence])
+                headers.append(h)
+                seqs.append(sequence)
                 sequence = ''
             h = line.strip('>\t\n\r')
         else:
             sequence += line.strip('\n\r').upper()
 
-    result.append([h, sequence])
-    return result
+    # Handle the last entry
+    seqs.append(sequence)
+    headers.append(h)
+
+    return headers, seqs
 
 
 def parse_args():
@@ -118,7 +119,7 @@ def main():
 
     with open(args.infile) as in_handle:
         if args.infile.endswith('.fa') or args.infile.endswith('.fasta'):
-            aln = convert_fasta(in_handle)
+            names, aln = read_fasta(in_handle)
 
     if not valid_alignment(aln) and not valid_chars(aln):
         sys.exit(1)
@@ -134,7 +135,7 @@ def main():
     infile = args.infile
     cfg = args.cfg
     run_geneconv = args.geneconv
-    run_three_seq = args.three_seq
+    run_three_seq = args.threeseq
     run_rdp = args.rdp
     run_siscan = args.siscan
     run_maxchi = args.maxchi
@@ -142,7 +143,7 @@ def main():
     run_bootscan = args.bootscan
 
     startTime = datetime.now()
-    scanner = Scanner(aln, infile, cfg, run_geneconv, run_three_seq, run_rdp,
+    scanner = Scanner(aln, names, infile, cfg, run_geneconv, run_three_seq, run_rdp,
                       run_siscan, run_chimaera, run_maxchi, run_bootscan)
     scanner.run_scans()
     print(datetime.now() - startTime)

@@ -1,4 +1,3 @@
-from itertools import combinations
 import configparser
 import numpy as np
 import json
@@ -35,15 +34,8 @@ class Scanner:
         if self.cfg_file:
             config = configparser.ConfigParser()
             config.read(self.cfg_file)
-            print(config.sections())
         else:
             config = None
-
-        # seq_num = []
-        # aln_seqs = []
-        # for i, pair in enumerate(self.aln):
-        #     seq_num.append(i)
-        #     aln_seqs.append(pair[1])
 
         # Create an m x n array of sequences (n = length, m = number of sequences)
         alignment = np.array(list(map(list, self.aln)))
@@ -121,31 +113,25 @@ class Scanner:
             else:
                 bootscan = Bootscan(alignment, self.seq_names)
 
-        i = 1
-        num_trp = len(list(combinations(seq_num, 3)))
-        for triplet in list(combinations(seq_num, 3)):
-            print("Scanning triplet {} / {}".format(i, num_trp))
-            # Run MaxChi
-            if self.maxchi:
-                maxchi.execute(triplet)
+        # Run MaxChi
+        if self.maxchi:
+            maxchi.execute()
 
             # Run Chimaera
-            if self.chimaera:
-                chimaera.execute(triplet)
+        if self.chimaera:
+            chimaera.execute()
 
             # Run Siscan
-            if self.siscan:
-                siscan.execute(alignment, triplet)
+        if self.siscan:
+            siscan.execute(alignment)
 
             # Run RDP Method
-            if self.rdp:
-                rdp.execute(alignment, triplet, num_trp)
+        if self.rdp:
+            rdp.execute(alignment)
 
             # Run Bootscan
-            if self.bootscan:
-                bootscan.execute(alignment, triplet, num_trp)
-
-            i += 1
+        if self.bootscan:
+            bootscan.execute(alignment)
 
         with open('results.txt', 'a') as outfile:
             # Report the results

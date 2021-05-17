@@ -1,4 +1,5 @@
 import numpy as np
+from itertools import combinations
 
 
 def remove_monomorphic_sites(align):
@@ -20,3 +21,12 @@ def remove_monomorphic_sites(align):
     new_align = align[:, poly_sites]
 
     return new_align, poly_sites
+
+
+def generate_triplets(align):
+    """
+    Generate all possible combinations of sequence triplets
+    :param align: a numpy character array of 'n' sequences
+    :return: indices for every possible combination of sequence triplets
+    """
+    return combinations(range(align.shape[0]), 3)

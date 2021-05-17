@@ -1,49 +1,7 @@
 import unittest
-from scripts.main import *
-from scripts.common import remove_monomorphic_sites
+from scripts.main import read_fasta
+from scripts.common import remove_monomorphic_sites, generate_triplets
 import numpy as np
-
-
-class TestMain(unittest.TestCase):
-
-    def test_convert_fasta(self):
-        with open('short.fasta') as test_handle:
-            exp_names = ['A', 'B', 'C', 'D', 'E']
-            exp_seqs = ['ATGCTGACGACGTAGCAGGTAA',
-                        'AACCTTGGTGCGAAATGCAAGT',
-                        'AGCTGACAGCGATGAGCGAATG',
-                        'ATGCGACTAGCTAGCTAGAGGC',
-                        'ACCGAGCGATATCGATCGATGA']
-            res_names, res_seqs = read_fasta(test_handle)
-            self.assertEqual(exp_names, res_names)
-            self.assertEqual(exp_seqs, res_seqs)
-
-    def test_valid_alignment(self):
-        with open('short.fasta') as test_handle:
-            names, aln = read_fasta(test_handle)
-            expected = True
-            result = valid_alignment(aln)
-            self.assertEqual(expected, result)
-
-        aln2 = ['ATGCGCGC',
-                'TGACACAATGC']
-        expected = False
-        result = valid_alignment(aln2)
-        self.assertEqual(expected, result)
-
-    def test_valid_chars(self):
-        aln = ['ZXCXZATC',
-               'ATGCGGATGGGG',
-               'TGTTCAGA']
-        expected = False
-        result = valid_chars(aln)
-        self.assertEqual(expected, result)
-
-        aln = ['TCGCGACGTCAA',
-               'ATGCGGATGGGG']
-        expected = True
-        result = valid_chars(aln)
-        self.assertEqual(expected, result)
 
 
 class TestCommon(unittest.TestCase):
@@ -100,3 +58,26 @@ class TestCommon(unittest.TestCase):
             self.assertEqual(exp_aln[pos], ''.join(res_aln[pos]))
 
         self.assertEqual(exp_poly_sites, res_poly_sites)
+
+    def test_generate_triplets_short(self):
+        exp_trps = [(0, 1, 2), (0, 1, 3), (0, 1, 4), (0, 2, 3), (0, 2, 4),
+                    (0, 3, 4), (1, 2, 3), (1, 2, 4), (1, 3, 4), (2, 3, 4)]
+        res_trps = []
+        for trp in generate_triplets(self.short_align):
+            res_trps.append(trp)
+        self.assertEqual(exp_trps, res_trps)
+
+    def test_generate_triplets_long(self):
+        exp_trps = [(0, 1, 2), (0, 1, 3), (0, 2, 3), (1, 2, 3)]
+        res_trps = []
+        for trp in generate_triplets(self.long_align):
+            res_trps.append(trp)
+        self.assertEqual(exp_trps, res_trps)
+
+    def test_generate_triplets_hiv(self):
+        exp_trps = [(0, 1, 2)]
+        res_trps = []
+        for trp in generate_triplets(self.hiv_align):
+            res_trps.append(trp)
+
+        self.assertEqual(exp_trps, res_trps)

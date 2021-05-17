@@ -68,3 +68,7 @@ class TestMaxChi(unittest.TestCase):
         self.assertEqual(True, self.test_hiv.fixed_win_size)
         self.assertEqual(70, self.test_hiv.num_var_sites)
         self.assertEqual(0.1, self.test_hiv.frac_var_sites)
+
+    def test_execute(self):
+        expected = []
+        result = self.test_short.execute()

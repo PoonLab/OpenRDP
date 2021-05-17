@@ -1,7 +1,9 @@
 from scipy.stats import chi2_contingency
 from scipy.signal import find_peaks
 import numpy as np
-from scripts.common import remove_monomorphic_sites
+from scripts.common import remove_monomorphic_sites, generate_triplets
+from itertools import combinations
+from math import factorial
 
 
 class MaxChi:
@@ -68,72 +70,77 @@ class MaxChi:
             print("Invalid option for 'frac_var_sites'.\nUsing default value (0.1) instead.")
             self.frac_var_sites = 0.1
 
-    def execute(self, triplet):
+    def execute(self):
         """
         Executes the MaxChi algorithm
-        :param triplet: a list of three sequences
         """
-        # Get the triplet sequences
-        trp_seqs = []
-        for seq_num in triplet:
-            trp_seqs.append(self.new_align[seq_num])
+        num_trp = int(factorial(self.align.shape[0]) / (factorial(3) * factorial((self.align.shape[0]) - 3)))
+        i = 0
+        for trp_idx in generate_triplets(self.align):
+            print("Scanning triplet {} / {}".format(i, num_trp))
+            i += 1
 
-        # 2. Sample two sequences
-        pairs = ((0, 1), (1, 2), (2, 0))
-        for i, j in pairs:
-            seq1 = trp_seqs[i]
-            seq2 = trp_seqs[j]
+            # 1. Select the 3 processed sequences
+            trp_seqs = []
+            for idx in trp_idx:
+                trp_seqs.append(self.new_align[idx])
 
-            seq1_name = self.s_names[triplet[i]]
-            seq2_name = self.s_names[triplet[j]]
+            # 2. Sample two sequences
+            pairs = ((0, 1), (1, 2), (2, 0))
+            for i, j in pairs:
+                seq1 = trp_seqs[i]
+                seq2 = trp_seqs[j]
 
-            chi2_values = []
-            p_values = []
+                seq1_name = self.s_names[trp_idx[i]]
+                seq2_name = self.s_names[trp_idx[j]]
 
-            # Slide along the sequences
-            half_win_size = int(self.win_size // 2)
-            for k in range(self.new_align.shape[1] - self.win_size):
-                reg1_left = seq1[k: half_win_size + k]
-                reg2_left = seq2[k: half_win_size + k]
-                reg1_right = seq1[k + half_win_size: k + self.win_size]
-                reg2_right = seq2[k + half_win_size: k + self.win_size]
+                chi2_values = []
+                p_values = []
 
-                c_table = [[0, 0],
-                           [0, 0]]
+                # Slide along the sequences
+                half_win_size = int(self.win_size // 2)
+                for k in range(self.new_align.shape[1] - self.win_size):
+                    reg1_left = seq1[k: half_win_size + k]
+                    reg2_left = seq2[k: half_win_size + k]
+                    reg1_right = seq1[k + half_win_size: k + self.win_size]
+                    reg2_right = seq2[k + half_win_size: k + self.win_size]
 
-                # Compute contingency table for each window position
-                r_matches = np.sum((reg1_right == reg2_right))
-                c_table[0][0] = int(r_matches)
-                c_table[0][1] = half_win_size - r_matches
+                    c_table = [[0, 0],
+                               [0, 0]]
 
-                l_matches = np.sum((reg1_left == reg2_left))
-                c_table[1][0] = int(l_matches)
-                c_table[1][1] = half_win_size - l_matches
+                    # Compute contingency table for each window position
+                    r_matches = np.sum((reg1_right == reg2_right))
+                    c_table[0][0] = int(r_matches)
+                    c_table[0][1] = half_win_size - r_matches
 
-                if c_table[0][0] == 0 or c_table[0][1] == 0:
-                    chi2_values.append(0)
-                    p_values.append(0)
+                    l_matches = np.sum((reg1_left == reg2_left))
+                    c_table[1][0] = int(l_matches)
+                    c_table[1][1] = half_win_size - l_matches
 
-                # Compute chi-squared value
-                else:
-                    chi2, p_value, _, _ = chi2_contingency(c_table)
-                    chi2_values.append(chi2)
-                    p_values.append(p_value)
+                    if c_table[0][0] == 0 or c_table[0][1] == 0:
+                        chi2_values.append(0)
+                        p_values.append(0)
 
-            peaks = find_peaks(chi2_values, wlen=self.win_size, distance=self.win_size)
-            for i, peak in enumerate(peaks[0]):
-                search_win_size = 1
-                while peak - search_win_size > 0\
-                        and peak + search_win_size < len(chi2_values) - 1\
-                        and chi2_values[peak + search_win_size] > 0.5 * chi2_values[peak]\
-                        and chi2_values[peak - search_win_size] > 0.5 * chi2_values[peak]:
-                    search_win_size += 1
+                    # Compute chi-squared value
+                    else:
+                        chi2, p_value, _, _ = chi2_contingency(c_table)
+                        chi2_values.append(chi2)
+                        p_values.append(p_value)
 
-                if chi2_values[peak + search_win_size] > chi2_values[peak - search_win_size]:
-                    aln_pos = (int(peak), int(peak + search_win_size + self.win_size))
-                else:
-                    aln_pos = (int(peak - search_win_size), int(peak + self.win_size))
+                peaks = find_peaks(chi2_values, wlen=self.win_size, distance=self.win_size)
+                for i, peak in enumerate(peaks[0]):
+                    search_win_size = 1
+                    while peak - search_win_size > 0\
+                            and peak + search_win_size < len(chi2_values) - 1\
+                            and chi2_values[peak + search_win_size] > 0.5 * chi2_values[peak]\
+                            and chi2_values[peak - search_win_size] > 0.5 * chi2_values[peak]:
+                        search_win_size += 1
 
-                self.results.append((seq1_name, seq2_name, *aln_pos, p_values[i]))
+                    if chi2_values[peak + search_win_size] > chi2_values[peak - search_win_size]:
+                        aln_pos = (int(peak), int(peak + search_win_size + self.win_size))
+                    else:
+                        aln_pos = (int(peak - search_win_size), int(peak + self.win_size))
+
+                    self.results.append((seq1_name, seq2_name, *aln_pos, p_values[i]))
 
         return self.results

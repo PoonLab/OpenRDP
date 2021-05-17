@@ -144,7 +144,7 @@ def main():
 
     startTime = datetime.now()
     scanner = Scanner(aln, names, infile, cfg, run_geneconv, run_three_seq, run_rdp,
-                      run_siscan, run_chimaera, run_maxchi, run_bootscan)
+                      run_siscan, run_maxchi, run_chimaera, run_bootscan)
     scanner.run_scans()
     print(datetime.now() - startTime)
 

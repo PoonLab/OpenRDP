@@ -7,8 +7,8 @@ from math import factorial
 
 
 class MaxChi:
-    def __init__(self, align, names, settings=None, win_size=200, strip_gaps=True, fixed_win_size=True, num_var_sites=None,
-                 frac_var_sites=None):
+    def __init__(self, align, names, max_pvalue=0.05, win_size=200, strip_gaps=True, fixed_win_size=True,
+                 num_var_sites=None, frac_var_sites=None, settings=None):
         """
         Constructs a MaxChi Object
         :param win_size: Size of the sliding window
@@ -22,6 +22,7 @@ class MaxChi:
             self.validate_options(align)
 
         else:
+            self.max_pvalue = max_pvalue
             self.win_size = win_size
             self.strip_gaps = strip_gaps
             self.fixed_win_size = fixed_win_size
@@ -31,7 +32,7 @@ class MaxChi:
         self.s_names = names
         self.align = align
         self.new_align, self.poly_sites = remove_monomorphic_sites(align)
-        self.results = []
+        self.results = {}
 
     def set_options_from_config(self, settings):
         """
@@ -39,6 +40,7 @@ class MaxChi:
         :param settings: a dictionary of settings
         """
         self.win_size = int(settings['win_size'])
+        self.max_pvalue = float(settings['max_pvalue'])
 
         if settings['strip_gaps'] == 'False':
             self.strip_gaps = False
@@ -75,24 +77,26 @@ class MaxChi:
         Executes the MaxChi algorithm
         """
         num_trp = int(factorial(self.align.shape[0]) / (factorial(3) * factorial((self.align.shape[0]) - 3)))
-        i = 0
+        trp_count = 1
         for trp_idx in generate_triplets(self.align):
-            print("Scanning triplet {} / {}".format(i, num_trp))
-            i += 1
+            print("Scanning triplet {} / {}".format(trp_count, num_trp))
+            trp_count += 1
+            print('{}, {}, {}'.format(self.s_names[trp_idx[0]], self.s_names[trp_idx[1]], self.s_names[trp_idx[2]]))
 
             # 1. Select the 3 processed sequences
-            trp_seqs = []
+            seqs = []
             for idx in trp_idx:
-                trp_seqs.append(self.new_align[idx])
+                seqs.append(self.new_align[idx])
 
             # 2. Sample two sequences
             pairs = ((0, 1), (1, 2), (2, 0))
             for i, j in pairs:
-                seq1 = trp_seqs[i]
-                seq2 = trp_seqs[j]
+                seq1 = seqs[i]
+                seq2 = seqs[j]
 
-                seq1_name = self.s_names[trp_idx[i]]
-                seq2_name = self.s_names[trp_idx[j]]
+                # Prepare dictionary to store sequences involved in recombination
+                names = tuple(sorted([self.s_names[trp_idx[i]], self.s_names[trp_idx[j]]]))
+                self.results[names] = []
 
                 chi2_values = []
                 p_values = []
@@ -124,8 +128,10 @@ class MaxChi:
                     # Compute chi-squared value
                     else:
                         chi2, p_value, _, _ = chi2_contingency(c_table)
-                        chi2_values.append(chi2)
-                        p_values.append(p_value)
+                        # Record only significant events
+                        if p_value <= self.max_pvalue:
+                            chi2_values.append(chi2)
+                            p_values.append(p_value)
 
                 peaks = find_peaks(chi2_values, wlen=self.win_size, distance=self.win_size)
                 for i, peak in enumerate(peaks[0]):
@@ -141,6 +147,8 @@ class MaxChi:
                     else:
                         aln_pos = (int(peak - search_win_size), int(peak + self.win_size))
 
-                    self.results.append((seq1_name, seq2_name, *aln_pos, p_values[i]))
+                    # Check that breakpoint has not already been detected
+                    if (*aln_pos, p_values[i]) not in self.results[names]:
+                        self.results[names].append((*aln_pos, p_values[i]))
 
         return self.results

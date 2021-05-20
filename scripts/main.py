@@ -143,9 +143,9 @@ def main():
     run_bootscan = args.bootscan
 
     startTime = datetime.now()
-    scanner = Scanner(aln, names, infile, cfg, run_geneconv, run_three_seq, run_rdp,
+    scanner = Scanner(names, infile, cfg, run_geneconv, run_three_seq, run_rdp,
                       run_siscan, run_maxchi, run_chimaera, run_bootscan)
-    scanner.run_scans()
+    scanner.run_scans(aln)
     print(datetime.now() - startTime)
 
 

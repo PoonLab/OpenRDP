@@ -12,9 +12,8 @@ from scripts.bootscan import Bootscan
 
 
 class Scanner:
-    def __init__(self, aln, names, infile, cfg, run_geneconv=False, run_three_seq=False, run_rdp=False,
+    def __init__(self, names, infile, cfg, run_geneconv=False, run_three_seq=False, run_rdp=False,
                  run_siscan=False, run_maxchi=False, run_chimaera=False, run_bootscan=False):
-        self.aln = aln
         self.seq_names = names
         self.infile = infile
         self.cfg_file = cfg
@@ -26,7 +25,7 @@ class Scanner:
         self.chimaera = run_chimaera
         self.bootscan = run_bootscan
 
-    def run_scans(self):
+    def run_scans(self, aln):
         """
         Run the selected recombination detection analyses
         """
@@ -38,7 +37,7 @@ class Scanner:
             config = None
 
         # Create an m x n array of sequences (n = length, m = number of sequences)
-        alignment = np.array(list(map(list, self.aln)))
+        alignment = np.array(list(map(list, aln)))
 
         with open('results.txt', 'w+') as outfile:
             # Run 3Seq
@@ -56,7 +55,7 @@ class Scanner:
             # Run GENECONV
             if self.geneconv:
                 if config:
-                    geneconv = GeneConv(settings=config['Geneconv'])
+                    geneconv = GeneConv(settings=dict(config.items('Geneconv')))
                 else:
                     geneconv = GeneConv()
                 print("Starting GENECONV Analysis")
@@ -78,7 +77,7 @@ class Scanner:
         if self.maxchi:
             print("Starting MaxChi Analysis")
             if config:
-                maxchi = MaxChi(alignment, self.seq_names, settings=config['MaxChi'])
+                maxchi = MaxChi(alignment, self.seq_names, settings=dict(config.items('MaxChi')))
             else:
                 maxchi = MaxChi(alignment, self.seq_names)
 
@@ -86,7 +85,7 @@ class Scanner:
         if self.chimaera:
             print("Starting Chimaera Analysis")
             if config:
-                chimaera = Chimaera(alignment, self.seq_names, settings=config['Chimaera'])
+                chimaera = Chimaera(alignment, self.seq_names, settings=dict(config.items('Chimaera')))
             else:
                 chimaera = Chimaera(alignment, self.seq_names)
 
@@ -94,7 +93,7 @@ class Scanner:
         if self.siscan:
             print("Starting Siscan Analysis")
             if config:
-                siscan = Siscan(alignment, self.seq_names, settings=config['SisScan'])
+                siscan = Siscan(alignment, self.seq_names, settings=dict(config.items('Siscan')))
             else:
                 siscan = Siscan(alignment, self.seq_names)
 
@@ -102,14 +101,14 @@ class Scanner:
         if self.rdp:
             print("Starting RDP Analysis")
             if config:
-                rdp = RdpMethod(alignment, self.seq_names, settings=config['RDP'])
+                rdp = RdpMethod(alignment, self.seq_names, settings=dict(config.items('RDP')))
             else:
                 rdp = RdpMethod(alignment, self.seq_names)
 
         # Setup Bootscan
         if self.bootscan:
             if config:
-                bootscan = Bootscan(alignment, self.seq_names, settings=config['Bootscan'])
+                bootscan = Bootscan(alignment, self.seq_names, settings=dict(config.items('Bootscan')))
             else:
                 bootscan = Bootscan(alignment, self.seq_names)
 

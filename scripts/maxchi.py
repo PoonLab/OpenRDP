@@ -1,8 +1,6 @@
-from scipy.stats import chi2_contingency
 from scipy.signal import find_peaks
 import numpy as np
-from scripts.common import remove_monomorphic_sites, generate_triplets
-from itertools import combinations
+from scripts.common import remove_monomorphic_sites, generate_triplets, calculate_chi2
 from math import factorial
 
 
@@ -39,8 +37,8 @@ class MaxChi:
         Set the parameters of MaxChi from the config file
         :param settings: a dictionary of settings
         """
-        self.win_size = int(settings['win_size'])
-        self.max_pvalue = float(settings['max_pvalue'])
+        self.win_size = abs(int(settings['win_size']))
+        self.max_pvalue = abs(float(settings['max_pvalue']))
 
         if settings['strip_gaps'] == 'False':
             self.strip_gaps = False
@@ -52,8 +50,8 @@ class MaxChi:
         else:
             self.fixed_win_size = False
 
-        self.num_var_sites = int(settings['num_var_sites'])
-        self.frac_var_sites = float(settings['frac_var_sites'])
+        self.num_var_sites = abs(int(settings['num_var_sites']))
+        self.frac_var_sites = abs(float(settings['frac_var_sites']))
 
     def validate_options(self, align):
         """
@@ -81,7 +79,6 @@ class MaxChi:
         for trp_idx in generate_triplets(self.align):
             print("Scanning triplet {} / {}".format(trp_count, num_trp))
             trp_count += 1
-            print('{}, {}, {}'.format(self.s_names[trp_idx[0]], self.s_names[trp_idx[1]], self.s_names[trp_idx[2]]))
 
             # 1. Select the 3 processed sequences
             seqs = []
@@ -111,7 +108,6 @@ class MaxChi:
 
                     c_table = [[0, 0],
                                [0, 0]]
-
                     # Compute contingency table for each window position
                     r_matches = np.sum((reg1_right == reg2_right))
                     c_table[0][0] = int(r_matches)
@@ -121,17 +117,11 @@ class MaxChi:
                     c_table[1][0] = int(l_matches)
                     c_table[1][1] = half_win_size - l_matches
 
-                    if c_table[0][0] == 0 or c_table[0][1] == 0:
-                        chi2_values.append(0)
-                        p_values.append(0)
-
                     # Compute chi-squared value
-                    else:
-                        chi2, p_value, _, _ = chi2_contingency(c_table)
-                        # Record only significant events
-                        if p_value <= self.max_pvalue:
-                            chi2_values.append(chi2)
-                            p_values.append(p_value)
+                    chi2, p_value = calculate_chi2(c_table, self.max_pvalue)
+                    if chi2 is not None and p_value is not None:
+                        chi2_values.append(chi2)
+                        p_values.append(p_value)
 
                 peaks = find_peaks(chi2_values, wlen=self.win_size, distance=self.win_size)
                 for i, peak in enumerate(peaks[0]):

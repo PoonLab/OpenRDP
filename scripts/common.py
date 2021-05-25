@@ -1,5 +1,6 @@
 import numpy as np
 from itertools import combinations
+from scipy.stats import chi2_contingency
 
 
 def remove_monomorphic_sites(align):
@@ -30,3 +31,21 @@ def generate_triplets(align):
     :return: indices for every possible combination of sequence triplets
     """
     return combinations(range(align.shape[0]), 3)
+
+
+def calculate_chi2(c_table, max_pvalue):
+    """
+    Computes the chi-squared value and returns the chi-squared and p-value if the difference is significant
+    :param c_table: a 2x2 contingency table
+    :param max_pvalue: the p-value threshold
+    :return: a tuple containing the chi-squared value and p-value
+    """
+    # Compute chi-squared value if the sexpecetd frequencies are valid
+    if (c_table[0][0] > 0 and c_table[0][1] > 0) or (c_table[1][0] > 0 and c_table[1][1] > 0):
+        chi2, p_value, _, _ = chi2_contingency(c_table)
+
+        # Record only significant events
+        if p_value < max_pvalue:
+            return chi2, p_value
+
+    return None, None

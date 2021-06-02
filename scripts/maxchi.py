@@ -1,8 +1,11 @@
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, medfilt
+from scipy.ndimage import gaussian_filter1d
 import numpy as np
 from scripts.common import remove_monomorphic_sites, generate_triplets, calculate_chi2
 from math import factorial
+import matplotlib.pyplot as plt
 
+from queue import Queue
 
 class MaxChi:
     def __init__(self, align, names, max_pvalue=0.05, win_size=200, strip_gaps=True, fixed_win_size=True,
@@ -95,19 +98,28 @@ class MaxChi:
                 names = tuple(sorted([self.s_names[trp_idx[i]], self.s_names[trp_idx[j]]]))
                 self.results[names] = []
 
-                chi2_values = []
-                p_values = []
+                chi2_values = np.zeros(self.align.shape[1])
+                p_values = np.ones(self.align.shape[1])       # Map window position to p-values
 
                 # Slide along the sequences
                 half_win_size = int(self.win_size // 2)
                 for k in range(self.new_align.shape[1] - self.win_size):
+
+                    # Get the left and right half of the window
                     reg1_left = seq1[k: half_win_size + k]
                     reg2_left = seq2[k: half_win_size + k]
                     reg1_right = seq1[k + half_win_size: k + self.win_size]
                     reg2_right = seq2[k + half_win_size: k + self.win_size]
 
+                    reg1 = seq1[k: k + self.win_size]
+                    reg2 = seq2[k: k + self.win_size]
+
+                    s = np.sum(reg1 != reg2)
+                    r = np.sum(reg1_left != reg2_left)
+
                     c_table = [[0, 0],
                                [0, 0]]
+
                     # Compute contingency table for each window position
                     r_matches = np.sum((reg1_right == reg2_right))
                     c_table[0][0] = int(r_matches)
@@ -117,19 +129,30 @@ class MaxChi:
                     c_table[1][0] = int(l_matches)
                     c_table[1][1] = half_win_size - l_matches
 
+                    n = self.win_size
+                    k2 = half_win_size
+
+                    cur_val = (float(n) * (k2 * s - n * r) * (k2 * s - n * r)) / (float(k2 * s) * (n - k2) * (n - s))
+
                     # Compute chi-squared value
                     chi2, p_value = calculate_chi2(c_table, self.max_pvalue)
                     if chi2 is not None and p_value is not None:
-                        chi2_values.append(chi2)
-                        p_values.append(p_value)
+                        # Insert p-values and chi2 values so they correspond to positions in the original alignment
+                        chi2_values[self.poly_sites[k + half_win_size]] = cur_val  # centred window
+                        p_values[self.poly_sites[k + half_win_size]] = p_value
 
-                peaks = find_peaks(chi2_values, wlen=self.win_size, distance=self.win_size)
-                for i, peak in enumerate(peaks[0]):
+                # Smooth chi2-values
+                chi2_values = gaussian_filter1d(chi2_values, 1.5)
+                # p_values = gaussian_filter1d(p_values, 1.5)
+                # self.plot_chi2_values(chi2_values, p_values)
+
+                peaks = find_peaks(chi2_values, distance=self.win_size)
+                for k, peak in enumerate(peaks[0]):
                     search_win_size = 1
                     while peak - search_win_size > 0\
                             and peak + search_win_size < len(chi2_values) - 1\
-                            and chi2_values[peak + search_win_size] > 0.5 * chi2_values[peak]\
-                            and chi2_values[peak - search_win_size] > 0.5 * chi2_values[peak]:
+                            and chi2_values[peak + search_win_size] > 0.3 * chi2_values[peak]\
+                            and chi2_values[peak - search_win_size] > 0.3 * chi2_values[peak]:
                         search_win_size += 1
 
                     if chi2_values[peak + search_win_size] > chi2_values[peak - search_win_size]:
@@ -138,7 +161,14 @@ class MaxChi:
                         aln_pos = (int(peak - search_win_size), int(peak + self.win_size))
 
                     # Check that breakpoint has not already been detected
-                    if (*aln_pos, p_values[i]) not in self.results[names]:
-                        self.results[names].append((*aln_pos, p_values[i]))
+                    if (*aln_pos, p_values[k]) not in self.results[names]:
+                        self.results[names].append((*aln_pos, p_values[peak]))
 
         return self.results
+
+    def plot_chi2_values(self, chi_values, p_values):
+        plt.figure()
+        p = -np.log(p_values)
+        plt.plot(chi_values)
+        plt.plot(p)
+        plt.show()

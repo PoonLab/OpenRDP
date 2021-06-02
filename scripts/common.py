@@ -40,7 +40,7 @@ def calculate_chi2(c_table, max_pvalue):
     :param max_pvalue: the p-value threshold
     :return: a tuple containing the chi-squared value and p-value
     """
-    # Compute chi-squared value if the sexpecetd frequencies are valid
+    # Compute chi-squared value if the expected frequencies are valid
     if (c_table[0][0] > 0 and c_table[0][1] > 0) or (c_table[1][0] > 0 and c_table[1][1] > 0):
         chi2, p_value, _, _ = chi2_contingency(c_table)
 
@@ -49,3 +49,12 @@ def calculate_chi2(c_table, max_pvalue):
             return chi2, p_value
 
     return None, None
+
+
+def reduce_to_unique_seqs(aln):
+    """
+    Remove identical sequences
+    :param aln: list of aligned sequences
+    :return: a list of unique sequences
+    """
+    return list(set(aln))

@@ -36,6 +36,9 @@ class Scanner:
         else:
             config = None
 
+        # Remove identical sequences
+        aln = list(set(aln))
+
         # Create an m x n array of sequences (n = length, m = number of sequences)
         alignment = np.array(list(map(list, aln)))
 

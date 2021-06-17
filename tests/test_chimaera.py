@@ -1,11 +1,11 @@
 import unittest
-from scripts.maxchi import MaxChi
+from scripts.chimaera import Chimaera
 from scripts.main import read_fasta
 import configparser
 import numpy as np
 
 
-class TestMaxChi(unittest.TestCase):
+class TestChimaera(unittest.TestCase):
 
     def setUp(self):
         # Set up test example
@@ -16,7 +16,7 @@ class TestMaxChi(unittest.TestCase):
         with open('short.fasta') as small_test:
             names, test_seqs = read_fasta(small_test)
             small_aln = np.array(list(map(list, test_seqs)))
-            self.test_short = MaxChi(small_aln, names, settings=test_settings)
+            self.test_short = Chimaera(small_aln, names, settings=test_settings)
 
         # Set up test example 2
         config = configparser.ConfigParser()
@@ -26,7 +26,7 @@ class TestMaxChi(unittest.TestCase):
         with open('long.fasta') as test:
             names, test_seqs = read_fasta(test)
             aln = np.array(list(map(list, test_seqs)))
-            self.test_long = MaxChi(aln, names, settings=test_settings)
+            self.test_long = Chimaera(aln, names, settings=test_settings)
 
         # Set up HIV CRF07 test case
         config = configparser.ConfigParser()
@@ -36,7 +36,7 @@ class TestMaxChi(unittest.TestCase):
         with open('CRF_07_test.fasta') as hiv_test:
             names, crf07_seqs = read_fasta(hiv_test)
             hiv_aln = np.array(list(map(list, crf07_seqs)))
-            self.test_hiv = MaxChi(hiv_aln, names, settings=settings)
+            self.test_hiv = Chimaera(hiv_aln, names, settings=settings)
 
     def test_set_and_validate_options(self):
         self.assertEqual(6, self.test_short.win_size)

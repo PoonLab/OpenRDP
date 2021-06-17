@@ -1,10 +1,12 @@
-from scipy.stats import chi2_contingency
 import numpy as np
 from scipy.signal import find_peaks
+from scipy.ndimage import gaussian_filter1d
+from scripts.common import remove_monomorphic_sites, calculate_chi2, generate_triplets
+from math import factorial
 
 
 class Chimaera:
-    def __init__(self, align, s_names, settings=None, win_size=200, strip_gaps=True, fixed_win_size=True, num_var_sites=None,
+    def __init__(self, align, names, settings=None, max_pvalue=0.05, win_size=200, strip_gaps=True, fixed_win_size=True, num_var_sites=None,
                  frac_var_sites=None):
         """
         Constructs a Chimaera Object
@@ -18,14 +20,15 @@ class Chimaera:
             self.set_options_from_config(settings)
             self.validate_options(align)
         else:
+            self.max_pvalue = max_pvalue
             self.win_size = win_size
             self.strip_gaps = strip_gaps
             self.fixed_win_size = fixed_win_size
             self.num_var_sites = num_var_sites
             self.frac_var_sites = frac_var_sites
 
-        self.s_names = s_names
-        self.new_align, self.poly_sites = self.remove_monomorphic_sites(align)
+        self.s_names = names
+        self.new_align, self.poly_sites = remove_monomorphic_sites(align)
         self.results = []
 
     def set_options_from_config(self, settings):
@@ -33,7 +36,8 @@ class Chimaera:
         Set the parameters of Chimaera from the config file
         :param settings: a dictionary of settings
         """
-        self.win_size = int(settings['win_size'])
+        self.win_size = abs(int(settings['win_size']))
+        self.max_pvalue = abs(float(settings['max_pvalue']))
 
         if settings['strip_gaps'] == 'False':
             self.strip_gaps = False
@@ -45,8 +49,8 @@ class Chimaera:
         else:
             self.fixed_win_size = False
 
-        self.num_var_sites = int(settings['num_var_sites'])
-        self.frac_var_sites = float(settings['frac_var_sites'])
+        self.num_var_sites = abs(int(settings['num_var_sites']))
+        self.frac_var_sites = abs(float(settings['frac_var_sites']))
 
     def validate_options(self, align):
         """
@@ -85,92 +89,113 @@ class Chimaera:
 
         return new_align, poly_sites
 
-    def execute(self, triplet):
+    def execute(self):
         """
         Executes the Chimaera algorithm
         :param triplet: a list of three sequences
         """
+        num_trp = int(factorial(self.align.shape[0]) / (factorial(3) * factorial((self.align.shape[0]) - 3)))
+        trp_count = 1
+        for trp_idx in generate_triplets(self.align):
+            print("Scanning triplet {} / {}".format(trp_count, num_trp))
+            trp_count += 1
 
-        # Get the triplet sequences
-        trp_seqs = []
-        for seq_num in triplet:
-            trp_seqs.append(self.new_align[seq_num])
+            # 1. Select the 3 processed sequences
+            seqs = []
+            for idx in trp_idx:
+                seqs.append(self.new_align[idx])
 
-        combos = [(0, 1, 2), (1, 2, 0), (2, 1, 0)]
-        for run in combos:
-            recombinant = trp_seqs[run[0]]
-            parental_1 = trp_seqs[run[1]]
-            parental_2 = trp_seqs[run[2]]
+            combos = [(0, 1, 2), (1, 2, 0), (2, 1, 0)]
+            for run in combos:
+                recombinant = seqs[run[0]]
+                parental_1 = seqs[run[1]]
+                parental_2 = seqs[run[2]]
 
-            rec_name = self.s_names[triplet[run[0]]]
-            p1_name = self.s_names[triplet[run[1]]]
-            p2_name = self.s_names[triplet[run[2]]]
+                rec_name = self.s_names[seqs[run[0]]]
+                p1_name = self.s_names[seqs[run[1]]]
+                p2_name = self.s_names[seqs[run[2]]]
 
-            chi2_values = []
-            p_values = []
+                # Prepare dictionary to store sequences involved in recombination
+                names = tuple(sorted([self.s_names[trp_idx[i]], self.s_names[trp_idx[j]]]))
+                self.results[names] = []
 
-            # Remove sites where neither the parental match the recombinant
-            informative_sites = []
-            aln = np.array([recombinant, parental_1, parental_2])
-            # Find indices for informative sites
-            for i in range(aln.shape[1]):
-                col = aln[:, i]
-                if col[0] == col[1] or col[0] == col[2]:
-                    informative_sites.append(i)
+                chi2_values = []
+                p_values = []
 
-            # Build new alignment with uninformative sites removed
-            new_aln = aln[:, informative_sites]
+                # Remove sites where neither the parental match the recombinant
+                informative_sites = []
+                aln = np.array([recombinant, parental_1, parental_2])
+                # Find indices for informative sites
+                for i in range(aln.shape[1]):
+                    col = aln[:, i]
+                    if col[0] == col[1] or col[0] == col[2]:
+                        informative_sites.append(i)
 
-            # 2. Compress "recombinant" into bit-strings
-            comp_seq = []
-            for i in range(new_aln.shape[1]):
-                if new_aln[0][i] == new_aln[1][i]:
-                    comp_seq.append(0)
-                elif new_aln[0][i] == new_aln[2][i]:
-                    comp_seq.append(1)
+                # Build new alignment with uninformative sites removed
+                new_aln = aln[:, informative_sites]
 
-            # Move sliding window along compressed sequence , 1 position at a time
-            # Slide along the sequences
-            half_win_size = int(self.win_size // 2)
-            for k in range(len(comp_seq) - self.win_size):
-                reg_left = comp_seq[k: half_win_size + k]
-                reg_right = comp_seq[k + half_win_size: k + self.win_size]
+                # 2. Compress "recombinant" into bit-strings
+                comp_seq = []
+                for i in range(new_aln.shape[1]):
+                    if new_aln[0][i] == new_aln[1][i]:
+                        comp_seq.append(0)
+                    elif new_aln[0][i] == new_aln[2][i]:
+                        comp_seq.append(1)
 
-                c_table = [[0, 0],
-                           [0, 0]]
+                # Move sliding window along compressed sequence , 1 position at a time
+                # Slide along the sequences
+                half_win_size = int(self.win_size // 2)
+                for k in range(len(comp_seq) - self.win_size):
+                    reg_left = comp_seq[k: half_win_size + k]
+                    reg_right = comp_seq[k + half_win_size: k + self.win_size]
 
-                # Compute contingency table for each window position
-                count_r_ones = np.count_nonzero(reg_right)
-                c_table[0][0] = count_r_ones
-                c_table[0][1] = half_win_size - count_r_ones
+                    c_table = [[0, 0],
+                               [0, 0]]
 
-                count_l_ones = np.count_nonzero(reg_left)
-                c_table[1][0] = count_l_ones
-                c_table[1][1] = half_win_size - count_l_ones
+                    # Compute contingency table for each window position
+                    count_r_ones = np.count_nonzero(reg_right)
+                    c_table[0][0] = count_r_ones
+                    c_table[0][1] = half_win_size - count_r_ones
 
-                # Compute chi-squared value
-                if c_table[0][0] == 0 or c_table[0][1] == 0:
-                    chi2_values.append(0)
-                    p_values.append(0)
+                    count_l_ones = np.count_nonzero(reg_left)
+                    c_table[1][0] = count_l_ones
+                    c_table[1][1] = half_win_size - count_l_ones
 
-                else:
-                    chi2, p_value, _, _ = chi2_contingency(c_table)
-                    chi2_values.append(chi2)
-                    p_values.append(p_value)
+                    # Compute chi-squared value
+                    chi2, p_value = calculate_chi2(c_table, self.max_pvalue)
+                    if chi2 is not None and p_value is not None:
+                        chi2_values.append(chi2)
+                        p_values.append(p_value)
 
-            peaks = find_peaks(chi2_values, wlen=self.win_size, distance=self.win_size)
-            for i, peak in enumerate(peaks[0]):
-                search_win_size = 1
-                while peak - search_win_size > 0 \
-                        and peak + search_win_size < len(chi2_values) - 1 \
-                        and chi2_values[peak + search_win_size] > 0.5 * chi2_values[peak] \
-                        and chi2_values[peak - search_win_size] > 0.5 * chi2_values[peak]:
-                    search_win_size += 1
+                        # Compute chi-squared value
+                        chi2, p_value = calculate_chi2(c_table, self.max_pvalue)
+                        if chi2 is not None and p_value is not None:
+                            # Insert p-values and chi2 values so they correspond to positions in the original alignment
+                            chi2_values[self.poly_sites[k + half_win_size]] = cur_val  # centred window
+                            p_values[self.poly_sites[k + half_win_size]] = p_value
 
-                if chi2_values[peak + search_win_size] > chi2_values[peak - search_win_size]:
-                    aln_pos = (int(peak), int(peak + search_win_size + self.win_size))
-                else:
-                    aln_pos = (int(peak - search_win_size), int(peak + self.win_size))
+                    # Smooth chi2-values
+                    chi2_values = gaussian_filter1d(chi2_values, 1.5)
+                    # p_values = gaussian_filter1d(p_values, 1.5)
+                    # self.plot_chi2_values(chi2_values, p_values)
+
+                    peaks = find_peaks(chi2_values, distance=self.win_size)
+                    for k, peak in enumerate(peaks[0]):
+                        search_win_size = 1
+                        while peak - search_win_size > 0 \
+                                and peak + search_win_size < len(chi2_values) - 1 \
+                                and chi2_values[peak + search_win_size] > 0.3 * chi2_values[peak] \
+                                and chi2_values[peak - search_win_size] > 0.3 * chi2_values[peak]:
+                            search_win_size += 1
+
+                        if chi2_values[peak + search_win_size] > chi2_values[peak - search_win_size]:
+                            aln_pos = (int(peak), int(peak + search_win_size + self.win_size))
+                        else:
+                            aln_pos = (int(peak - search_win_size), int(peak + self.win_size))
+
+                        # Check that breakpoint has not already been detected
+                        if (*aln_pos, p_values[k]) not in self.results[names]:
+                            self.results[names].append((*aln_pos, p_values[peak]))
 
                 self.results.append((rec_name, p1_name, p2_name, *aln_pos, p_values[i]))
 

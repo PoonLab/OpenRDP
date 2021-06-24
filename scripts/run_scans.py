@@ -129,7 +129,7 @@ class Scanner:
 
             # Run RDP Method
         if self.rdp:
-            rdp.execute(alignment)
+            rdp.execute()
 
             # Run Bootscan
         if self.bootscan:

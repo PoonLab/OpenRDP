@@ -24,6 +24,28 @@ def remove_monomorphic_sites(align):
     return new_align, poly_sites
 
 
+def remove_uninformative_sites(triplet):
+    """
+    Remove sites that are all the same or all different
+    :param triplet: n x 3 numpy array where n is the length of the alignment
+    :return: a tuple containing the informative sites and the positions of informative sites
+    """
+    infor_sites = []
+    uninfor_sites = []
+    # Find positions of sites that are all the same sites or all sites that are different
+    for i in range(triplet.shape[1]):
+        col = triplet[:, i]
+        if np.unique(col).shape[0] == 2:
+            infor_sites.append(i)
+        else:
+            uninfor_sites.append(i)
+
+    # Build "new alignment"
+    new_trp = triplet[:, infor_sites]
+
+    return new_trp, infor_sites, uninfor_sites
+
+
 def generate_triplets(align):
     """
     Generate all possible combinations of sequence triplets

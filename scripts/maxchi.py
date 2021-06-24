@@ -5,7 +5,6 @@ from scripts.common import remove_monomorphic_sites, generate_triplets, calculat
 from math import factorial
 import matplotlib.pyplot as plt
 
-from queue import Queue
 
 class MaxChi:
     def __init__(self, align, names, max_pvalue=0.05, win_size=200, strip_gaps=True, fixed_win_size=True,

@@ -6,8 +6,8 @@ from math import factorial
 
 
 class Chimaera:
-    def __init__(self, align, names, settings=None, max_pvalue=0.05, win_size=200, strip_gaps=True, fixed_win_size=True, num_var_sites=None,
-                 frac_var_sites=None):
+    def __init__(self, align, names, settings=None, max_pvalue=0.05, win_size=200, strip_gaps=True, fixed_win_size=True,
+                 num_var_sites=None, frac_var_sites=None):
         """
         Constructs a Chimaera Object
         :param win_size: Size of the sliding window
@@ -28,8 +28,9 @@ class Chimaera:
             self.frac_var_sites = frac_var_sites
 
         self.s_names = names
+        self.align = align
         self.new_align, self.poly_sites = remove_monomorphic_sites(align)
-        self.results = []
+        self.results = {}
 
     def set_options_from_config(self, settings):
         """
@@ -70,30 +71,11 @@ class Chimaera:
                 print("Invalid option for 'frac_var_sites'.\nUsing default value (0.1) instead.")
                 self.frac_var_sites = 0.1
 
-    @staticmethod
-    def remove_monomorphic_sites(align):
-        """
-        Remove monomorphic sites
-        :param align: n x m numpy array where n is the length of the alignment and m is the number of sequences
-        :return: a tuple containing the polymorphic sites and the positions of polymorphic sites
-        """
-        poly_sites = []
-        # Find positions of polymorphic sites
-        for i in range(align.shape[1]):
-            col = align[:, i]
-            if not np.all(col == col[0]):
-                poly_sites.append(i)
-
-        # Build "new alignment"
-        new_align = align[:, poly_sites]
-
-        return new_align, poly_sites
-
     def execute(self):
         """
         Executes the Chimaera algorithm
-        :param triplet: a list of three sequences
         """
+
         num_trp = int(factorial(self.align.shape[0]) / (factorial(3) * factorial((self.align.shape[0]) - 3)))
         trp_count = 1
         for trp_idx in generate_triplets(self.align):
@@ -105,24 +87,26 @@ class Chimaera:
             for idx in trp_idx:
                 seqs.append(self.new_align[idx])
 
+            # Try every possible combination of "parentals" and "recombinant"
             combos = [(0, 1, 2), (1, 2, 0), (2, 1, 0)]
             for run in combos:
+
                 recombinant = seqs[run[0]]
                 parental_1 = seqs[run[1]]
                 parental_2 = seqs[run[2]]
 
-                rec_name = self.s_names[seqs[run[0]]]
-                p1_name = self.s_names[seqs[run[1]]]
-                p2_name = self.s_names[seqs[run[2]]]
+                rec_name = self.s_names[trp_idx[run[0]]]
+                p1_name = self.s_names[trp_idx[run[1]]]
+                p2_name = self.s_names[trp_idx[run[2]]]
 
                 # Prepare dictionary to store sequences involved in recombination
-                names = tuple(sorted([self.s_names[trp_idx[i]], self.s_names[trp_idx[j]]]))
+                names = tuple([rec_name, p1_name, p2_name])
                 self.results[names] = []
 
-                chi2_values = []
-                p_values = []
+                chi2_values = np.zeros(self.align.shape[1])
+                p_values = np.ones(self.align.shape[1])  # Map window position to p-values
 
-                # Remove sites where neither the parental match the recombinant
+                # Remove sites where neither parental matches the recombinant
                 informative_sites = []
                 aln = np.array([recombinant, parental_1, parental_2])
                 # Find indices for informative sites
@@ -161,23 +145,27 @@ class Chimaera:
                     c_table[1][0] = count_l_ones
                     c_table[1][1] = half_win_size - count_l_ones
 
+                    # Using notation from Maynard Smith (1992)
+                    n = self.win_size
+                    k2 = half_win_size
+                    s = np.sum(reg_left == reg_right)
+                    r = np.sum(reg_left != reg_right)
+
+                    # Avoid dividing by 0 (both "parental" sequuences are identical in the window)
+                    if s > 0:
+                        cur_val = (float(n) * (k2 * s - n * r) * (k2 * s - n * r)) / (float(k2 * s) * (n - k2) * (n - s))
+                    else:
+                        cur_val = -1
+
                     # Compute chi-squared value
                     chi2, p_value = calculate_chi2(c_table, self.max_pvalue)
                     if chi2 is not None and p_value is not None:
-                        chi2_values.append(chi2)
-                        p_values.append(p_value)
-
-                        # Compute chi-squared value
-                        chi2, p_value = calculate_chi2(c_table, self.max_pvalue)
-                        if chi2 is not None and p_value is not None:
-                            # Insert p-values and chi2 values so they correspond to positions in the original alignment
-                            chi2_values[self.poly_sites[k + half_win_size]] = cur_val  # centred window
-                            p_values[self.poly_sites[k + half_win_size]] = p_value
+                        # Insert p-values and chi2 values so they correspond to positions in the original alignment
+                        chi2_values[self.poly_sites[k + half_win_size]] = cur_val  # centred window
+                        p_values[self.poly_sites[k + half_win_size]] = p_value
 
                     # Smooth chi2-values
                     chi2_values = gaussian_filter1d(chi2_values, 1.5)
-                    # p_values = gaussian_filter1d(p_values, 1.5)
-                    # self.plot_chi2_values(chi2_values, p_values)
 
                     peaks = find_peaks(chi2_values, distance=self.win_size)
                     for k, peak in enumerate(peaks[0]):
@@ -197,6 +185,4 @@ class Chimaera:
                         if (*aln_pos, p_values[k]) not in self.results[names]:
                             self.results[names].append((*aln_pos, p_values[peak]))
 
-                self.results.append((rec_name, p1_name, p2_name, *aln_pos, p_values[i]))
-
-        return
+        return self.results

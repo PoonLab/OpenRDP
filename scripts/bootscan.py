@@ -3,11 +3,13 @@ import numpy as np
 from scipy.spatial.distance import pdist, squareform
 import functools
 import random
+from math import factorial
+from common import generate_triplets
 
 
 class Bootscan:
-    def __init__(self, alignment, s_names, settings=None, win_size=200, step_size=20, use_distances=True, num_replicates=100,
-                 random_seed=3, cutoff=0.7, model='JC69'):
+    def __init__(self, alignment, s_names, settings=None, win_size=200, step_size=20, use_distances=True,
+                 num_replicates=100, random_seed=3, cutoff=0.7, model='JC69'):
         if settings:
             self.set_options_from_config(settings)
             self.validate_options(alignment)
@@ -20,13 +22,14 @@ class Bootscan:
             self.cutoff = cutoff
             self.model = model
 
-        self.s_names = s_names
+        self.names = s_names
+        self.align = alignment
         random.seed(self.random_seed)
         print('Starting Scanning Phase of Bootscan/Recscan')
         self.dists = self.do_scanning_phase(alignment)
         print('Finished Scanning Phase of Bootscan/Recscan')
 
-        self.results = []
+        self.results = {}
 
     def set_options_from_config(self, settings):
         """
@@ -116,8 +119,8 @@ class Bootscan:
 
         return putative_regions
 
-    def scan(self, align, i):
-        window = align[:, i:i + self.win_size]
+    def scan(self, i):
+        window = self.align[:, i:i + self.win_size]
         # Make bootstrap replicates of alignment
         dists = []
         for rep in range(self.num_replicates):
@@ -131,7 +134,6 @@ class Bootscan:
         """
         Perform scanning phase of the Bootscan/Recscan algorithm
         :param align: a n x m array of aligned sequences
-        :return:
         """
         scan = functools.partial(self.scan, align)
         with multiprocessing.Pool() as p:
@@ -139,102 +141,112 @@ class Bootscan:
 
         return all_dists
 
-    def execute(self, align, triplet, num_trp):
+    def execute(self):
         """
         Executes the exploratory version of the BOOTSCAN from RDP5 uses the RECSCAN algorithm,
             which does not require that recombinants are known
         """
-        num_seqs = align.shape[0]
-        # Get the triplet sequences
-        trp_seqs = []
-        for seq_num in triplet:
-            trp_seqs.append(align[seq_num])
-        trp_seqs = np.array(trp_seqs)
+        G = int(factorial(self.align.shape[0]) / (factorial(3) * factorial((self.align.shape[0]) - 3)))
+        trp_count = 1
+        num_seqs = self.align.shape[0]
+        for trp_idx in generate_triplets(self.align):
+            print("Scanning triplet {} / {}".format(trp_count, G))
+            trp_count += 1
 
-        # Detection phase
-        pairs = ((0, 1), (1, 2), (0, 2))
+            # Get the triplet sequences
+            trp_seqs = []
+            for seq_num in trp_idx:
+                trp_seqs.append(self.align[seq_num])
+            trp_seqs = np.array(trp_seqs)
 
-        # Look at boostrap support for sequence pairs
-        ab_support = []
-        bc_support = []
-        ac_support = []
-        for dists in self.dists:
-            supports = []
-            for dist_mat in dists:
-                # Access pairwise distances for each pair
-                ab_dist = dist_mat[triplet[0], triplet[1]]
-                bc_dist = dist_mat[triplet[1], triplet[2]]
-                ac_dist = dist_mat[triplet[0], triplet[2]]
-                supports.append(np.argmin([ab_dist, bc_dist, ac_dist]))
+            # Detection phase
+            pairs = ((0, 1), (1, 2), (0, 2))
 
-            ab_support.append(np.sum(np.equal(supports, 0)) / self.num_replicates)
-            bc_support.append(np.sum(np.equal(supports, 1)) / self.num_replicates)
-            ac_support.append(np.sum(np.equal(supports, 2)) / self.num_replicates)
+            # Look at boostrap support for sequence pairs
+            ab_support = []
+            bc_support = []
+            ac_support = []
+            for dists in self.dists:
+                supports = []
+                for dist_mat in dists:
+                    # Access pairwise distances for each pair
+                    ab_dist = dist_mat[trp_idx[0], trp_idx[1]]
+                    bc_dist = dist_mat[trp_idx[1], trp_idx[2]]
+                    ac_dist = dist_mat[trp_idx[0], trp_idx[2]]
+                    supports.append(np.argmin([ab_dist, bc_dist, ac_dist]))
 
-        supports = np.array([ab_support, bc_support, ac_support])
-        supports_max = np.argmax(supports, axis=0)
-        supports_thresh = supports > self.cutoff
+                ab_support.append(np.sum(np.equal(supports, 0)) / self.num_replicates)
+                bc_support.append(np.sum(np.equal(supports, 1)) / self.num_replicates)
+                ac_support.append(np.sum(np.equal(supports, 2)) / self.num_replicates)
 
-        transition_window_locations = []
-        for i in range(1, supports.shape[1] - self.step_size):
-            if np.any(supports_thresh[:,i]):
-                max1 = np.argmax(supports_thresh[:,i])
-                if not supports_thresh[max1,i+1]:
-                    for j in range(1,self.step_size):
-                        max2 = supports_max[i+j]
-                        if max2 != max1 and supports_thresh[max2, i+j]:
-                            transition_window_locations.append(i)
-                            transition_window_locations.append(i+j)
-                            break
+            supports = np.array([ab_support, bc_support, ac_support])
+            supports_max = np.argmax(supports, axis=0)
+            supports_thresh = supports > self.cutoff
 
-        # Identify areas where the bootstrap support alternates between two different sequence pairs
-        transition_window_locations = [0] + transition_window_locations + [supports.shape[1] - 1]
-        possible_regions = []
-        groupings = ((0, 2), (0, 1), (1, 2))
-        trps = (0, 1, 2)
-        for rec_pot in range(3):
-            for i in range(len(transition_window_locations) - 1):
-                begin = transition_window_locations[i]
-                end = transition_window_locations[i + 1]
-                pair = supports_max[begin]
-                if np.all(supports_thresh[pair, begin:end+1]) and pair in groupings[rec_pot]:
-                    region = (rec_pot, (begin * self.step_size + self.win_size // 2, end * self.step_size + self.win_size // 2))
-                    possible_regions.append(region)
+            transition_window_locations = []
+            for i in range(1, supports.shape[1] - self.step_size):
+                if np.any(supports_thresh[:,i]):
+                    max1 = np.argmax(supports_thresh[:,i])
+                    if not supports_thresh[max1,i+1]:
+                        for j in range(1,self.step_size):
+                            max2 = supports_max[i+j]
+                            if max2 != max1 and supports_thresh[max2, i+j]:
+                                transition_window_locations.append(i)
+                                transition_window_locations.append(i+j)
+                                break
 
-        # Find p-value for regions
-        for recomb_candidate, event in possible_regions:
-            n = event[1] - event[0]
-            G = num_trp
-            l = align.shape[1]
+            # Identify areas where the bootstrap support alternates between two different sequence pairs
+            transition_window_locations = [0] + transition_window_locations + [supports.shape[1] - 1]
+            possible_regions = []
+            groupings = ((0, 2), (0, 1), (1, 2))
+            trps = (0, 1, 2)
+            for rec_pot in range(3):
+                for i in range(len(transition_window_locations) - 1):
+                    begin = transition_window_locations[i]
+                    end = transition_window_locations[i + 1]
+                    pair = supports_max[begin]
+                    if np.all(supports_thresh[pair, begin:end+1]) and pair in groupings[rec_pot]:
+                        region = (rec_pot, (begin * self.step_size + self.win_size // 2, end * self.step_size + self.win_size // 2))
+                        possible_regions.append(region)
 
-            # m is the proportion of nts in common between either A or B and C in the recombinant region
-            recomb_region_cand = trp_seqs[recomb_candidate, event[0]: event[1]]
-            other_seqs = trp_seqs[trps[:recomb_candidate] + trps[recomb_candidate+1:], event[0]: event[1]]
-            m = np.sum(np.any(recomb_region_cand == other_seqs, axis=0))
+            # Find p-value for regions
+            for recomb_candidate, event in possible_regions:
+                n = event[1] - event[0]
+                l = self.align.shape[1]
 
-            # p is the proportion of nts in common between either A or B and C in the entire sequence
-            recomb_region_cand = trp_seqs[recomb_candidate, :]
-            other_seqs = trp_seqs[trps[:recomb_candidate] + trps[recomb_candidate + 1:], :]
-            p = np.sum(np.any(recomb_region_cand == other_seqs, axis=0)) / l
+                # m is the proportion of nts in common between either A or B and C in the recombinant region
+                recomb_region_cand = trp_seqs[recomb_candidate, event[0]: event[1]]
+                other_seqs = trp_seqs[trps[:recomb_candidate] + trps[recomb_candidate+1:], event[0]: event[1]]
+                m = np.sum(np.any(recomb_region_cand == other_seqs, axis=0))
 
-            if n > 0:
-                # Calculate p_value
-                val = 0
-                log_n_fact = np.sum(np.log(np.arange(1, n + 1)))  # Convert to log space to prevent integer overflow
-                for i in range(m, n):
-                    log_i_fact = np.sum(np.log(np.arange(1, i + 1)))
-                    log_ni_fact = np.sum(np.log(np.arange(1, n - i + 1)))
-                    val += np.math.exp(
-                        (log_n_fact - (log_i_fact + log_ni_fact)) + np.log(p ** n) + np.log((1 - p) ** (n - i)))
+                # p is the proportion of nts in common between either A or B and C in the entire sequence
+                recomb_region_cand = trp_seqs[recomb_candidate, :]
+                other_seqs = trp_seqs[trps[:recomb_candidate] + trps[recomb_candidate + 1:], :]
+                p = np.sum(np.any(recomb_region_cand == other_seqs, axis=0)) / l
 
-                uncorr_pvalue = (l / n) * val
-                corr_p_value = G * uncorr_pvalue
+                if n > 0:
+                    # Calculate p_value
+                    val = 0
+                    log_n_fact = np.sum(np.log(np.arange(1, n + 1)))  # Convert to log space to prevent integer overflow
+                    for i in range(m, n):
+                        log_i_fact = np.sum(np.log(np.arange(1, i + 1)))
+                        log_ni_fact = np.sum(np.log(np.arange(1, n - i + 1)))
+                        val += np.math.exp(
+                            (log_n_fact - (log_i_fact + log_ni_fact)) + np.log(p ** n) + np.log((1 - p) ** (n - i)))
 
-                rec_name = self.s_names[triplet[recomb_candidate]]
+                    uncorr_pvalue = (l / n) * val
+                    corr_p_value = G * uncorr_pvalue
 
-                self.results.append((rec_name, *event, uncorr_pvalue, corr_p_value))
+                    rec_name = self.names[trp_idx[recomb_candidate]]
 
-            else:
-                return
+                    try:
+                        self.results[names].append((coord, uncorr_pvalue, corr_p_value))
+                    except KeyError:
+                        self.results[names] = (coord, uncorr_pvalue, corr_p_value)
 
-        return
+                    self.results.append((rec_name, *event, uncorr_pvalue, corr_p_value))
+
+                else:
+                    return
+
+            return

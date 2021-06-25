@@ -159,6 +159,10 @@ class Bootscan:
                 trp_seqs.append(self.align[seq_num])
             trp_seqs = np.array(trp_seqs)
 
+            # Prepare dictionary to store sequences involved in recombination
+            names = tuple(sorted([self.names[trp_idx[0]], self.names[trp_idx[1]], self.names[trp_idx[2]]]))
+            self.results[names] = []
+
             # Detection phase
             pairs = ((0, 1), (1, 2), (0, 2))
 
@@ -240,11 +244,9 @@ class Bootscan:
                     rec_name = self.names[trp_idx[recomb_candidate]]
 
                     try:
-                        self.results[names].append((coord, uncorr_pvalue, corr_p_value))
+                        self.results[names].append((rec_name, *event, uncorr_pvalue, corr_p_value))
                     except KeyError:
-                        self.results[names] = (coord, uncorr_pvalue, corr_p_value)
-
-                    self.results.append((rec_name, *event, uncorr_pvalue, corr_p_value))
+                        self.results[names] = (rec_name, *event, uncorr_pvalue, corr_p_value)
 
                 else:
                     return

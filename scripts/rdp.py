@@ -1,6 +1,6 @@
 import numpy as np
 import re
-from common import remove_uninformative_sites, generate_triplets
+from scripts.common import remove_uninformative_sites, generate_triplets
 from math import factorial
 
 

@@ -1,8 +1,7 @@
 from scipy.signal import find_peaks, medfilt
 from scipy.ndimage import gaussian_filter1d
 import numpy as np
-from scripts.common import remove_monomorphic_sites, generate_triplets, calculate_chi2
-from math import factorial
+from scripts.common import generate_triplets, calculate_chi2
 import matplotlib.pyplot as plt
 
 
@@ -17,21 +16,22 @@ class MaxChi:
         :param num_var_sites: The number of variable sites in a variable length sliding window
         :param frac_var_sites: The fraction of variable sites in a variable length sliding window
         """
+
         if settings:
             self.set_options_from_config(settings)
             self.validate_options(align)
 
         else:
+            self.align = align
+            self.s_names = names
+            self.results = {}
             self.max_pvalue = max_pvalue
-            self.win_size = win_size
+            self.fixed_win_size = win_size
             self.strip_gaps = strip_gaps
-            self.fixed_win_size = fixed_win_size
+            self.fixed_win = fixed_win_size
             self.num_var_sites = num_var_sites
             self.frac_var_sites = frac_var_sites
 
-        self.s_names = names
-        self.align = align
-        self.new_align, self.poly_sites = remove_monomorphic_sites(align)
         self.results = {}
 
     def set_options_from_config(self, settings):
@@ -72,11 +72,14 @@ class MaxChi:
             print("Invalid option for 'frac_var_sites'.\nUsing default value (0.1) instead.")
             self.frac_var_sites = 0.1
 
-    def execute(self):
+
+
+
+    def execute(self, num_trp):
         """
         Executes the MaxChi algorithm
+        :param num_trp: the number of triplets
         """
-        num_trp = int(factorial(self.align.shape[0]) / (factorial(3) * factorial((self.align.shape[0]) - 3)))
         trp_count = 1
         for trp_idx in generate_triplets(self.align):
             print("Scanning triplet {} / {}".format(trp_count, num_trp))
@@ -97,21 +100,25 @@ class MaxChi:
                 names = tuple(sorted([self.s_names[trp_idx[i]], self.s_names[trp_idx[j]]]))
                 self.results[names] = []
 
+                # Initialize lists to map chi2 and p-values to window positions
                 chi2_values = np.zeros(self.align.shape[1])
                 p_values = np.ones(self.align.shape[1])       # Map window position to p-values
 
+                # Get the size of the first window
+                win_size = self.get_win_size(offset=0)
+
                 # Slide along the sequences
-                half_win_size = int(self.win_size // 2)
-                for k in range(self.new_align.shape[1] - self.win_size):
+                half_win_size = int(win_size // 2)
+                for k in range(self.new_align.shape[1] - win_size):
 
                     # Get the left and right half of the window
                     reg1_left = seq1[k: half_win_size + k]
                     reg2_left = seq2[k: half_win_size + k]
-                    reg1_right = seq1[k + half_win_size: k + self.win_size]
-                    reg2_right = seq2[k + half_win_size: k + self.win_size]
+                    reg1_right = seq1[k + half_win_size: k + win_size]
+                    reg2_right = seq2[k + half_win_size: k + win_size]
 
-                    reg1 = seq1[k: k + self.win_size]
-                    reg2 = seq2[k: k + self.win_size]
+                    reg1 = seq1[k: k + win_size]
+                    reg2 = seq2[k: k + win_size]
 
                     s = np.sum(reg1 != reg2)
                     r = np.sum(reg1_left != reg2_left)
@@ -140,6 +147,8 @@ class MaxChi:
                         chi2_values[self.poly_sites[k + half_win_size]] = cur_val  # centred window
                         p_values[self.poly_sites[k + half_win_size]] = p_value
 
+                    win_size = self.get_win_size(k)
+
                 # Smooth chi2-values
                 chi2_values = gaussian_filter1d(chi2_values, 1.5)
                 # p_values = gaussian_filter1d(p_values, 1.5)
@@ -155,9 +164,9 @@ class MaxChi:
                         search_win_size += 1
 
                     if chi2_values[peak + search_win_size] > chi2_values[peak - search_win_size]:
-                        aln_pos = (int(peak), int(peak + search_win_size + self.win_size))
+                        aln_pos = (int(peak), int(peak + search_win_size + win_size))
                     else:
-                        aln_pos = (int(peak - search_win_size), int(peak + self.win_size))
+                        aln_pos = (int(peak - search_win_size), int(peak + win_size))
 
                     # Check that breakpoint has not already been detected
                     if (*aln_pos, p_values[k]) not in self.results[names]:
@@ -165,6 +174,7 @@ class MaxChi:
 
         return self.results
 
+    @staticmethod
     def plot_chi2_values(self, chi_values, p_values):
         plt.figure()
         p = -np.log(p_values)

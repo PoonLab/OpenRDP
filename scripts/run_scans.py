@@ -10,6 +10,8 @@ from scripts.rdp import RdpMethod
 from scripts.siscan import Siscan
 from scripts.bootscan import Bootscan
 
+from math import factorial
+
 
 class Scanner:
     def __init__(self, names, infile, cfg, run_geneconv=False, run_three_seq=False, run_rdp=False,
@@ -39,7 +41,7 @@ class Scanner:
         # Remove identical sequences
         aln = list(set(aln))
 
-        # Create an m x n array of sequences (n = length, m = number of sequences)
+        # Create an m x n array of sequences
         alignment = np.array(list(map(list, aln)))
 
         with open('results.txt', 'w+') as outfile:
@@ -75,6 +77,9 @@ class Scanner:
         # Exit early if 3Seq and Geneconv are the only methods selected
         if not self.maxchi and not self.chimaera and not self.siscan and not self.rdp and not self.bootscan:
             return
+
+        # Get number of triplets
+        num_triplets = int(factorial(alignment.shape[0]) / (factorial(3) * factorial((alignment.shape[0]) - 3)))
 
         # Setup MaxChi
         if self.maxchi:
@@ -117,23 +122,23 @@ class Scanner:
 
         # Run MaxChi
         if self.maxchi:
-            maxchi.execute()
+            maxchi.execute(num_triplets)
 
             # Run Chimaera
         if self.chimaera:
-            chimaera.execute()
+            chimaera.execute(num_triplets)
 
             # Run Siscan
         if self.siscan:
-            siscan.execute(alignment)
+            siscan.execute(alignment, num_triplets)
 
             # Run RDP Method
         if self.rdp:
-            rdp.execute()
+            rdp.execute(num_triplets)
 
             # Run Bootscan
         if self.bootscan:
-            bootscan.execute(alignment)
+            bootscan.execute(alignment, num_triplets)
 
         with open('results.txt', 'a') as outfile:
             # Report the results

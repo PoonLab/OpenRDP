@@ -1,6 +1,7 @@
 import unittest
 from scripts.main import read_fasta
-from scripts.common import remove_monomorphic_sites, generate_triplets
+from scripts.common import generate_triplets
+from scripts.common import Triplet
 import numpy as np
 
 
@@ -81,3 +82,9 @@ class TestCommon(unittest.TestCase):
             res_trps.append(trp)
 
         self.assertEqual(exp_trps, res_trps)
+
+    def testGetWindowSize(self):
+        triplet = Triplet(np.array(['ATGCATACG', 'TTGCACACA', 'TGGCACACC']))
+        expcted = 3
+        result = triplet.get_win_size(offset=0, win_size=3, fixed_win_size=True, num_var_sites=3, frac_var_sites=0)
+        self.assertEqual(expcted, result)

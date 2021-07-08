@@ -4,7 +4,7 @@ from scipy.spatial.distance import pdist, squareform
 import functools
 import random
 from math import factorial
-from common import generate_triplets
+from scripts.common import generate_triplets
 
 
 class Bootscan:

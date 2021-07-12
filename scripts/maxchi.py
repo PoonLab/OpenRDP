@@ -1,12 +1,12 @@
-from scipy.signal import find_peaks, medfilt
+from scipy.signal import find_peaks
 from scipy.ndimage import gaussian_filter1d
 import numpy as np
-from scripts.common import generate_triplets, calculate_chi2
+from scripts.common import calculate_chi2
 import matplotlib.pyplot as plt
 
 
 class MaxChi:
-    def __init__(self, align, names, max_pvalue=0.05, win_size=200, strip_gaps=True, fixed_win_size=True,
+    def __init__(self, align, max_pvalue=0.05, win_size=200, strip_gaps=True, fixed_win_size=True,
                  num_var_sites=None, frac_var_sites=None, settings=None):
         """
         Constructs a MaxChi Object
@@ -23,7 +23,6 @@ class MaxChi:
 
         else:
             self.align = align
-            self.s_names = names
             self.results = {}
             self.max_pvalue = max_pvalue
             self.fixed_win_size = win_size
@@ -72,32 +71,25 @@ class MaxChi:
             print("Invalid option for 'frac_var_sites'.\nUsing default value (0.1) instead.")
             self.frac_var_sites = 0.1
 
-
-
-
-    def execute(self, num_trp):
+    def execute(self, triplets):
         """
         Executes the MaxChi algorithm
-        :param num_trp: the number of triplets
+        :param triplets: a list of triplet objects
         """
         trp_count = 1
-        for trp_idx in generate_triplets(self.align):
-            print("Scanning triplet {} / {}".format(trp_count, num_trp))
+        total_num_trps = len(triplets)
+        for triplet in triplets:
+            print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
             trp_count += 1
 
-            # 1. Select the 3 processed sequences
-            seqs = []
-            for idx in trp_idx:
-                seqs.append(self.new_align[idx])
-
-            # 2. Sample two sequences
+            # 1. Sample two sequences
             pairs = ((0, 1), (1, 2), (2, 0))
             for i, j in pairs:
-                seq1 = seqs[i]
-                seq2 = seqs[j]
+                seq1 = triplet.sequences[i]
+                seq2 = triplet.sequences[j]
 
                 # Prepare dictionary to store sequences involved in recombination
-                names = tuple(sorted([self.s_names[trp_idx[i]], self.s_names[trp_idx[j]]]))
+                names = tuple(sorted([triplet.get_sequence_name(i), triplet.get_sequence_name(j)]))
                 self.results[names] = []
 
                 # Initialize lists to map chi2 and p-values to window positions
@@ -105,11 +97,11 @@ class MaxChi:
                 p_values = np.ones(self.align.shape[1])       # Map window position to p-values
 
                 # Get the size of the first window
-                win_size = self.get_win_size(offset=0)
+                win_size = triplet.get_win_size(offset=0)
 
                 # Slide along the sequences
                 half_win_size = int(win_size // 2)
-                for k in range(self.new_align.shape[1] - win_size):
+                for k in range(triplet.new_align.shape[1] - win_size):
 
                     # Get the left and right half of the window
                     reg1_left = seq1[k: half_win_size + k]
@@ -144,10 +136,10 @@ class MaxChi:
                     chi2, p_value = calculate_chi2(c_table, self.max_pvalue)
                     if chi2 is not None and p_value is not None:
                         # Insert p-values and chi2 values so they correspond to positions in the original alignment
-                        chi2_values[self.poly_sites[k + half_win_size]] = cur_val  # centred window
-                        p_values[self.poly_sites[k + half_win_size]] = p_value
+                        chi2_values[triplet.poly_sites[k + half_win_size]] = cur_val  # centred window
+                        p_values[triplet.poly_sites[k + half_win_size]] = p_value
 
-                    win_size = self.get_win_size(k)
+                    win_size = triplet.get_win_size(k)
 
                 # Smooth chi2-values
                 chi2_values = gaussian_filter1d(chi2_values, 1.5)
@@ -175,7 +167,7 @@ class MaxChi:
         return self.results
 
     @staticmethod
-    def plot_chi2_values(self, chi_values, p_values):
+    def plot_chi2_values(chi_values, p_values):
         plt.figure()
         p = -np.log(p_values)
         plt.plot(chi_values)

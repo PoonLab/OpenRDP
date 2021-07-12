@@ -1,12 +1,11 @@
 import numpy as np
 from scipy.signal import find_peaks
 from scipy.ndimage import gaussian_filter1d
-from scripts.common import remove_monomorphic_sites, calculate_chi2, generate_triplets
-from math import factorial
+from scripts.common import calculate_chi2
 
 
 class Chimaera:
-    def __init__(self, align, names, settings=None, max_pvalue=0.05, win_size=200, strip_gaps=True, fixed_win_size=True,
+    def __init__(self, align, settings=None, max_pvalue=0.05, win_size=200, strip_gaps=True, fixed_win_size=True,
                  num_var_sites=None, frac_var_sites=None):
         """
         Constructs a Chimaera Object
@@ -27,9 +26,7 @@ class Chimaera:
             self.num_var_sites = num_var_sites
             self.frac_var_sites = frac_var_sites
 
-        self.s_names = names
         self.align = align
-        self.new_align, self.poly_sites = remove_monomorphic_sites(align)
         self.results = {}
 
     def set_options_from_config(self, settings):
@@ -71,33 +68,24 @@ class Chimaera:
                 print("Invalid option for 'frac_var_sites'.\nUsing default value (0.1) instead.")
                 self.frac_var_sites = 0.1
 
-    def execute(self):
+    def execute(self, triplets):
         """
         Executes the Chimaera algorithm
         """
 
-        num_trp = int(factorial(self.align.shape[0]) / (factorial(3) * factorial((self.align.shape[0]) - 3)))
         trp_count = 1
-        for trp_idx in generate_triplets(self.align):
-            print("Scanning triplet {} / {}".format(trp_count, num_trp))
+        total_num_trps = len(triplets)
+        for triplet in triplets:
+            print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
             trp_count += 1
-
-            # 1. Select the 3 processed sequences
-            seqs = []
-            for idx in trp_idx:
-                seqs.append(self.new_align[idx])
 
             # Try every possible combination of "parentals" and "recombinant"
             combos = [(0, 1, 2), (1, 2, 0), (2, 1, 0)]
             for run in combos:
 
-                recombinant = seqs[run[0]]
-                parental_1 = seqs[run[1]]
-                parental_2 = seqs[run[2]]
-
-                rec_name = self.s_names[trp_idx[run[0]]]
-                p1_name = self.s_names[trp_idx[run[1]]]
-                p2_name = self.s_names[trp_idx[run[2]]]
+                rec_name = triplet.get_sequence_name(run[0])
+                p1_name = triplet.get_sequence_name(run[1])
+                p2_name = triplet.get_sequence_name(run[2])
 
                 # Prepare dictionary to store sequences involved in recombination
                 names = tuple([rec_name, p1_name, p2_name])
@@ -106,19 +94,11 @@ class Chimaera:
                 chi2_values = np.zeros(self.align.shape[1])
                 p_values = np.ones(self.align.shape[1])  # Map window position to p-values
 
-                # Remove sites where neither parental matches the recombinant
-                informative_sites = []
-                aln = np.array([recombinant, parental_1, parental_2])
-                # Find indices for informative sites
-                for i in range(aln.shape[1]):
-                    col = aln[:, i]
-                    if col[0] == col[1] or col[0] == col[2]:
-                        informative_sites.append(i)
-
                 # Build new alignment with uninformative sites removed
-                new_aln = aln[:, informative_sites]
+                # Uninformative sites where neither parental matches recombinant
+                new_aln = triplet.sequences[:, triplet.info_sites]
 
-                # 2. Compress "recombinant" into bit-strings
+                # Compress "recombinant" into bit-strings
                 comp_seq = []
                 for i in range(new_aln.shape[1]):
                     if new_aln[0][i] == new_aln[1][i]:
@@ -126,7 +106,7 @@ class Chimaera:
                     elif new_aln[0][i] == new_aln[2][i]:
                         comp_seq.append(1)
 
-                # Move sliding window along compressed sequence , 1 position at a time
+                # Move sliding window along compressed sequence, 1 position at a time
                 # Slide along the sequences
                 half_win_size = int(self.win_size // 2)
                 for k in range(len(comp_seq) - self.win_size):
@@ -151,7 +131,7 @@ class Chimaera:
                     s = np.sum(reg_left == reg_right)
                     r = np.sum(reg_left != reg_right)
 
-                    # Avoid dividing by 0 (both "parental" sequuences are identical in the window)
+                    # Avoid dividing by 0 (both "parental" sequences are identical in the window)
                     if s > 0:
                         cur_val = (float(n) * (k2 * s - n * r) * (k2 * s - n * r)) / (float(k2 * s) * (n - k2) * (n - s))
                     else:
@@ -161,8 +141,8 @@ class Chimaera:
                     chi2, p_value = calculate_chi2(c_table, self.max_pvalue)
                     if chi2 is not None and p_value is not None:
                         # Insert p-values and chi2 values so they correspond to positions in the original alignment
-                        chi2_values[self.poly_sites[k + half_win_size]] = cur_val  # centred window
-                        p_values[self.poly_sites[k + half_win_size]] = p_value
+                        chi2_values[triplet.poly_sites[k + half_win_size]] = cur_val  # centred window
+                        p_values[triplet.poly_sites[k + half_win_size]] = p_value
 
                     # Smooth chi2-values
                     chi2_values = gaussian_filter1d(chi2_values, 1.5)

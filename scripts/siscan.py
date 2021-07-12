@@ -3,7 +3,7 @@ import random
 
 
 class Siscan:
-    def __init__(self, align, s_names, settings=None, win_size=200, step_size=20, strip_gaps=True, pvalue_perm_num=1100,
+    def __init__(self, align, settings=None, win_size=200, step_size=20, strip_gaps=True, pvalue_perm_num=1100,
                  scan_perm_num=100, random_seed=3):
         """
         Constructs a Siscan object
@@ -26,7 +26,6 @@ class Siscan:
             self.scan_perm_num = scan_perm_num
             self.random_seed = random_seed
 
-        self.s_names = s_names
         self.results = []
 
     def set_options_from_config(self, settings):
@@ -123,72 +122,73 @@ class Siscan:
 
         return sum_pat_counts
 
-    def execute(self, alignment, triplet):
+    def execute(self, triplets):
         """
         Do Sister-scanning as described in Gibbs, Armstrong, and Gibbs (2000)
         """
         random.seed(self.random_seed)
 
-        # Get the triplet sequences
-        trp_seqs = []
-        for seq_num in triplet:
-            trp_seqs.append(alignment[seq_num])
+        trp_count = 1
+        total_num_trps = len(triplets)
+        for triplet in triplets:
+            print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
+            trp_count += 1
 
-        # Based on leading edge of the window
-        for window in range(0, alignment.shape[1], self.step_size):
-            win_start = 0
-            win_end = win_start + self.win_size
+            # Based on leading edge of the window
+            for window in range(0, self.align.shape[1], self.step_size):
+                win_start = 0
+                win_end = win_start + self.win_size
 
-            # Label sequences
-            a = trp_seqs[0][win_start: win_end]
-            b = trp_seqs[1][win_start: win_end]
-            c = trp_seqs[2][win_start: win_end]
+                # Label sequences
+                a = triplet.sequences[0][win_start: win_end]
+                b = triplet.sequences[1][win_start: win_end]
+                c = triplet.sequences[2][win_start: win_end]
 
-            # Create the fourth sequence through horizontal randomization
-            selected_seq = random.choice((0, 1, 2))
-            d = trp_seqs[selected_seq][win_start: win_end]
-            np.random.shuffle(d)
+                # Create the fourth sequence through horizontal randomization
+                selected_seq = random.choice((0, 1, 2))
+                d = triplet.sequences[selected_seq][win_start: win_end]
+                np.random.shuffle(d)
 
-            # (1) Count number of positions within a window that conform to each pattern
-            seq_array = np.array([a, b, c, d])
-            pat_counts = self.count_patterns(seq_array)
+                # (1) Count number of positions within a window that conform to each pattern
+                seq_array = np.array([a, b, c, d])
+                pat_counts = self.count_patterns(seq_array)
 
-            # (2) Sum counts where 2 sequences are identical
-            sum_pat_counts = self.sum_pattern_counts(pat_counts)
+                # (2) Sum counts where 2 sequences are identical
+                sum_pat_counts = self.sum_pattern_counts(pat_counts)
 
-            # (3) Sum counts of each kind of informative site for each window
-            sum_pat_counts[0] = pat_counts[1] + pat_counts[6] + pat_counts[7]  # 2 + 7 + 8
-            sum_pat_counts[1] = pat_counts[2] + pat_counts[5] + pat_counts[8]  # 3 + 6 + 9
-            sum_pat_counts[2] = pat_counts[3] + pat_counts[4] + pat_counts[9]  # 4 + 5 + 10
+                # (3) Sum counts of each kind of informative site for each window
+                sum_pat_counts[0] = pat_counts[1] + pat_counts[6] + pat_counts[7]  # 2 + 7 + 8
+                sum_pat_counts[1] = pat_counts[2] + pat_counts[5] + pat_counts[8]  # 3 + 6 + 9
+                sum_pat_counts[2] = pat_counts[3] + pat_counts[4] + pat_counts[9]  # 4 + 5 + 10
 
-            # (4) Create 4 vertically randomized sequences (steps 1 and 2), repeat for 100 times
-            p_counts = []
-            sum_p_counts = []
-            for i in range(self.scan_perm_num):
+                # (4) Create 4 vertically randomized sequences (steps 1 and 2), repeat for 100 times
+                p_counts = []
+                sum_p_counts = []
+                for i in range(self.scan_perm_num):
 
-                # Generate 4 vertically randomized sequences (shuffle the values in the columns)
-                a1 = seq_array[:, np.random.permutation(seq_array.shape[1])]
+                    # Generate 4 vertically randomized sequences (shuffle the values in the columns)
+                    a1 = seq_array[:, np.random.permutation(seq_array.shape[1])]
 
-                # Count number of patterns and sum counts
-                p_counts = self.count_patterns(a1)
-                sum_p_counts = self.sum_pattern_counts(p_counts)
+                    # Count number of patterns and sum counts
+                    p_counts = self.count_patterns(a1)
+                    sum_p_counts = self.sum_pattern_counts(p_counts)
 
-            # (5) Calculate Z-scores for each pattern and sum of patterns for each window
-            pop_mean_pcounts = np.mean(p_counts)
-            pop_mean_patsum = np.mean(sum_p_counts)
-            pop_std_pcounts = np.std(p_counts)
-            pop_std_patsum = np.std(sum_p_counts)
+                # (5) Calculate Z-scores for each pattern and sum of patterns for each window
+                pop_mean_pcounts = np.mean(p_counts)
+                pop_mean_patsum = np.mean(sum_p_counts)
+                pop_std_pcounts = np.std(p_counts)
+                pop_std_patsum = np.std(sum_p_counts)
 
-            pat_zscore = []
-            for val in pat_counts:
-                z = (val - pop_mean_pcounts) / pop_std_pcounts
-                pat_zscore.append(z)
+                pat_zscore = []
+                for val in pat_counts:
+                    z = (val - pop_mean_pcounts) / pop_std_pcounts
+                    pat_zscore.append(z)
 
-            sum_pat_zscore = []
-            for val in sum_pat_counts:
-                z = (val - pop_mean_patsum) / pop_std_patsum
-                sum_pat_zscore.append(z)
+                sum_pat_zscore = []
+                for val in sum_pat_counts:
+                    z = (val - pop_mean_patsum) / pop_std_patsum
+                    sum_pat_zscore.append(z)
 
-            self.results.append((triplet, window, pat_zscore, sum_pat_zscore))
+                self.results.append((triplet, window, pat_zscore, sum_pat_zscore))
 
-        return
+            return

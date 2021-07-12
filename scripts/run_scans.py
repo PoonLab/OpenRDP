@@ -9,6 +9,7 @@ from scripts.chimaera import Chimaera
 from scripts.rdp import RdpMethod
 from scripts.siscan import Siscan
 from scripts.bootscan import Bootscan
+from common import generate_triplets, Triplet
 
 from math import factorial
 
@@ -78,68 +79,70 @@ class Scanner:
         if not self.maxchi and not self.chimaera and not self.siscan and not self.rdp and not self.bootscan:
             return
 
-        # Get number of triplets
-        num_triplets = int(factorial(alignment.shape[0]) / (factorial(3) * factorial((alignment.shape[0]) - 3)))
+        triplets = []
+        for trp in generate_triplets(alignment):
+            triplets.append(Triplet(alignment, trp))
 
         # Setup MaxChi
         if self.maxchi:
             print("Starting MaxChi Analysis")
             if config:
-                maxchi = MaxChi(alignment, self.seq_names, settings=dict(config.items('MaxChi')))
+                maxchi = MaxChi(alignment, settings=dict(config.items('MaxChi')))
             else:
-                maxchi = MaxChi(alignment, self.seq_names)
+                maxchi = MaxChi(alignment)
 
         # Setup Chimaera
         if self.chimaera:
             print("Starting Chimaera Analysis")
             if config:
-                chimaera = Chimaera(alignment, self.seq_names, settings=dict(config.items('Chimaera')))
+                chimaera = Chimaera(alignment, settings=dict(config.items('Chimaera')))
             else:
-                chimaera = Chimaera(alignment, self.seq_names)
+                chimaera = Chimaera(alignment)
 
         # Setup Siscan
         if self.siscan:
             print("Starting Siscan Analysis")
             if config:
-                siscan = Siscan(alignment, self.seq_names, settings=dict(config.items('Siscan')))
+                siscan = Siscan(alignment, settings=dict(config.items('Siscan')))
             else:
-                siscan = Siscan(alignment, self.seq_names)
+                siscan = Siscan(alignment)
 
         # Setup RDP
         if self.rdp:
             print("Starting RDP Analysis")
             if config:
-                rdp = RdpMethod(alignment, self.seq_names, settings=dict(config.items('RDP')))
+                rdp = RdpMethod(alignment, settings=dict(config.items('RDP')))
             else:
-                rdp = RdpMethod(alignment, self.seq_names)
+                rdp = RdpMethod(alignment)
 
         # Setup Bootscan
         if self.bootscan:
             if config:
-                bootscan = Bootscan(alignment, self.seq_names, settings=dict(config.items('Bootscan')))
+                bootscan = Bootscan(alignment, settings=dict(config.items('Bootscan')))
             else:
-                bootscan = Bootscan(alignment, self.seq_names)
+                bootscan = Bootscan(alignment)
 
         # Run MaxChi
         if self.maxchi:
-            maxchi.execute(num_triplets)
+            maxchi.execute(triplets)
 
             # Run Chimaera
         if self.chimaera:
-            chimaera.execute(num_triplets)
+            chimaera.execute(triplets)
 
             # Run Siscan
         if self.siscan:
-            siscan.execute(alignment, num_triplets)
+            siscan.execute(triplets)
 
             # Run RDP Method
         if self.rdp:
-            rdp.execute(num_triplets)
+            rdp.execute(triplets)
 
             # Run Bootscan
         if self.bootscan:
-            bootscan.execute(alignment, num_triplets)
+            bootscan.execute(triplets)
 
+    def write_output(self):
         with open('results.txt', 'a') as outfile:
             # Report the results
             if self.maxchi:

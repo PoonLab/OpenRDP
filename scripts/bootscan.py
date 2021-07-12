@@ -3,12 +3,10 @@ import numpy as np
 from scipy.spatial.distance import pdist, squareform
 import functools
 import random
-from math import factorial
-from scripts.common import generate_triplets
 
 
 class Bootscan:
-    def __init__(self, alignment, s_names, settings=None, win_size=200, step_size=20, use_distances=True,
+    def __init__(self, alignment, settings=None, win_size=200, step_size=20, use_distances=True,
                  num_replicates=100, random_seed=3, cutoff=0.7, model='JC69'):
         if settings:
             self.set_options_from_config(settings)
@@ -22,7 +20,6 @@ class Bootscan:
             self.cutoff = cutoff
             self.model = model
 
-        self.names = s_names
         self.align = alignment
         random.seed(self.random_seed)
         print('Starting Scanning Phase of Bootscan/Recscan')
@@ -141,26 +138,19 @@ class Bootscan:
 
         return all_dists
 
-    def execute(self):
+    def execute(self, triplets):
         """
-        Executes the exploratory version of the BOOTSCAN from RDP5 uses the RECSCAN algorithm,
-            which does not require that recombinants are known
+        Executes the exploratory version of the BOOTSCAN from RDP5 using the RECSCAN algorithm.
+            This algorithm does not require that recombinants are known
         """
-        G = int(factorial(self.align.shape[0]) / (factorial(3) * factorial((self.align.shape[0]) - 3)))
         trp_count = 1
-        num_seqs = self.align.shape[0]
-        for trp_idx in generate_triplets(self.align):
+        G = len(triplets)
+        for triplet in triplets:
             print("Scanning triplet {} / {}".format(trp_count, G))
             trp_count += 1
 
-            # Get the triplet sequences
-            trp_seqs = []
-            for seq_num in trp_idx:
-                trp_seqs.append(self.align[seq_num])
-            trp_seqs = np.array(trp_seqs)
-
             # Prepare dictionary to store sequences involved in recombination
-            names = tuple(sorted([self.names[trp_idx[0]], self.names[trp_idx[1]], self.names[trp_idx[2]]]))
+            names = triplet.get_trp_names()
             self.results[names] = []
 
             # Detection phase
@@ -174,9 +164,9 @@ class Bootscan:
                 supports = []
                 for dist_mat in dists:
                     # Access pairwise distances for each pair
-                    ab_dist = dist_mat[trp_idx[0], trp_idx[1]]
-                    bc_dist = dist_mat[trp_idx[1], trp_idx[2]]
-                    ac_dist = dist_mat[trp_idx[0], trp_idx[2]]
+                    ab_dist = dist_mat[triplet.sequences[0], triplet.sequences[1]]
+                    bc_dist = dist_mat[triplets.sequences[1], triplet.sequences[2]]
+                    ac_dist = dist_mat[triplet.seqeunces[0], triplet.seqeunces[2]]
                     supports.append(np.argmin([ab_dist, bc_dist, ac_dist]))
 
                 ab_support.append(np.sum(np.equal(supports, 0)) / self.num_replicates)
@@ -219,13 +209,13 @@ class Bootscan:
                 l = self.align.shape[1]
 
                 # m is the proportion of nts in common between either A or B and C in the recombinant region
-                recomb_region_cand = trp_seqs[recomb_candidate, event[0]: event[1]]
-                other_seqs = trp_seqs[trps[:recomb_candidate] + trps[recomb_candidate+1:], event[0]: event[1]]
+                recomb_region_cand = triplet.sequences[recomb_candidate, event[0]: event[1]]
+                other_seqs = triplet.sequences[trps[:recomb_candidate] + trps[recomb_candidate+1:], event[0]: event[1]]
                 m = np.sum(np.any(recomb_region_cand == other_seqs, axis=0))
 
                 # p is the proportion of nts in common between either A or B and C in the entire sequence
-                recomb_region_cand = trp_seqs[recomb_candidate, :]
-                other_seqs = trp_seqs[trps[:recomb_candidate] + trps[recomb_candidate + 1:], :]
+                recomb_region_cand = triplet.sequences[recomb_candidate, :]
+                other_seqs = triplet.sequences[trps[:recomb_candidate] + trps[recomb_candidate + 1:], :]
                 p = np.sum(np.any(recomb_region_cand == other_seqs, axis=0)) / l
 
                 if n > 0:
@@ -241,7 +231,7 @@ class Bootscan:
                     uncorr_pvalue = (l / n) * val
                     corr_p_value = G * uncorr_pvalue
 
-                    rec_name = self.names[trp_idx[recomb_candidate]]
+                    rec_name = triplet.names[recomb_candidate]
 
                     try:
                         self.results[names].append((rec_name, *event, uncorr_pvalue, corr_p_value))

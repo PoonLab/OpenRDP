@@ -1,14 +1,12 @@
 import numpy as np
 import re
-from scripts.common import remove_uninformative_sites, generate_triplets
-from math import factorial
 
 
 class RdpMethod:
     """
     Executes RDP method
     """
-    def __init__(self, align, names, settings=None, win_size=30, reference=None, min_id=0, max_id=100):
+    def __init__(self, align, settings=None, win_size=30, reference=None, min_id=0, max_id=100):
         if settings:
             self.set_options_from_config(settings)
             self.validate_options()
@@ -19,7 +17,6 @@ class RdpMethod:
             self.min_id = min_id
             self.max_id = max_id
 
-        self.s_names = names
         self.align = align
         self.results = {}
 
@@ -50,40 +47,28 @@ class RdpMethod:
             print("Invalid option for 'max_identity'.\nUsing default value (100) instead.")
             self.min_id = 100
 
-    def execute(self):
+    def execute(self, triplets):
         """
         Performs RDP detection method for one triplet of sequences
         :return: the coordinates of the potential recombinant region and the p_value
         """
         # Get the triplet sequences
 
-        G = int(factorial(self.align.shape[0]) / (factorial(3) * factorial((self.align.shape[0]) - 3)))
         trp_count = 1
-        for trp_idx in generate_triplets(self.align):
+        G = len(triplets)
+        for triplet in triplets:
             print("Scanning triplet {} / {}".format(trp_count, G))
             trp_count += 1
 
-            trp_seqs = []
-            for seq_num in trp_idx:
-                trp_seqs.append(self.align[seq_num])
-            trp_seqs = np.array(trp_seqs)
-
-            rec_name = self.s_names[trp_idx[0]]
-            p1_name = self.s_names[trp_idx[1]]
-            p2_name = self.s_names[trp_idx[2]]
-
-            names = tuple([rec_name, p1_name, p2_name])
+            names = triplet.get_trp_names()
             self.results[names] = []
 
-            # Find the informative sites
-            new_trp, sites, unsites = remove_uninformative_sites(trp_seqs)
-
             # Get the three pairs of sequences
-            ab = np.array([new_trp[0], new_trp[1]])
-            bc = np.array([new_trp[1], new_trp[2]])
-            ac = np.array([new_trp[0], new_trp[2]])
+            ab = np.array([triplet.info_sites_align[0], triplet.info_sites_align[1]])
+            bc = np.array([triplet.info_sites_align[1], triplet.info_sites_align[2]])
+            ac = np.array([triplet.info_sites_align[0], triplet.info_sites_align[2]])
 
-            len_trp = new_trp.shape[1]
+            len_trp = triplet.info_sites_align.shape[1]
 
             # 2. Sliding window over subsequence and calculate average percent identity at each position
             recombinant_regions = ''  # Recombinant regions denoted by ones
@@ -120,15 +105,15 @@ class RdpMethod:
             # Convert coordinates from  window-level to alignment-level and record number of windows
             coords = []
             for x, y in recomb_idx:
-                coords.append((sites[x], sites[y - 1]))
+                coords.append((triplet.info_sites[x], triplet.info_sites[y - 1]))
 
             for coord in coords:
                 n = coord[1] - coord[0]     # Length of putative recombinant region
 
                 if n > 0:
                     # m is the proportion of nts in common between either A or B and C in the recombinant region
-                    nts_in_a = trp_seqs[0][coord[0]: coord[1]]
-                    nts_in_c = trp_seqs[2][coord[0]: coord[1]]
+                    nts_in_a = triplet.sequences[0][coord[0]: coord[1]]
+                    nts_in_c = triplet.sequences[2][coord[0]: coord[1]]
                     m = 0
                     for i in range(n):
                         if nts_in_a[i] == nts_in_c[i]:
@@ -136,10 +121,10 @@ class RdpMethod:
 
                     # p is the proportion of nts in common between either A or B and C in the entire subsequence
                     id_in_seq = 0
-                    for j in range(trp_seqs.shape[1]):
-                        if trp_seqs[0][j] == trp_seqs[2][j]:
+                    for j in range(triplet.sequences.shape[1]):
+                        if triplet.sequences[0][j] == triplet.sequences[2][j]:
                             id_in_seq += 1
-                    p = id_in_seq / trp_seqs.shape[1]
+                    p = id_in_seq / triplet.sequences.shape[1]
 
                     # Calculate p_value
                     val = 0

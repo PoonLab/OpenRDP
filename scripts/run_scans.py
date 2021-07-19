@@ -9,9 +9,8 @@ from scripts.chimaera import Chimaera
 from scripts.rdp import RdpMethod
 from scripts.siscan import Siscan
 from scripts.bootscan import Bootscan
-from common import generate_triplets, Triplet
+from scripts.common import generate_triplets, Triplet
 
-from math import factorial
 
 
 class Scanner:

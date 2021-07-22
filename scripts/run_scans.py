@@ -12,7 +12,6 @@ from scripts.bootscan import Bootscan
 from scripts.common import generate_triplets, Triplet
 
 
-
 class Scanner:
     def __init__(self, names, infile, cfg, run_geneconv=False, run_three_seq=False, run_rdp=False,
                  run_siscan=False, run_maxchi=False, run_chimaera=False, run_bootscan=False):
@@ -80,7 +79,7 @@ class Scanner:
 
         triplets = []
         for trp in generate_triplets(alignment):
-            triplets.append(Triplet(alignment, trp))
+            triplets.append(Triplet(alignment, self.seq_names, trp))
 
         # Setup MaxChi
         if self.maxchi:

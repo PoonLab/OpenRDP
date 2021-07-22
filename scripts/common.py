@@ -49,9 +49,10 @@ def reduce_to_unique_seqs(aln):
 
 class Triplet:
 
-    def __init__(self, trp_idxs, alignment):
-        self.sequences = self.get_triplets(trp_idxs, alignment)
-        self.names = self.get_trp_names()
+    def __init__(self, alignment, seq_names, trp_idxs):
+        self.idxs = trp_idxs
+        self.sequences = self.get_triplets(alignment)
+        self.names = self.get_trp_names(seq_names)
         self.poly_sites_align, self.poly_sites = self.remove_monomorphic_sites()
         self.info_sites_align, self.info_sites, self.uninfo_sites = self.remove_uninformative_sites()
 
@@ -122,14 +123,11 @@ class Triplet:
                         num_var_sites += 1
                 return frac * num_var_sites
 
-    def get_triplets(self, trp_idxs, alignment):
-        return np.take(alignment, trp_idxs, axis=0)
+    def get_triplets(self, alignment):
+        return np.take(alignment, self.idxs, axis=0)
 
-    def get_trp_names(self):
-        return self.sequences[0]
-
-    def get_trp_seqs(self):
-        return self.sequences[1]
+    def get_trp_names(self, names):
+        return names[self.idxs[0]: len(self.idxs)]
 
     def get_sequence_name(self, trp_idx):
-        return np.take(self.sequences, trp_idx, 0)
+        return self.names[trp_idx]

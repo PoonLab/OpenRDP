@@ -68,40 +68,45 @@ class TestTriplet(unittest.TestCase):
     def setUp(self):
         short_infile = 'short.fasta'
         with open(short_infile) as short_handle:
-            _, aln = read_fasta(short_handle)
+            h, aln = read_fasta(short_handle)
         self.short_align = np.array(list(map(list, aln)))
 
         self.short_triplets = []
         for trp in generate_triplets(self.short_align):
-            self.short_triplets.append(Triplet(trp, self.short_align))
+            self.short_triplets.append(Triplet(self.short_align, h, trp))
 
         test_infile = 'long.fasta'
         with open(test_infile) as test_handle:
-            _, aln = read_fasta(test_handle)
+            h, aln = read_fasta(test_handle)
         self.long_align = np.array(list(map(list, aln)))
 
         self.long_triplets = []
         for trp in generate_triplets(self.long_align):
-            self.long_triplets.append(Triplet(trp, self.long_align))
+            self.long_triplets.append(Triplet(self.long_align, h, trp))
 
         infile = 'CRF_07_test.fasta'
         with open(infile) as in_handle:
-            _, aln = read_fasta(in_handle)
+            h, aln = read_fasta(in_handle)
         self.hiv_align = np.array(list(map(list, aln)))
 
         self.hiv_triplets = []
         for trp in generate_triplets(self.hiv_align):
-            self.hiv_triplets.append(Triplet(trp, self.hiv_align))
+            self.hiv_triplets.append(Triplet(self.hiv_align, h, trp))
 
     def test_get_triplets(self):
         expected = ['ATGCTGACGACGTAGCAGGTAA', 'AACCTTGGTGCGAAATGCAAGT', 'AGCTGACAGCGATGAGCGAATG']
-        result = self.short_triplets[0].get_triplets((0, 1, 2), self.short_align)
+        result = self.short_triplets[0].get_triplets(self.short_align)
         for i, res in enumerate(result):
             self.assertEqual(expected[i], ''.join(res))
 
-    def test_get_sequence_names(self):
+    def test_get_trp_names(self):
         expected = ['A', 'B', 'C']
-        result = self.short_triplets[0].get_sequence_name((0, 1, 2))
+        result = self.short_triplets[0].get_trp_names(['A', 'B', 'C', 'D', 'E'])
+        self.assertEqual(expected, result)
+
+    def test_get_sequence_name(self):
+        expected = 'C'
+        result = self.short_triplets[0].get_sequence_name(2)
         self.assertEqual(expected, result)
 
     def test_remove_monomorphic_sites_short(self):

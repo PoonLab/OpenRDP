@@ -115,8 +115,10 @@ class MaxChi:
                     s = np.sum(reg1 != reg2)
                     r = np.sum(reg1_left != reg2_left)
 
-                    c_table = [[0, 0],
-                               [0, 0]]
+                    # Record the totals for the rows and columns
+                    c_table = [[0, 0, 0],
+                               [0, 0, 0],
+                               [0, 0, 0]]
 
                     # Compute contingency table for each window position
                     r_matches = np.sum((reg1_right == reg2_right))

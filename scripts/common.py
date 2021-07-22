@@ -21,6 +21,14 @@ def calculate_chi2(c_table, max_pvalue):
     """
     # Compute chi-squared value if the expected frequencies are valid
     if (c_table[0][0] > 0 and c_table[0][1] > 0) or (c_table[1][0] > 0 and c_table[1][1] > 0):
+
+        # Sum the rows and columns
+        c_table[0][2] = c_table[0][0] + c_table[0][1]
+        c_table[1][2] = c_table[1][0] + c_table[1][1]
+        c_table[2][0] = c_table[0][0] + c_table[1][0]
+        c_table[2][1] = c_table[0][1] + c_table[1][1]
+        c_table[2][2] = c_table[0][2] + c_table[1][2]
+
         chi2, p_value, _, _ = chi2_contingency(c_table)
 
         # Record only significant events
@@ -115,7 +123,7 @@ class Triplet:
                 return frac * num_var_sites
 
     def get_triplets(self, trp_idxs, alignment):
-        return alignment[trp_idxs]
+        return np.take(alignment, trp_idxs, axis=0)
 
     def get_trp_names(self):
         return self.sequences[0]
@@ -124,4 +132,4 @@ class Triplet:
         return self.sequences[1]
 
     def get_sequence_name(self, trp_idx):
-        return self.sequences[trp_idx][0]
+        return np.take(self.sequences, trp_idx, 0)

@@ -22,13 +22,6 @@ def calculate_chi2(c_table, max_pvalue):
     # Compute chi-squared value if the expected frequencies are valid
     if (c_table[0][0] > 0 and c_table[0][1] > 0) or (c_table[1][0] > 0 and c_table[1][1] > 0):
 
-        # Sum the rows and columns
-        c_table[0][2] = c_table[0][0] + c_table[0][1]
-        c_table[1][2] = c_table[1][0] + c_table[1][1]
-        c_table[2][0] = c_table[0][0] + c_table[1][0]
-        c_table[2][1] = c_table[0][1] + c_table[1][1]
-        c_table[2][2] = c_table[0][2] + c_table[1][2]
-
         chi2, p_value, _, _ = chi2_contingency(c_table)
 
         # Record only significant events
@@ -55,6 +48,15 @@ class Triplet:
         self.names = self.get_trp_names(seq_names)
         self.poly_sites_align, self.poly_sites = self.remove_monomorphic_sites()
         self.info_sites_align, self.info_sites, self.uninfo_sites = self.remove_uninformative_sites()
+
+    def get_triplets(self, alignment):
+        return np.take(alignment, self.idxs, axis=0)
+
+    def get_trp_names(self, names):
+        return names[self.idxs[0]: len(self.idxs)]
+
+    def get_sequence_name(self, trp_idx):
+        return self.names[trp_idx]
 
     def remove_uninformative_sites(self):
         """
@@ -104,8 +106,8 @@ class Triplet:
 
         # User specified number of variable sites
         else:
-            if len(self.poly_sites) > 1.5 * fixed_win_size:
-                return 0.75 * len(self.poly_sites)
+            if len(self.poly_sites) > 1.5 * win_size:
+                return round(0.75 * len(self.poly_sites))
 
             elif num_var_sites:
                 curr = 0
@@ -121,13 +123,4 @@ class Triplet:
                     for var_site in self.poly_sites:
                         frac = num_var_sites / var_site
                         num_var_sites += 1
-                return frac * num_var_sites
-
-    def get_triplets(self, alignment):
-        return np.take(alignment, self.idxs, axis=0)
-
-    def get_trp_names(self, names):
-        return names[self.idxs[0]: len(self.idxs)]
-
-    def get_sequence_name(self, trp_idx):
-        return self.names[trp_idx]
+                return round(frac * num_var_sites)

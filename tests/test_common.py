@@ -225,7 +225,35 @@ class TestTriplet(unittest.TestCase):
         self.assertEqual(exp_infor_sites, res_infor_sites)
 
     def testGetWindowSize(self):
-        triplet = Triplet(np.array(['ATGCATACG', 'TTGCACACA', 'TGGCACACC']))
+        # Test fixed window size
         expected = 3
-        result = triplet.get_win_size(offset=0, win_size=3, fixed_win_size=True, num_var_sites=3, frac_var_sites=0)
+        result = self.short_triplets[0].get_win_size(offset=0, win_size=3, fixed_win_size=True,
+                                                     num_var_sites=3, frac_var_sites=0)
+        self.assertEqual(expected, result)
+
+        # Test variable window size
+        expected = 16
+        result = self.short_triplets[0].get_win_size(offset=0, win_size=8, fixed_win_size=False,
+                                                     num_var_sites=3, frac_var_sites=0)
+        self.assertEqual(expected, result)
+
+        expected = 3
+        result = self.short_triplets[0].get_win_size(offset=0, win_size=14, fixed_win_size=False,
+                                                     num_var_sites=3, frac_var_sites=0)
+        self.assertEqual(expected, result)
+
+        expected = 22
+        result = self.short_triplets[0].get_win_size(offset=0, win_size=14, fixed_win_size=False,
+                                                     num_var_sites=0, frac_var_sites=0.05)
+        self.assertEqual(expected, result)
+
+        aln = ['TTTTTTTTTTTTTTTTT',
+               'TTGCATGCATTTTTTTT',
+               'TTTTTTTTTTTTTTTTT']
+        align = np.array(list(map(list, aln)))
+        triplet = Triplet(align, ['1, 2, 3'], (0, 1, 2))
+
+        expected = 5
+        result = triplet.get_win_size(offset=0, win_size=6, fixed_win_size=False,
+                                      num_var_sites=0, frac_var_sites=0.20)
         self.assertEqual(expected, result)

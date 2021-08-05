@@ -7,7 +7,7 @@ import random
 
 class Bootscan:
     def __init__(self, alignment, settings=None, win_size=200, step_size=20, use_distances=True,
-                 num_replicates=100, random_seed=3, cutoff=0.7, model='JC69'):
+                 num_replicates=100, random_seed=3, cutoff=0.7, model='JC69', quiet=False):
         if settings:
             self.set_options_from_config(settings)
             self.validate_options(alignment)
@@ -22,9 +22,11 @@ class Bootscan:
 
         self.align = alignment
         random.seed(self.random_seed)
-        print('Starting Scanning Phase of Bootscan/Recscan')
+        if not quiet:
+            print('Starting Scanning Phase of Bootscan/Recscan')
         self.dists = self.do_scanning_phase(alignment)
-        print('Finished Scanning Phase of Bootscan/Recscan')
+        if not quiet:
+            print('Finished Scanning Phase of Bootscan/Recscan')
 
         self.results = {}
 
@@ -138,7 +140,7 @@ class Bootscan:
 
         return all_dists
 
-    def execute(self, triplets):
+    def execute(self, triplets, quiet):
         """
         Executes the exploratory version of the BOOTSCAN from RDP5 using the RECSCAN algorithm.
             This algorithm does not require that recombinants are known
@@ -146,7 +148,8 @@ class Bootscan:
         trp_count = 1
         G = len(triplets)
         for triplet in triplets:
-            print("Scanning triplet {} / {}".format(trp_count, G))
+            if not quiet:
+                print("Scanning triplet {} / {}".format(trp_count, G))
             trp_count += 1
 
             # Prepare dictionary to store sequences involved in recombination

@@ -52,8 +52,8 @@ class Triplet:
     def get_triplets(self, alignment):
         return np.take(alignment, self.idxs, axis=0)
 
-    def get_trp_names(self, names):
-        return names[self.idxs[0]: len(self.idxs)]
+    def get_trp_names(self, seq_names):
+        return [seq_names[i] for i in self.idxs]
 
     def get_sequence_name(self, trp_idx):
         return self.names[trp_idx]

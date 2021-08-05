@@ -125,7 +125,7 @@ class MaxChi:
 
         return c_table
 
-    def execute(self, triplets):
+    def execute(self, triplets, quiet):
         """
         Executes the MaxChi algorithm
         :param triplets: a list of triplet objects
@@ -133,7 +133,8 @@ class MaxChi:
         trp_count = 1
         total_num_trps = len(triplets)
         for triplet in triplets:
-            print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
+            if not quiet:
+                print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
             trp_count += 1
 
             # 1. Sample two sequences

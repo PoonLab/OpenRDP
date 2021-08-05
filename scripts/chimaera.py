@@ -68,15 +68,70 @@ class Chimaera:
                 print("Invalid option for 'frac_var_sites'.\nUsing default value (0.1) instead.")
                 self.frac_var_sites = 0.1
 
-    def execute(self, triplets):
+    @staticmethod
+    def get_window_positions(seq1, seq2, k, win_size):
+        """
+        Get the left and right half of the window
+        :param seq1: the first sequence
+        :param seq2: the second sequence
+        :param k: the offset for the window
+        :param win_size: the size of the window
+        :return: the left and right regions on either side of the partition
+        """
+        half_win_size = int(win_size // 2)
+        reg1_left = seq1[k: half_win_size + k]
+        reg2_left = seq2[k: half_win_size + k]
+        reg1_right = seq1[k + half_win_size: k + win_size]
+        reg2_right = seq2[k + half_win_size: k + win_size]
+
+        reg1 = seq1[k: k + win_size]
+        reg2 = seq2[k: k + win_size]
+
+        return reg1_left, reg2_left, reg1_right, reg2_right, reg1, reg2
+
+    @staticmethod
+    def compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left, half_win_size):
+        """
+        Calculate the number of variable sites on either side of the partition
+        :param reg1_right: the right half of the window from the first sequence
+        :param reg2_right: the left half of the window from the second sequence
+        :param reg1_left: the left half of the window from the first sequence
+        :param reg2_left: the left half of the window from the second sequence
+        :param half_win_size: half the width of the window
+        :return: the contingency table
+        """
+        # Record the totals for the rows and columns
+        c_table = [[0, 0, 0],
+                   [0, 0, 0],
+                   [0, 0, 0]]
+
+        # Compute contingency table for each window position
+        r_matches = np.sum((reg1_right == reg2_right))
+        c_table[0][0] = int(r_matches)
+        c_table[0][1] = half_win_size - r_matches
+
+        l_matches = np.sum((reg1_left == reg2_left))
+        c_table[1][0] = int(l_matches)
+        c_table[1][1] = half_win_size - l_matches
+
+        # Sum the rows and columns
+        c_table[0][2] = c_table[0][0] + c_table[0][1]
+        c_table[1][2] = c_table[1][0] + c_table[1][1]
+        c_table[2][0] = c_table[0][0] + c_table[1][0]
+        c_table[2][1] = c_table[0][1] + c_table[1][1]
+        c_table[2][2] = c_table[0][2] + c_table[1][2]
+
+        return c_table
+
+    def execute(self, triplets, quiet):
         """
         Executes the Chimaera algorithm
         """
-
         trp_count = 1
         total_num_trps = len(triplets)
         for triplet in triplets:
-            print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
+            if not quiet:
+                print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
             trp_count += 1
 
             # Try every possible combination of "parentals" and "recombinant"

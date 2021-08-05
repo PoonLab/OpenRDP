@@ -14,7 +14,7 @@ from scripts.common import generate_triplets, Triplet
 
 class Scanner:
     def __init__(self, names, infile, cfg, run_geneconv=False, run_three_seq=False, run_rdp=False,
-                 run_siscan=False, run_maxchi=False, run_chimaera=False, run_bootscan=False):
+                 run_siscan=False, run_maxchi=False, run_chimaera=False, run_bootscan=False, quiet=False):
         self.seq_names = names
         self.infile = infile
         self.cfg_file = cfg
@@ -25,6 +25,7 @@ class Scanner:
         self.maxchi = run_maxchi
         self.chimaera = run_chimaera
         self.bootscan = run_bootscan
+        self.quiet = quiet
 
     def run_scans(self, aln):
         """
@@ -47,9 +48,12 @@ class Scanner:
             # Run 3Seq
             if self.threeseq:
                 three_seq = ThreeSeq(self.infile)
-                print("Staring 3Seq Analysis")
+                if not self.quiet:
+                    print("Staring 3Seq Analysis")
+
                 ts_results = three_seq.execute()
-                print("Finished 3Seq Analysis")
+                if not self.quiet:
+                    print("Finished 3Seq Analysis")
                 print(ts_results)
                 outfile.write('3Seq\n')
                 for res in ts_results:
@@ -62,10 +66,13 @@ class Scanner:
                     geneconv = GeneConv(settings=dict(config.items('Geneconv')))
                 else:
                     geneconv = GeneConv()
-                print("Starting GENECONV Analysis")
+
+                if not self.quiet:
+                    print("Starting GENECONV Analysis")
                 gc_results = geneconv.execute(self.infile)
 
-                print("Finished GENECONV Analysis")
+                if not self.quiet:
+                    print("Finished GENECONV Analysis")
                 print(gc_results)
 
                 outfile.write('Geneconv\n')
@@ -83,7 +90,8 @@ class Scanner:
 
         # Setup MaxChi
         if self.maxchi:
-            print("Starting MaxChi Analysis")
+            if not self.quiet:
+                print("Starting MaxChi Analysis")
             if config:
                 maxchi = MaxChi(alignment, settings=dict(config.items('MaxChi')))
             else:
@@ -91,7 +99,8 @@ class Scanner:
 
         # Setup Chimaera
         if self.chimaera:
-            print("Starting Chimaera Analysis")
+            if not self.quiet:
+                print("Starting Chimaera Analysis")
             if config:
                 chimaera = Chimaera(alignment, settings=dict(config.items('Chimaera')))
             else:
@@ -99,7 +108,8 @@ class Scanner:
 
         # Setup Siscan
         if self.siscan:
-            print("Starting Siscan Analysis")
+            if not self.quiet:
+                print("Starting Siscan Analysis")
             if config:
                 siscan = Siscan(alignment, settings=dict(config.items('Siscan')))
             else:
@@ -107,7 +117,8 @@ class Scanner:
 
         # Setup RDP
         if self.rdp:
-            print("Starting RDP Analysis")
+            if not self.quiet:
+                print("Starting RDP Analysis")
             if config:
                 rdp = RdpMethod(alignment, settings=dict(config.items('RDP')))
             else:
@@ -115,6 +126,8 @@ class Scanner:
 
         # Setup Bootscan
         if self.bootscan:
+            if not self.quiet:
+                print("Starting Bootscan Analysis")
             if config:
                 bootscan = Bootscan(alignment, settings=dict(config.items('Bootscan')))
             else:
@@ -122,29 +135,30 @@ class Scanner:
 
         # Run MaxChi
         if self.maxchi:
-            maxchi.execute(triplets)
+            maxchi.execute(triplets, self.quiet)
 
             # Run Chimaera
         if self.chimaera:
-            chimaera.execute(triplets)
+            chimaera.execute(triplets, self.quiet)
 
             # Run Siscan
         if self.siscan:
-            siscan.execute(triplets)
+            siscan.execute(triplets, self.quiet)
 
             # Run RDP Method
         if self.rdp:
-            rdp.execute(triplets)
+            rdp.execute(triplets, self.quiet)
 
             # Run Bootscan
         if self.bootscan:
-            bootscan.execute(triplets)
+            bootscan.execute(triplets, self.quiet)
 
     def write_output(self):
         with open('results.txt', 'a') as outfile:
             # Report the results
             if self.maxchi:
-                print("Finished MaxChi Analysis")
+                if not self.quiet:
+                    print("Finished MaxChi Analysis")
                 outfile.write('MaxChi\n')
                 for res in maxchi.results:
                     outfile.write(json.dumps(res))
@@ -153,7 +167,8 @@ class Scanner:
                 print(maxchi.results)
 
             if self.chimaera:
-                print("Finished Chimaera Analysis")
+                if not self.quiet:
+                    print("Finished Chimaera Analysis")
                 outfile.write('Chimaera\n')
                 for res in chimaera.results:
                     outfile.write(json.dumps(res))
@@ -162,7 +177,8 @@ class Scanner:
                 print(chimaera.results)
 
             if self.siscan:
-                print("Finished Siscan Analysis")
+                if not self.quiet:
+                    print("Finished Siscan Analysis")
                 outfile.write('Siscan\n')
                 for res in siscan.results:
                     outfile.write(json.dumps(res))
@@ -170,7 +186,8 @@ class Scanner:
                 print(siscan.results)
 
             if self.rdp:
-                print("Finished RDP Analysis")
+                if not self.quiet:
+                    print("Finished RDP Analysis")
                 outfile.write('RDP\n')
                 for res in rdp.results:
                     outfile.write(json.dumps(res))
@@ -178,7 +195,8 @@ class Scanner:
                 print(rdp.results)
 
             if self.bootscan:
-                print("Finished Bootscan Analysis")
+                if not self.quiet:
+                    print("Finished Bootscan Analysis")
                 outfile.write('Bootscan\n')
                 for res in bootscan.results:
                     outfile.write(json.dumps(res))

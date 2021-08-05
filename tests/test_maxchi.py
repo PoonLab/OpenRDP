@@ -69,7 +69,7 @@ class TestMaxChi(unittest.TestCase):
         self.assertEqual(70, self.test_hiv.num_var_sites)
         self.assertEqual(0.1, self.test_hiv.frac_var_sites)
 
-    def test_get_window_positions(self):
+    def test_get_window_positions_short(self):
         # Test short
         exp_reg1_right = 'GACGA'
         exp_reg1_left = 'ATGCT'
@@ -91,13 +91,16 @@ class TestMaxChi(unittest.TestCase):
         self.assertEqual(exp_reg2_right, ''.join(res_reg2_right))
         self.assertEqual(exp_reg2_left, ''.join(res_reg2_left))
 
+    def test_get_window_positions_long(self):
         # Test long
-        exp_reg1_right = 'GACGA'
-        exp_reg1_left = 'ATGCT'
-        exp_reg2_right = 'TGGTG'
-        exp_reg2_left = 'AACCT'
-        exp_reg1 = 'ATGCTGACGA'
-        exp_reg2 = 'AACCTTGGTG'
+        exp_reg1_right = 'AAGGCGCGGGAGTGACTTATTTAGAGCCGTCCGCCAGCCAAATCGGGCAT'
+        exp_reg1_left = 'AAAAACCTCTACTCGGACGCGCTGCGCGTTTGAAGTCGCCGCGCGCGATC'
+        exp_reg2_right = 'AAGGGGCGGGGGTGACTTATCTGGAGCCGTCCGCCAGCCAAATCAGGCAT'
+        exp_reg2_left = 'AAAAACATCGACCCGCACCCGCTGCGCGTTTGAAGTCGCCGCACGTGACC'
+        exp_reg1 = 'AAAAACCTCTACTCGGACGCGCTGCGCGTTTGAAGTCGCCGCGCGCGATCAAGGCGCGGGAGT' \
+                   'GACTTATTTAGAGCCGTCCGCCAGCCAAATCGGGCAT'
+        exp_reg2 = 'AAAAACATCGACCCGCACCCGCTGCGCGTTTGAAGTCGCCGCACGTGACCAAGGGGCGGGGGTG' \
+                   'ACTTATCTGGAGCCGTCCGCCAGCCAAATCAGGCAT'
 
         seq1 = self.long_triplets[1].sequences[1]
         seq2 = self.long_triplets[1].sequences[2]
@@ -112,43 +115,96 @@ class TestMaxChi(unittest.TestCase):
         self.assertEqual(exp_reg2_right, ''.join(res_reg2_right))
         self.assertEqual(exp_reg2_left, ''.join(res_reg2_left))
 
+    def test_get_window_positions_hiv(self):
+        # Test HIV (no gaps stripped)
+        exp_reg1_right = '----------------------------------------------------' \
+                         '------------------------------------------------'
+        exp_reg1_left = '-----------------------------------------------------' \
+                        '-----------------------------------------------'
+        exp_reg2_right = 'ACCAGGACCAGGGACCAGATTTCCACTGACTTTTGGGTGGTGCTTCAAGCTAG' \
+                         'TACCAGTTGACCCAGGGGAAGTAGAAGAGGCCAACGAAGGAGAAGAC'
+        exp_reg2_left = 'GAATTCTGGAAGGGTTAATTTACTCTAAGAAAAGGCAAGAGATCCTTGATTTGT' \
+                        'GGGTCTATCACACACAAGGCTACTTCCCTGATTGGCACAACTACAC'
+        exp_reg1 = '------------------------------------------------------------' \
+                   '------------------------------------------------------------' \
+                   '------------------------------------------------------------' \
+                   '--------------------'
+        exp_reg2 = 'GAATTCTGGAAGGGTTAATTTACTCTAAGAAAAGGCAAGAGATCCTTGATTTGTGGGTCT' \
+                   'ATCACACACAAGGCTACTTCCCTGATTGGCACAACTACACACCAGGACCAGGGACCAGAT' \
+                   'TTCCACTGACTTTTGGGTGGTGCTTCAAGCTAGTACCAGTTGACCCAGGGGAAGTAGAAG' \
+                   'AGGCCAACGAAGGAGAAGAC'
+
+        seq1 = self.hiv_triplets[0].sequences[0]
+        seq2 = self.hiv_triplets[0].sequences[2]
+
+        res_reg1_left, res_reg2_left, res_reg1_right, res_reg2_right, res_reg1, res_reg2 = \
+            MaxChi.get_window_positions(seq1, seq2, 0, 200)
+
+        self.assertEqual(exp_reg1_right, ''.join(res_reg1_right))
+        self.assertEqual(exp_reg1, ''.join(res_reg1))
+        self.assertEqual(exp_reg2, ''.join(res_reg2))
+        self.assertEqual(exp_reg1_left, ''.join(res_reg1_left))
+        self.assertEqual(exp_reg2_right, ''.join(res_reg2_right))
+        self.assertEqual(exp_reg2_left, ''.join(res_reg2_left))
+
     def test_execute_short(self):
-        expected = {('A', 'B'): [],
-                    ('A', 'C'): [],
-                    ('A', 'D'): [],
-                    ('A', 'E'): [],
-                    ('B', 'C'): [],
-                    ('B', 'D'): [],
-                    ('B', 'E'): [],
-                    ('C', 'D'): [],
-                    ('C', 'E'): [],
-                    ('D', 'E'): []}
-        result = self.test_short.execute()
+        expected = {('A', 'B'): [(10, 23, 0.5578254003710748)],
+                    ('A', 'C'): [(9, 21, 0.8780986177504423)],
+                    ('A', 'D'): [(6, 16, 0.5578254003710748), (12, 22, 0.5578254003710748)],
+                    ('A', 'E'): [(7, 17, 0.8780986177504423), (14, 23, 1.0)],
+                    ('B', 'C'): [(3, 12, 0.8780986177504423), (13, 22, 0.8780986177504423)],
+                    ('B', 'D'): [(4, 15, 0.5578254003710748)],
+                    ('B', 'E'): [(5, 15, 0.8780986177504423), (10, 20, 0.5578254003710748)],
+                    ('C', 'D'): [(10, 20, 0.5578254003710748)],
+                    ('C', 'E'): [(4, 13, 0.5578254003710748), (12, 21, 0.5578254003710748)],
+                    ('D', 'E'): [(3, 13, 0.8780986177504423), (12, 21, 1.0)]}
+        result = self.test_short.execute(self.short_triplets)
         self.assertEqual(expected, result)
 
     def test_execute_long(self):
-        expected = {('Test1 ', 'Test2'): [(6, 50, 0.026098291541307085)],
-                    ('Test1 ', 'Test3'): [],
+        expected = {('Test1 ', 'Test2'): [(475, 518, 0.04042768199451279)],
+                    ('Test1 ', 'Test3'): [(439, 482, 0.04042768199451279)],
                     ('Test1 ', 'Test4'): [],
-                    ('Test2', 'Test3'): [(2, 47, 0.023868442164574358)],
+                    ('Test2', 'Test3'): [],
                     ('Test2', 'Test4'): [],
-                    ('Test3', 'Test4'): [(0, 41, 0.01572529975450535)]}
-        result = self.test_long.execute()
+                    ('Test3', 'Test4'): []}
+        result = self.test_long.execute(self.long_triplets)
         self.assertEqual(expected, result)
 
     def test_execute_hiv(self):
-        expected = {('07_BC', 'B'): [(27, 144, 0.035258260485873466),
-                                     (140, 252, 0.01869359769155257),
-                                     (253, 361, 0.009873332091192726),
-                                     (419, 527, 0.005183132922906616),
-                                     (562, 671, 0.005183132922906616),
-                                     (677, 787, 0.0026997960632601883)],
-                    ('07_BC', 'C'): [(35, 145, 0.035258260485873466),
-                                     (141, 255, 0.035258260485873466),
-                                     (262, 376, 0.01869359769155257),
-                                     (460, 567, 0.009873332091192726),
-                                     (566, 673, 0.005183132922906616)],
-                    ('B', 'C'): [(43, 160, 0.035258260485873466),
-                                 (141, 247, 0.01869359769155257)]}
-        result = self.test_hiv.execute()
+        expected = {('07_BC', 'B'): [(431, 560, 1.3857496123286656e-17),
+                                     (4213, 4317, 0.004935527092627837),
+                                     (4327, 4430, 0.0038900938364277763),
+                                     (4641, 4744, 1.0),
+                                     (4748, 4852, 1.0),
+                                     (4933, 5036, 0.000536748557278202),
+                                     (5043, 5146, 0.03739498509166499),
+                                     (5141, 5246, 0.01765020273817586),
+                                     (7673, 7776, 0.026776606487834902),
+                                     (8167, 8270, 0.01281262547553272),
+                                     (8288, 8392, 0.004821912746418881)],
+                    ('07_BC', 'C'): [(620, 725, 9.2704597756479e-17),
+                                     (760, 865, 8.287948833018469e-09),
+                                     (884, 987, 0.000868758267805495),
+                                     (9216, 9320, 1.0),
+                                     (9464, 9567, 0.04887860165041302)],
+                    ('B', 'C'): [(457, 584, 2.5120278983309063e-18),
+                                 (620, 725, 1.609327335603253e-15),
+                                 (760, 865, 1.1539403917027959e-05),
+                                 (877, 980, 1.0),
+                                 (4138, 4241, 0.045376001451184415),
+                                 (4240, 4343, 0.0010705880196384548),
+                                 (4346, 4450, 1.0),
+                                 (4641, 4744, 1.0),
+                                 (4748, 4852, 1.0),
+                                 (4933, 5036, 0.002924799618437854),
+                                 (7708, 7811, 0.03739106813700015),
+                                 (8241, 8346, 0.005648215229618876),
+                                 (9091, 9194, 0.026776606487834902),
+                                 (9465, 9568, 1.0)]}
+        result = self.test_hiv.execute(self.hiv_triplets)
         self.assertEqual(expected, result)
+
+
+if __name__ == '__main__':
+    unittest.main()

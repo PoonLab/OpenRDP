@@ -50,12 +50,12 @@ class TestCommon(unittest.TestCase):
                         'TCGCACGACAA'])
         exp = ['ATGCATTGCGA', 'TCGCACGACAA']
         result = reduce_to_unique_seqs(aln)
-        self.assertEqual(exp, result)
+        self.assertEqual(sorted(exp), sorted(result))
 
     def test_calculate_chi2(self):
-        c_table = [[338, 363, 0],
-                   [125, 156, 0],
-                   [0, 0, 0]]
+        c_table = [[338, 363, 701],
+                   [125, 156, 281],
+                   [463, 519, 982]]
         exp_chi2 = 1.12
         exp_p_value = 0.891
         res_chi2, res_p_value = calculate_chi2(c_table, 500)
@@ -100,9 +100,19 @@ class TestTriplet(unittest.TestCase):
             self.assertEqual(expected[i], ''.join(res))
 
     def test_get_trp_names(self):
-        expected = ['A', 'B', 'C']
-        result = self.short_triplets[0].get_trp_names(['A', 'B', 'C', 'D', 'E'])
-        self.assertEqual(expected, result)
+        expected = [['A', 'B', 'C'],
+                    ['A', 'B', 'D'],
+                    ['A', 'B', 'E'],
+                    ['A', 'C', 'D'],
+                    ['A', 'C', 'E'],
+                    ['A', 'D', 'E'],
+                    ['B', 'C', 'D'],
+                    ['B', 'C', 'E'],
+                    ['B', 'D', 'E'],
+                    ['C', 'D', 'E']]
+        for i, trp in enumerate(self.short_triplets):
+            result = trp.get_trp_names(['A', 'B', 'C', 'D', 'E'])
+            self.assertEqual(expected[i], result)
 
     def test_get_sequence_name(self):
         expected = 'C'
@@ -251,9 +261,13 @@ class TestTriplet(unittest.TestCase):
                'TTGCATGCATTTTTTTT',
                'TTTTTTTTTTTTTTTTT']
         align = np.array(list(map(list, aln)))
-        triplet = Triplet(align, ['1, 2, 3'], (0, 1, 2))
+        triplet = Triplet(align, ['1', '2', '3'], (0, 1, 2))
 
         expected = 5
         result = triplet.get_win_size(offset=0, win_size=6, fixed_win_size=False,
                                       num_var_sites=0, frac_var_sites=0.20)
         self.assertEqual(expected, result)
+
+
+if __name__ == '__main__':
+    unittest.main()

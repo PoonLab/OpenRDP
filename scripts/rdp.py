@@ -47,7 +47,7 @@ class RdpMethod:
             print("Invalid option for 'max_identity'.\nUsing default value (100) instead.")
             self.min_id = 100
 
-    def execute(self, triplets):
+    def execute(self, triplets, quiet):
         """
         Performs RDP detection method for one triplet of sequences
         :return: the coordinates of the potential recombinant region and the p_value
@@ -57,7 +57,8 @@ class RdpMethod:
         trp_count = 1
         G = len(triplets)
         for triplet in triplets:
-            print("Scanning triplet {} / {}".format(trp_count, G))
+            if not quiet:
+                print("Scanning triplet {} / {}".format(trp_count, G))
             trp_count += 1
 
             names = triplet.get_trp_names()

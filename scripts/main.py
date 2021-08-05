@@ -110,6 +110,9 @@ def parse_args():
     parser.add_argument('-rdp',
                         help='{Perform RDP analysis',
                         action='store_true')
+    parser.add_argument('--quiet',
+                        help='Hide progress messages',
+                        action='store_true')
 
     return parser.parse_args()
 
@@ -144,7 +147,7 @@ def main():
 
     startTime = datetime.now()
     scanner = Scanner(names, infile, cfg, run_geneconv, run_three_seq, run_rdp,
-                      run_siscan, run_maxchi, run_chimaera, run_bootscan)
+                      run_siscan, run_maxchi, run_chimaera, run_bootscan, args.quiet)
     scanner.run_scans(aln)
     print(datetime.now() - startTime)
 

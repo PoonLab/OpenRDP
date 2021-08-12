@@ -125,10 +125,11 @@ class MaxChi:
 
         return c_table
 
-    def execute(self, triplets, quiet):
+    def execute(self, triplets, quiet=False):
         """
         Executes the MaxChi algorithm
-        :param triplets: a list of triplet objects
+        :param triplets: a list of triplet objects, representing the sequence triplets
+        :param quiet: report progress
         """
         trp_count = 1
         total_num_trps = len(triplets)
@@ -159,13 +160,13 @@ class MaxChi:
                 half_win_size = int(win_size // 2)
                 for k in range(triplet.poly_sites_align.shape[1] - win_size):
 
-                    reg1_left, reg2_left, reg1_right, reg2_right, reg1, reg2 = MaxChi.get_window_positions(seq1, seq2,
+                    reg1_left, reg2_left, reg1_right, reg2_right, reg1, reg2 = self.get_window_positions(seq1, seq2,
                                                                                                            k, win_size)
 
                     s = np.sum(reg1 != reg2)
                     r = np.sum(reg1_left != reg2_left)
 
-                    c_table = MaxChi.compute_contingency_table(reg1_right, reg2_right,
+                    c_table = self.compute_contingency_table(reg1_right, reg2_right,
                                                                reg1_left, reg2_left, half_win_size)
 
                     n = self.win_size

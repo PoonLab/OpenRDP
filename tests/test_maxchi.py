@@ -158,7 +158,7 @@ class TestMaxChi(unittest.TestCase):
                     ('C', 'D'): [(10, 20, 0.5578254003710748)],
                     ('C', 'E'): [(4, 13, 0.5578254003710748), (12, 21, 0.5578254003710748)],
                     ('D', 'E'): [(3, 13, 0.8780986177504423), (12, 21, 1.0)]}
-        result = self.test_short.execute(self.short_triplets)
+        result = self.test_short.execute(self.short_triplets, False)
         self.assertEqual(expected, result)
 
     def test_execute_long(self):
@@ -168,7 +168,7 @@ class TestMaxChi(unittest.TestCase):
                     ('Test2', 'Test3'): [],
                     ('Test2', 'Test4'): [],
                     ('Test3', 'Test4'): []}
-        result = self.test_long.execute(self.long_triplets)
+        result = self.test_long.execute(self.long_triplets, False)
         self.assertEqual(expected, result)
 
     def test_execute_hiv(self):
@@ -202,7 +202,7 @@ class TestMaxChi(unittest.TestCase):
                                  (8241, 8346, 0.005648215229618876),
                                  (9091, 9194, 0.026776606487834902),
                                  (9465, 9568, 1.0)]}
-        result = self.test_hiv.execute(self.hiv_triplets)
+        result = self.test_hiv.execute(self.hiv_triplets, True)
         self.assertEqual(expected, result)
 
 

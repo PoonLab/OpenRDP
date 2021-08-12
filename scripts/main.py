@@ -110,6 +110,7 @@ def parse_args():
     parser.add_argument('-rdp',
                         help='{Perform RDP analysis',
                         action='store_true')
+
     parser.add_argument('--quiet',
                         help='Hide progress messages',
                         action='store_true')

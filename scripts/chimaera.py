@@ -5,8 +5,8 @@ from scripts.common import calculate_chi2
 
 
 class Chimaera:
-    def __init__(self, align, settings=None, max_pvalue=0.05, win_size=200, strip_gaps=True, fixed_win_size=True,
-                 num_var_sites=None, frac_var_sites=None):
+    def __init__(self, align, max_pvalue=0.05, win_size=200, strip_gaps=True, fixed_win_size=True,
+                 num_var_sites=None, frac_var_sites=None, settings=None):
         """
         Constructs a Chimaera Object
         :param win_size: Size of the sliding window
@@ -69,50 +69,42 @@ class Chimaera:
                 self.frac_var_sites = 0.1
 
     @staticmethod
-    def get_window_positions(seq1, seq2, k, win_size):
+    def get_window_positions(comp_seq, k, win_size):
         """
         Get the left and right half of the window
-        :param seq1: the first sequence
-        :param seq2: the second sequence
+        :param comp_seq: the compressed recombinant sequence
         :param k: the offset for the window
         :param win_size: the size of the window
         :return: the left and right regions on either side of the partition
         """
         half_win_size = int(win_size // 2)
-        reg1_left = seq1[k: half_win_size + k]
-        reg2_left = seq2[k: half_win_size + k]
-        reg1_right = seq1[k + half_win_size: k + win_size]
-        reg2_right = seq2[k + half_win_size: k + win_size]
+        reg_left = comp_seq[k: half_win_size + k]
+        reg_right = comp_seq[k + half_win_size: k + win_size]
 
-        reg1 = seq1[k: k + win_size]
-        reg2 = seq2[k: k + win_size]
-
-        return reg1_left, reg2_left, reg1_right, reg2_right, reg1, reg2
+        return reg_left, reg_right
 
     @staticmethod
-    def compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left, half_win_size):
+    def compute_contingency_table(reg_left, reg_right, half_win_size):
         """
         Calculate the number of variable sites on either side of the partition
-        :param reg1_right: the right half of the window from the first sequence
-        :param reg2_right: the left half of the window from the second sequence
-        :param reg1_left: the left half of the window from the first sequence
-        :param reg2_left: the left half of the window from the second sequence
+        :param reg_right: the right half of the window
+        :param reg_left: the left half of the window
         :param half_win_size: half the width of the window
         :return: the contingency table
         """
-        # Record the totals for the rows and columns
+
         c_table = [[0, 0, 0],
                    [0, 0, 0],
                    [0, 0, 0]]
 
         # Compute contingency table for each window position
-        r_matches = np.sum((reg1_right == reg2_right))
-        c_table[0][0] = int(r_matches)
-        c_table[0][1] = half_win_size - r_matches
+        count_r_ones = np.count_nonzero(reg_right)
+        c_table[0][0] = count_r_ones
+        c_table[0][1] = half_win_size - count_r_ones
 
-        l_matches = np.sum((reg1_left == reg2_left))
-        c_table[1][0] = int(l_matches)
-        c_table[1][1] = half_win_size - l_matches
+        count_l_ones = np.count_nonzero(reg_left)
+        c_table[1][0] = count_l_ones
+        c_table[1][1] = half_win_size - count_l_ones
 
         # Sum the rows and columns
         c_table[0][2] = c_table[0][0] + c_table[0][1]
@@ -123,9 +115,26 @@ class Chimaera:
 
         return c_table
 
-    def execute(self, triplets, quiet):
+    @staticmethod
+    def compress_recombinant(new_aln):
+        """
+        Compress the "recombinant sequence"
+        :param new_aln: alignment containing only informative sites
+        :return: recombinant sequence compressed into bitstrings
+        """
+        comp_seq = []
+        for i in range(new_aln.shape[1]):
+            if new_aln[0][i] == new_aln[1][i]:
+                comp_seq.append(0)
+            elif new_aln[0][i] == new_aln[2][i]:
+                comp_seq.append(1)
+        return comp_seq
+
+    def execute(self, triplets, quiet=False):
         """
         Executes the Chimaera algorithm
+        :param triplets: a list of triplet objects, representing the sequence triplets
+        :param quiet: report progress
         """
         trp_count = 1
         total_num_trps = len(triplets)
@@ -146,6 +155,7 @@ class Chimaera:
                 names = tuple([rec_name, p1_name, p2_name])
                 self.results[names] = []
 
+                # Initialize lists to map chi2 and p-values to window positions
                 chi2_values = np.zeros(self.align.shape[1])
                 p_values = np.ones(self.align.shape[1])  # Map window position to p-values
 
@@ -154,31 +164,19 @@ class Chimaera:
                 new_aln = triplet.sequences[:, triplet.info_sites]
 
                 # Compress "recombinant" into bit-strings
-                comp_seq = []
-                for i in range(new_aln.shape[1]):
-                    if new_aln[0][i] == new_aln[1][i]:
-                        comp_seq.append(0)
-                    elif new_aln[0][i] == new_aln[2][i]:
-                        comp_seq.append(1)
+                comp_seq = self.compress_recombinant(new_aln)
+
+                # Get the size of the first window
+                win_size = triplet.get_win_size(0, self.win_size, self.fixed_win_size, self.num_var_sites,
+                                                self.frac_var_sites)
 
                 # Move sliding window along compressed sequence, 1 position at a time
                 # Slide along the sequences
-                half_win_size = int(self.win_size // 2)
-                for k in range(len(comp_seq) - self.win_size):
-                    reg_left = comp_seq[k: half_win_size + k]
-                    reg_right = comp_seq[k + half_win_size: k + self.win_size]
+                half_win_size = int(win_size // 2)
+                for k in range(len(comp_seq) - win_size):
+                    reg_left, reg_right = self.get_window_positions(comp_seq, k, win_size)
 
-                    c_table = [[0, 0],
-                               [0, 0]]
-
-                    # Compute contingency table for each window position
-                    count_r_ones = np.count_nonzero(reg_right)
-                    c_table[0][0] = count_r_ones
-                    c_table[0][1] = half_win_size - count_r_ones
-
-                    count_l_ones = np.count_nonzero(reg_left)
-                    c_table[1][0] = count_l_ones
-                    c_table[1][1] = half_win_size - count_l_ones
+                    c_table = self.compute_contingency_table(reg_left, reg_right, half_win_size)
 
                     # Using notation from Maynard Smith (1992)
                     n = self.win_size
@@ -198,6 +196,9 @@ class Chimaera:
                         # Insert p-values and chi2 values so they correspond to positions in the original alignment
                         chi2_values[triplet.poly_sites[k + half_win_size]] = cur_val  # centred window
                         p_values[triplet.poly_sites[k + half_win_size]] = p_value
+
+                    win_size = triplet.get_win_size(k, self.win_size, self.fixed_win_size, self.num_var_sites,
+                                                    self.frac_var_sites)
 
                     # Smooth chi2-values
                     chi2_values = gaussian_filter1d(chi2_values, 1.5)

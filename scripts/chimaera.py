@@ -116,11 +116,15 @@ class Chimaera:
         return c_table
 
     @staticmethod
-    def compress_recombinant(new_aln):
+    def compress_triplet_aln(new_aln):
         """
-        Compress the "recombinant sequence"
+        Compress the sequences into a string of 0s and 1s where:
+            "1" represents a match between the "recombinant" (the first sequence in the alignment) and parent A
+            "0" represents a match between the "recombinant" and parent B
+        Since the alignment consists only of informative sites, the "recombinant" must match either parent A or parent B
         :param new_aln: alignment containing only informative sites
-        :return: recombinant sequence compressed into bitstrings
+            The first sequence is the "recombinant", the second is parent A, and the third is parent B
+        :return: a bitstring that represents the alignment
         """
         comp_seq = []
         for i in range(new_aln.shape[1]):
@@ -163,8 +167,8 @@ class Chimaera:
                 # Uninformative sites where neither parental matches recombinant
                 new_aln = triplet.sequences[:, triplet.info_sites]
 
-                # Compress "recombinant" into bit-strings
-                comp_seq = self.compress_recombinant(new_aln)
+                # Compress into a bitstring
+                comp_seq = self.compress_triplet_aln(new_aln)
 
                 # Get the size of the first window
                 win_size = triplet.get_win_size(0, self.win_size, self.fixed_win_size, self.num_var_sites,

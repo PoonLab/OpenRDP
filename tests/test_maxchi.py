@@ -147,6 +147,47 @@ class TestMaxChi(unittest.TestCase):
         self.assertEqual(exp_reg2_right, ''.join(res_reg2_right))
         self.assertEqual(exp_reg2_left, ''.join(res_reg2_left))
 
+    def test_compute_contingency_table_short(self):
+        reg1_right = 'GACGA'
+        reg2_right = 'TGGTG'
+        reg1_left = 'ATGCT'
+        reg2_left = 'AACCT'
+        half_win_size = 5
+
+        expected = [[0, 5, 5],
+                    [0, 5, 5],
+                    [0, 10, 10]]
+        result = MaxChi.compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left, half_win_size)
+        self.assertEqual(expected, result)
+
+    def test_compute_contingency_table_long(self):
+        reg1_right = 'AAGGCGCGGGAGTGACTTATTTAGAGCCGTCCGCCAGCCAAATCGGGCAT'
+        reg1_left = 'AAAAACCTCTACTCGGACGCGCTGCGCGTTTGAAGTCGCCGCGCGCGATC'
+        reg2_right = 'AAGGGGCGGGGGTGACTTATCTGGAGCCGTCCGCCAGCCAAATCAGGCAT'
+        reg2_left = 'AAAAACATCGACCCGCACCCGCTGCGCGTTTGAAGTCGCCGCACGTGACC'
+        half_win_size = 50
+
+        expected = [[0, 50, 50],
+                    [0, 50, 50],
+                    [0, 100, 100]]
+        result = MaxChi.compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left, half_win_size)
+        self.assertEqual(expected, result)
+
+    def test_compute_contingency_table_hiv(self):
+        reg1_right = '----------------------------------------------------' \
+                     '------------------------------------------------'
+        reg1_left = '-----------------------------------------------------' \
+                    '-----------------------------------------------'
+        reg2_right = 'ACCAGGACCAGGGACCAGATTTCCACTGACTTTTGGGTGGTGCTTCAAGCTAG' \
+                     'TACCAGTTGACCCAGGGGAAGTAGAAGAGGCCAACGAAGGAGAAGAC'
+        reg2_left = 'GAATTCTGGAAGGGTTAATTTACTCTAAGAAAAGGCAAGAGATCCTTGATTTGT' \
+                    'GGGTCTATCACACACAAGGCTACTTCCCTGATTGGCACAACTACAC'
+        half_win_size = 100
+
+        expected = [[0, 100, 100], [0, 100, 100], [0, 200, 200]]
+        result = MaxChi.compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left, half_win_size)
+        self.assertEqual(expected, result)
+
     def test_execute_short(self):
         expected = {('A', 'B'): [(10, 23, 0.5578254003710748)],
                     ('A', 'C'): [(9, 21, 0.8780986177504423)],

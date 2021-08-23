@@ -100,11 +100,11 @@ class Chimaera:
         # Compute contingency table for each window position
         count_r_ones = np.count_nonzero(reg_right)
         c_table[0][0] = count_r_ones
-        c_table[0][1] = half_win_size - count_r_ones
+        c_table[0][1] = abs(half_win_size - count_r_ones)
 
         count_l_ones = np.count_nonzero(reg_left)
         c_table[1][0] = count_l_ones
-        c_table[1][1] = half_win_size - count_l_ones
+        c_table[1][1] = abs(half_win_size - count_l_ones)
 
         # Sum the rows and columns
         c_table[0][2] = c_table[0][0] + c_table[0][1]
@@ -198,31 +198,32 @@ class Chimaera:
                     chi2, p_value = calculate_chi2(c_table, self.max_pvalue)
                     if chi2 is not None and p_value is not None:
                         # Insert p-values and chi2 values so they correspond to positions in the original alignment
-                        chi2_values[triplet.poly_sites[k + half_win_size]] = cur_val  # centred window
+                        chi2_values[triplet.poly_sites[k + half_win_size]] = chi2  # centred window
                         p_values[triplet.poly_sites[k + half_win_size]] = p_value
 
                     win_size = triplet.get_win_size(k, self.win_size, self.fixed_win_size, self.num_var_sites,
                                                     self.frac_var_sites)
 
-                    # Smooth chi2-values
-                    chi2_values = gaussian_filter1d(chi2_values, 1.5)
+                # Smooth chi2-values
+                chi2_values = gaussian_filter1d(chi2_values, 1.5)
 
-                    peaks = find_peaks(chi2_values, distance=self.win_size)
-                    for k, peak in enumerate(peaks[0]):
-                        search_win_size = 1
-                        while peak - search_win_size > 0 \
-                                and peak + search_win_size < len(chi2_values) - 1 \
-                                and chi2_values[peak + search_win_size] > 0.3 * chi2_values[peak] \
-                                and chi2_values[peak - search_win_size] > 0.3 * chi2_values[peak]:
-                            search_win_size += 1
+                # Locate "peaks" in chi2 values as "peaks" represent potential breakpoints
+                peaks = find_peaks(chi2_values, distance=self.win_size)
+                for k, peak in enumerate(peaks[0]):
+                    search_win_size = 1
+                    while peak - search_win_size > 0 \
+                            and peak + search_win_size < len(chi2_values) - 1 \
+                            and chi2_values[peak + search_win_size] > 0.3 * chi2_values[peak] \
+                            and chi2_values[peak - search_win_size] > 0.3 * chi2_values[peak]:
+                        search_win_size += 1
 
-                        if chi2_values[peak + search_win_size] > chi2_values[peak - search_win_size]:
-                            aln_pos = (int(peak), int(peak + search_win_size + self.win_size))
-                        else:
-                            aln_pos = (int(peak - search_win_size), int(peak + self.win_size))
+                    if chi2_values[peak + search_win_size] > chi2_values[peak - search_win_size]:
+                        aln_pos = (int(peak), int(peak + search_win_size + self.win_size))
+                    else:
+                        aln_pos = (int(peak - search_win_size), int(peak + self.win_size))
 
-                        # Check that breakpoint has not already been detected
-                        if (*aln_pos, p_values[k]) not in self.results[names]:
-                            self.results[names].append((*aln_pos, p_values[peak]))
+                    # Check that breakpoint has not already been detected
+                    if (*aln_pos, p_values[k]) not in self.results[names]:
+                        self.results[names].append((*aln_pos, p_values[peak]))
 
         return self.results

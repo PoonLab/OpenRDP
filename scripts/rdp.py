@@ -6,7 +6,7 @@ class RdpMethod:
     """
     Executes RDP method
     """
-    def __init__(self, align, settings=None, win_size=30, reference=None, min_id=0, max_id=100):
+    def __init__(self, align, win_size=30, reference=None, min_id=0, max_id=100, settings=None):
         if settings:
             self.set_options_from_config(settings)
             self.validate_options()
@@ -35,6 +35,9 @@ class RdpMethod:
         Check if the options from the config file are valid
         If the options are invalid, the default value will be used instead
         """
+        if self.reference == 'None':
+            self.reference = None
+
         if self.win_size < 0:
             print("Invalid option for 'window_size'.\nUsing default value (30) instead.")
             self.win_size = 30
@@ -47,21 +50,68 @@ class RdpMethod:
             print("Invalid option for 'max_identity'.\nUsing default value (100) instead.")
             self.min_id = 100
 
-    def execute(self, triplets, quiet):
+    def triplet_identity(self, triplets):
+        """
+        Calculate the percent identity of each triplet and
+        :param triplets: a list of all triplets
+        :return: triplets whose identity is greater than the minimum identity and less than the maximum identity
+        """
+        trps = []
+        for trp in triplets:
+            ab = np.array([trp.sequences[0], trp.sequences[1]])
+            bc = np.array([trp.sequences[1], trp.sequences[2]])
+            ac = np.array([trp.sequences[0], trp.sequences[2]])
+            ab, bc, ac = self.pairwise_identity(ab, bc, ac)
+
+            # Include only triplets whose identity is valid
+            if self.min_id < ab < self.max_id and self.min_id < bc < self.max_id and self.min_id < ac < self.max_id:
+                trps.append(trp)
+
+        return trps
+
+    @staticmethod
+    def pairwise_identity(reg_ab, reg_bc, reg_ac):
+        """
+        Calculate the pairwise identity of each sequence within the triplet
+        :param reg_ab: matrix of size 2 x sequence_length that contains sequences A and B
+        :param reg_bc: matrix of size 2 x sequence_length that contains sequences B and C
+        :param reg_ac: matrix of size 2 x sequence_length that contains sequences A and C
+        :return: the identity of each pair of sequences in the triplet
+        """
+        a_b, b_c, a_c = 0, 0, 0
+
+        for j in range(reg_ab.shape[1]):
+            if reg_ab[0, j] == reg_ab[1, j]:
+                a_b += 1
+            if reg_bc[0, j] == reg_bc[1, j]:
+                b_c += 1
+            if reg_ac[0, j] == reg_ac[1, j]:
+                a_c += 1
+
+        percent_identity_ab = a_b / reg_ab.shape[1] * 100
+        percent_identity_bc = b_c / reg_bc.shape[1] * 100
+        percent_identity_ac = a_c / reg_ac.shape[1] * 100
+
+        return percent_identity_ab, percent_identity_bc, percent_identity_ac
+
+    def execute(self, triplets, quiet=False):
         """
         Performs RDP detection method for one triplet of sequences
         :return: the coordinates of the potential recombinant region and the p_value
         """
+
         # Get the triplet sequences
+        trps = self.triplet_identity(triplets)
 
         trp_count = 1
-        G = len(triplets)
-        for triplet in triplets:
+        G = len(trps)
+        for triplet in trps:
             if not quiet:
                 print("Scanning triplet {} / {}".format(trp_count, G))
             trp_count += 1
 
-            names = triplet.get_trp_names()
+            names = tuple(triplet.names)
+            print(names)
             self.results[names] = []
 
             # Get the three pairs of sequences
@@ -80,18 +130,7 @@ class RdpMethod:
                 reg_ac = ac[:, i: self.win_size + i]
 
                 # Calculate percent identity in each window
-                a_b, b_c, a_c = 0, 0, 0
-                for j in range(reg_ab.shape[1]):
-                    if reg_ab[0, j] == reg_ab[1, j]:
-                        a_b += 1
-                    if reg_bc[0, j] == reg_bc[1, j]:
-                        b_c += 1
-                    if reg_ac[0, j] == reg_ac[1, j]:
-                        a_c += 1
-
-                percent_identity_ab = a_b / len_trp * 100
-                percent_identity_bc = b_c / len_trp * 100
-                percent_identity_ac = a_c / len_trp * 100
+                percent_identity_ab, percent_identity_bc, percent_identity_ac = self.pairwise_identity(reg_ab, reg_bc, reg_ac)
 
                 # Identify recombinant regions
                 if percent_identity_ac > percent_identity_ab or percent_identity_bc > percent_identity_ab:
@@ -145,9 +184,10 @@ class RdpMethod:
                     uncorr_pvalue = 'NS'
                     corr_p_value = 'NS'
 
-                try:
-                    self.results[names].append((coord, uncorr_pvalue, corr_p_value))
-                except KeyError:
-                    self.results[names] = (coord, uncorr_pvalue, corr_p_value)
+                if uncorr_pvalue != 'NS' or corr_p_value != 'NS':
+                    try:
+                        self.results[names].append((coord, uncorr_pvalue, corr_p_value))
+                    except KeyError:
+                        self.results[names] = (coord, uncorr_pvalue, corr_p_value)
 
-            return self.results
+        return self.results

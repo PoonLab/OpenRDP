@@ -80,7 +80,7 @@ class GeneConv:
         :return: A list of results
         """
         # Clear output files
-        out_files = glob.glob('../utils/bin/GENECONV/*.frags') + glob.glob('../utils/bin/GENECONV/*.sum')
+        out_files = glob.glob('../bin/GENECONV/*.frags') + glob.glob('../bin/GENECONV/*.sum')
         for f in out_files:
             try:
                 os.remove(f)
@@ -105,9 +105,9 @@ class GeneConv:
 
         # Path to GENECONV executables
         if sys.platform.startswith("win"):
-            bin_path = os.path.abspath('../utils/bin/GENECONV/windows_geneconv.exe')
+            bin_path = os.path.abspath('../bin/GENECONV/windows_geneconv.exe')
         else:
-            bin_path = os.path.abspath('../utils/bin/GENECONV/unix_geneconv.exe')
+            bin_path = os.path.abspath('../bin/GENECONV/unix_geneconv.exe')
 
         if not os.path.isfile(bin_path):
             logging.error("No GENECONV executable file exists")

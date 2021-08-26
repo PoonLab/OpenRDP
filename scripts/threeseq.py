@@ -29,9 +29,9 @@ class ThreeSeq:
 
         # Set paths to 3Seq executables
         if sys.platform.startswith("win"):
-            bin_path = os.path.abspath('../utils/bin/3Seq/windows_3seq.exe')
+            bin_path = os.path.abspath('../bin/3Seq/windows_3seq.exe')
         else:
-            bin_path = os.path.abspath('../utils/bin/3Seq/unix_3seq.exe')
+            bin_path = os.path.abspath('../bin/3Seq/unix_3seq.exe')
 
         if not os.path.isfile(bin_path):
             logging.error("No 3Seq executable file exists.")
@@ -39,13 +39,13 @@ class ThreeSeq:
         # Run 3Seq
         if sys.platform.startswith("win"):
             try:
-                subprocess.check_output([bin_path, "-f", self.in_path, "-d", "-id", self.in_name],
+                subprocess.check_output([bin_path, "-f", self.in_path, "-pTable myPvalueTable", "-d", "-id", self.in_name],
                                         shell=False, input=b"Y\n")  # Respond to prompt
             except subprocess.CalledProcessError as e:
                 print(e.output, e.returncode)
         else:
             try:
-                subprocess.check_output([bin_path, "-f", self.in_path, "-d", "-id", self.in_name],
+                subprocess.check_output([bin_path, "-f", self.in_path, "-pTable myPvalueTable", "-d", "-id", self.in_name],
                                         shell=False, input=b"Y\n")  # Respond to prompt
             except subprocess.CalledProcessError as e:
                 print(e.output, e.returncode)

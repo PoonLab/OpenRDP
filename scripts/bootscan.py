@@ -1,13 +1,12 @@
 import multiprocessing
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
-import functools
 import random
 
 
 class Bootscan:
-    def __init__(self, alignment, settings=None, win_size=200, step_size=20, use_distances=True,
-                 num_replicates=100, random_seed=3, cutoff=0.7, model='JC69', quiet=False):
+    def __init__(self, alignment, win_size=200, step_size=20, use_distances=True,
+                 num_replicates=100, random_seed=3, cutoff=0.7, model='JC69', quiet=False, settings=None,):
         if settings:
             self.set_options_from_config(settings)
             self.validate_options(alignment)
@@ -22,6 +21,7 @@ class Bootscan:
 
         self.align = alignment
         random.seed(self.random_seed)
+        np.random.seed(self.random_seed)
         if not quiet:
             print('Starting Scanning Phase of Bootscan/Recscan')
         self.dists = self.do_scanning_phase(alignment)
@@ -32,7 +32,7 @@ class Bootscan:
 
     def set_options_from_config(self, settings):
         """
-        Set the parameters of Siscan from the  config file
+        Set the parameters of Bootscan from the  config file
         :param settings: a dictionary of settings
         """
         self.win_size = int(settings['win_size'])
@@ -69,7 +69,8 @@ class Bootscan:
             print("Invalid option for 'cutoff_percentage'.\nUsing default value (0.7) instead.")
             self.cutoff = 0.7
 
-    def percent_diff(self, s1, s2):
+    @staticmethod
+    def percent_diff(s1, s2):
         s1_valid = (s1 == 'A') | (s1 == 'T') | (s1 == 'G') | (s1 == 'C')
         s2_valid = (s2 == 'A') | (s2 == 'T') | (s2 == 'G') | (s2 == 'C')
         valid = s1_valid & s2_valid
@@ -77,14 +78,15 @@ class Bootscan:
         num_valid = valid.sum()
         return diffs.sum() / num_valid if num_valid else 0
 
-    def jc_distance(self, s1, s2):
+    @staticmethod
+    def jc_distance(s1, s2):
         """
         Calculate the pairwise Jukes-Cantor distance between 2 sequences
         :param s1: the first sequence
         :param s2: the second sequence
         :return: the pairwise JC69 distance between 2 sequences
         """
-        p_dist = self.percent_diff(s1, s2)
+        p_dist = Bootscan.percent_diff(s1, s2)
         if p_dist >= 0.75:
             return 1
         return -0.75 * np.log(1 - (p_dist * 4 / 3)) if p_dist else 0
@@ -125,7 +127,7 @@ class Bootscan:
         for rep in range(self.num_replicates):
             # Shuffle columns with replacement
             rep_window = window[:, np.random.randint(0, window.shape[1], window.shape[1])]
-            dist_mat = squareform(pdist(rep_window, self.jc_distance))
+            dist_mat = squareform(pdist(rep_window, Bootscan.jc_distance))
             dists.append(dist_mat)
         return dists
 
@@ -134,13 +136,12 @@ class Bootscan:
         Perform scanning phase of the Bootscan/Recscan algorithm
         :param align: a n x m array of aligned sequences
         """
-        scan = functools.partial(self.scan, align)
         with multiprocessing.Pool() as p:
-            all_dists = p.map(scan, range(0, align.shape[1], self.step_size))
+            all_dists = p.map(self.scan, range(0, align.shape[1], self.step_size))
 
         return all_dists
 
-    def execute(self, triplets, quiet):
+    def execute(self, triplets, quiet=False):
         """
         Executes the exploratory version of the BOOTSCAN from RDP5 using the RECSCAN algorithm.
             This algorithm does not require that recombinants are known
@@ -153,11 +154,8 @@ class Bootscan:
             trp_count += 1
 
             # Prepare dictionary to store sequences involved in recombination
-            names = triplet.get_trp_names()
+            names = tuple(triplet.names)
             self.results[names] = []
-
-            # Detection phase
-            pairs = ((0, 1), (1, 2), (0, 2))
 
             # Look at boostrap support for sequence pairs
             ab_support = []
@@ -167,9 +165,9 @@ class Bootscan:
                 supports = []
                 for dist_mat in dists:
                     # Access pairwise distances for each pair
-                    ab_dist = dist_mat[triplet.sequences[0], triplet.sequences[1]]
-                    bc_dist = dist_mat[triplets.sequences[1], triplet.sequences[2]]
-                    ac_dist = dist_mat[triplet.seqeunces[0], triplet.seqeunces[2]]
+                    ab_dist = dist_mat[triplet.idxs[0], triplet.idxs[1]]
+                    bc_dist = dist_mat[triplet.idxs[1], triplet.idxs[2]]
+                    ac_dist = dist_mat[triplet.idxs[0], triplet.idxs[2]]
                     supports.append(np.argmin([ab_dist, bc_dist, ac_dist]))
 
                 ab_support.append(np.sum(np.equal(supports, 0)) / self.num_replicates)
@@ -182,10 +180,10 @@ class Bootscan:
 
             transition_window_locations = []
             for i in range(1, supports.shape[1] - self.step_size):
-                if np.any(supports_thresh[:,i]):
-                    max1 = np.argmax(supports_thresh[:,i])
-                    if not supports_thresh[max1,i+1]:
-                        for j in range(1,self.step_size):
+                if np.any(supports_thresh[:, i]):
+                    max1 = np.argmax(supports_thresh[:, i])
+                    if not supports_thresh[max1, i+1]:
+                        for j in range(1, self.step_size):
                             max2 = supports_max[i+j]
                             if max2 != max1 and supports_thresh[max2, i+j]:
                                 transition_window_locations.append(i)
@@ -241,7 +239,4 @@ class Bootscan:
                     except KeyError:
                         self.results[names] = (rec_name, *event, uncorr_pvalue, corr_p_value)
 
-                else:
-                    return
-
-            return
+        return

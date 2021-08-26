@@ -137,19 +137,19 @@ class Scanner:
         if self.maxchi:
             maxchi.execute(triplets, self.quiet)
 
-            # Run Chimaera
+        # Run Chimaera
         if self.chimaera:
             chimaera.execute(triplets, self.quiet)
 
-            # Run Siscan
+        # Run Siscan
         if self.siscan:
             siscan.execute(triplets, self.quiet)
 
-            # Run RDP Method
+        # Run RDP Method
         if self.rdp:
             rdp.execute(triplets, self.quiet)
 
-            # Run Bootscan
+        # Run Bootscan
         if self.bootscan:
             bootscan.execute(triplets, self.quiet)
 

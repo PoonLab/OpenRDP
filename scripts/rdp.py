@@ -111,7 +111,6 @@ class RdpMethod:
             trp_count += 1
 
             names = tuple(triplet.names)
-            print(names)
             self.results[names] = []
 
             # Get the three pairs of sequences

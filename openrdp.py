@@ -1,6 +1,6 @@
 import argparse
 import sys
-from scripts.run_scans import Scanner
+from openrdp.run_scans import Scanner
 from datetime import datetime
 
 DNA_ALPHABET = ['A', 'T', 'G', 'C', '-', '*']
@@ -108,7 +108,7 @@ def parse_args():
                         action='store_true')
 
     parser.add_argument('-rdp',
-                        help='{Perform RDP analysis',
+                        help='Perform RDP analysis',
                         action='store_true')
 
     parser.add_argument('--quiet',

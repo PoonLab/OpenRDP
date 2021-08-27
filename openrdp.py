@@ -83,31 +83,31 @@ def parse_args():
     parser.add_argument('-cfg',
                         help='Path to file that contains parameters')
 
-    parser.add_argument('-geneconv',
+    parser.add_argument('-geneconv', '--geneconv',
                         help='Perform GeneConv analysis',
                         action='store_true')
 
-    parser.add_argument('-bootscan',
+    parser.add_argument('-bootscan', '--bootscan',
                         help='Perform Bootscan analysis',
                         action='store_true')
 
-    parser.add_argument('-maxchi',
+    parser.add_argument('-maxchi', '--maxchi',
                         help='Perform MaxChi analysis',
                         action='store_true')
 
-    parser.add_argument('-siscan',
+    parser.add_argument('-siscan', '--siscan',
                         help='Perform Siscan analysis',
                         action='store_true')
 
-    parser.add_argument('-chimaera',
+    parser.add_argument('-chimaera', '--chimaera',
                         help='Perform Chimaera analysis',
                         action='store_true')
 
-    parser.add_argument('-threeseq',
+    parser.add_argument('-threeseq', '--threeseq',
                         help='Perform 3Seq analysis',
                         action='store_true')
 
-    parser.add_argument('-rdp',
+    parser.add_argument('-rdp', '--rdp',
                         help='Perform RDP analysis',
                         action='store_true')
 

@@ -1,6 +1,6 @@
 import argparse
 import sys
-from openrdp.run_scans import Scanner
+from scripts.run_scans import Scanner
 from datetime import datetime
 
 DNA_ALPHABET = ['A', 'T', 'G', 'C', '-', '*']

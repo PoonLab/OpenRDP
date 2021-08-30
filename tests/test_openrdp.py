@@ -1,11 +1,15 @@
+import os
 import unittest
-from scripts.main import *
+
+from openrdp import *
+
+SHORT_SEQ_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'short.fasta')
 
 
 class TestMain(unittest.TestCase):
 
     def test_convert_fasta(self):
-        with open('short.fasta') as test_handle:
+        with open(SHORT_SEQ_PATH) as test_handle:
             exp_names = ['A', 'B', 'C', 'D', 'E']
             exp_seqs = ['ATGCTGACGACGTAGCAGGTAA',
                         'AACCTTGGTGCGAAATGCAAGT',
@@ -17,7 +21,7 @@ class TestMain(unittest.TestCase):
             self.assertEqual(exp_seqs, res_seqs)
 
     def test_valid_alignment(self):
-        with open('short.fasta') as test_handle:
+        with open(SHORT_SEQ_PATH) as test_handle:
             names, aln = read_fasta(test_handle)
             expected = True
             result = valid_alignment(aln)
@@ -42,3 +46,7 @@ class TestMain(unittest.TestCase):
         expected = True
         result = valid_chars(aln)
         self.assertEqual(expected, result)
+
+
+if __name__ == '__main__':
+    unittest.main()

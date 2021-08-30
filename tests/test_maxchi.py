@@ -1,9 +1,12 @@
-import unittest
-from scripts.maxchi import MaxChi
-from scripts.main import read_fasta
-from scripts.common import generate_triplets, Triplet
 import configparser
+import os
+import unittest
+
 import numpy as np
+
+from openrdp import read_fasta
+from scripts.common import generate_triplets, Triplet
+from scripts.maxchi import MaxChi
 
 
 class TestMaxChi(unittest.TestCase):
@@ -11,10 +14,12 @@ class TestMaxChi(unittest.TestCase):
     def setUp(self):
         # Set up test example
         config = configparser.ConfigParser()
-        config.read('test_short.ini')
+        short_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_short.ini')
+        config.read(short_cfg_path)
         test_settings = dict(config.items('MaxChi'))
 
-        with open('short.fasta') as small_test:
+        short_seq_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'short.fasta')
+        with open(short_seq_path) as small_test:
             names, test_seqs = read_fasta(small_test)
             self.short_align = np.array(list(map(list, test_seqs)))
             self.test_short = MaxChi(self.short_align, names, settings=test_settings)
@@ -25,10 +30,12 @@ class TestMaxChi(unittest.TestCase):
 
         # Set up test example 2
         config = configparser.ConfigParser()
-        config.read('test_long.ini')
+        long_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_long.ini')
+        config.read(long_cfg_path)
         test_settings = dict(config.items('MaxChi'))
 
-        with open('long.fasta') as test:
+        long_seq_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'long.fasta')
+        with open(long_seq_path) as test:
             names, test_seqs = read_fasta(test)
             self.long_align = np.array(list(map(list, test_seqs)))
             self.test_long = MaxChi(self.long_align, names, settings=test_settings)
@@ -39,10 +46,12 @@ class TestMaxChi(unittest.TestCase):
 
         # Set up HIV CRF07 test case
         config = configparser.ConfigParser()
-        config.read('default.ini')
+        hiv_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'default.ini')
+        config.read(hiv_cfg_path)
         settings = dict(config.items('MaxChi'))
 
-        with open('CRF_07_test.fasta') as hiv_test:
+        hiv_seq_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'CRF_07_test.fasta')
+        with open(hiv_seq_path) as hiv_test:
             names, crf07_seqs = read_fasta(hiv_test)
             self.hiv_align = np.array(list(map(list, crf07_seqs)))
             self.test_hiv = MaxChi(self.hiv_align, names, settings=settings)
@@ -199,7 +208,7 @@ class TestMaxChi(unittest.TestCase):
                     ('C', 'D'): [(10, 20, 0.5578254003710748)],
                     ('C', 'E'): [(4, 13, 0.5578254003710748), (12, 21, 0.5578254003710748)],
                     ('D', 'E'): [(3, 13, 0.8780986177504423), (12, 21, 1.0)]}
-        result = self.test_short.execute(self.short_triplets, False)
+        result = self.test_short.execute(self.short_triplets, quiet=True)
         self.assertEqual(expected, result)
 
     def test_execute_long(self):
@@ -209,7 +218,7 @@ class TestMaxChi(unittest.TestCase):
                     ('Test2', 'Test3'): [],
                     ('Test2', 'Test4'): [],
                     ('Test3', 'Test4'): []}
-        result = self.test_long.execute(self.long_triplets, False)
+        result = self.test_long.execute(self.long_triplets, quiet=True)
         self.assertEqual(expected, result)
 
     def test_execute_hiv(self):
@@ -243,7 +252,7 @@ class TestMaxChi(unittest.TestCase):
                                  (8241, 8346, 0.005648215229618876),
                                  (9091, 9194, 0.026776606487834902),
                                  (9465, 9568, 1.0)]}
-        result = self.test_hiv.execute(self.hiv_triplets, True)
+        result = self.test_hiv.execute(self.hiv_triplets, quiet=True)
         self.assertEqual(expected, result)
 
 

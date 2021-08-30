@@ -1,9 +1,12 @@
-import unittest
-from scripts.rdp import RdpMethod
-from scripts.main import read_fasta
-from scripts.common import generate_triplets, Triplet
 import configparser
+import os
+import unittest
+
 import numpy as np
+
+from openrdp import read_fasta
+from scripts.common import generate_triplets, Triplet
+from scripts.rdp import RdpMethod
 
 
 class TestRdpMethod(unittest.TestCase):
@@ -11,10 +14,12 @@ class TestRdpMethod(unittest.TestCase):
     def setUp(self):
         # Set up test example
         config = configparser.ConfigParser()
-        config.read('test_short.ini')
+        short_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_short.ini')
+        config.read(short_cfg_path)
         test_settings = dict(config.items('RDP'))
 
-        with open('short.fasta') as small_test:
+        short_seq_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'short.fasta')
+        with open(short_seq_path) as small_test:
             names, test_seqs = read_fasta(small_test)
             self.short_align = np.array(list(map(list, test_seqs)))
             self.test_short = RdpMethod(self.short_align, names, settings=test_settings)
@@ -25,10 +30,12 @@ class TestRdpMethod(unittest.TestCase):
 
         # Set up test example 2
         config = configparser.ConfigParser()
-        config.read('test_long.ini')
+        long_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_long.ini')
+        config.read(long_cfg_path)
         test_settings = dict(config.items('RDP'))
 
-        with open('long.fasta') as test:
+        long_seq_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'long.fasta')
+        with open(long_seq_path) as test:
             names, test_seqs = read_fasta(test)
             self.long_align = np.array(list(map(list, test_seqs)))
             self.test_long = RdpMethod(self.long_align, names, settings=test_settings)
@@ -39,10 +46,12 @@ class TestRdpMethod(unittest.TestCase):
 
         # Set up HIV CRF07 test case
         config = configparser.ConfigParser()
-        config.read('default.ini')
+        hiv_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'default.ini')
+        config.read(hiv_cfg_path)
         settings = dict(config.items('RDP'))
 
-        with open('CRF_07_test.fasta') as hiv_test:
+        hiv_seq_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'CRF_07_test.fasta')
+        with open(hiv_seq_path) as hiv_test:
             names, crf07_seqs = read_fasta(hiv_test)
             self.hiv_align = np.array(list(map(list, crf07_seqs)))
             self.test_hiv = RdpMethod(self.hiv_align, names, settings=settings)
@@ -153,7 +162,7 @@ class TestRdpMethod(unittest.TestCase):
                     ('B', 'C', 'E'): [((6, 7), 1.7355371900826446, 17.355371900826448)],
                     ('B', 'D', 'E'): [],
                     ('C', 'D', 'E'): [((4, 5), 2.0826446280991737, 20.82644628099174)]}
-        result = self.test_short.execute(self.short_triplets)
+        result = self.test_short.execute(self.short_triplets, quiet=True)
         self.assertEqual(expected, result)
 
     def test_execute_long(self):
@@ -161,7 +170,7 @@ class TestRdpMethod(unittest.TestCase):
                     ('Test1 ', 'Test2', 'Test4'): [],
                     ('Test1 ', 'Test3', 'Test4'): [((6, 504), 2.7608273396425555e-05, 0.00011043309358570222)],
                     ('Test2', 'Test3', 'Test4'): [((36, 481), 0.00031154368806080143, 0.0012461747522432057)]}
-        result = self.test_long.execute(self.long_triplets)
+        result = self.test_long.execute(self.long_triplets, quiet=True)
         self.assertEqual(expected, result)
 
     def test_execute_hiv(self):
@@ -169,7 +178,7 @@ class TestRdpMethod(unittest.TestCase):
         expected = {('B', 'C', '07_BC'): [((431, 6337), 0.0, 0.0),
                                           ((6550, 6647), 0.49389675506775216, 0.49389675506775216),
                                           ((6655, 9748), 6.341013016851143e-50, 6.341013016851143e-50)]}
-        result = self.test_hiv.execute(self.hiv_triplets)
+        result = self.test_hiv.execute(self.hiv_triplets, quiet=True)
         self.assertEqual(expected, result)
 
 

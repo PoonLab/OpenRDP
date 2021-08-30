@@ -1,8 +1,8 @@
-import subprocess
-import os
-import sys
-import logging
 import glob
+import logging
+import os
+import subprocess
+import sys
 
 
 class GeneConv:

@@ -1,7 +1,8 @@
 import multiprocessing
+import random
+
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
-import random
 
 
 class Bootscan:
@@ -124,6 +125,8 @@ class Bootscan:
         window = self.align[:, i:i + self.win_size]
         # Make bootstrap replicates of alignment
         dists = []
+        np.random.seed(self.random_seed)
+        random.seed(self.random_seed)
         for rep in range(self.num_replicates):
             # Shuffle columns with replacement
             rep_window = window[:, np.random.randint(0, window.shape[1], window.shape[1])]
@@ -239,4 +242,4 @@ class Bootscan:
                     except KeyError:
                         self.results[names] = (rec_name, *event, uncorr_pvalue, corr_p_value)
 
-        return
+        return self.results

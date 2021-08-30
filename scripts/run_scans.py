@@ -1,15 +1,16 @@
 import configparser
-import numpy as np
 import json
 
+import numpy as np
+
+from scripts.bootscan import Bootscan
+from scripts.chimaera import Chimaera
+from scripts.common import generate_triplets, Triplet
 from scripts.geneconv import GeneConv
 from scripts.maxchi import MaxChi
-from scripts.threeseq import ThreeSeq
-from scripts.chimaera import Chimaera
 from scripts.rdp import RdpMethod
 from scripts.siscan import Siscan
-from scripts.bootscan import Bootscan
-from scripts.common import generate_triplets, Triplet
+from scripts.threeseq import ThreeSeq
 
 
 class Scanner:

@@ -1,8 +1,8 @@
-import subprocess
-import os
 import glob
-import sys
 import logging
+import os
+import subprocess
+import sys
 
 
 class ThreeSeq:

@@ -1,6 +1,7 @@
 import numpy as np
-from scipy.signal import find_peaks
 from scipy.ndimage import gaussian_filter1d
+from scipy.signal import find_peaks
+
 from scripts.common import calculate_chi2
 
 

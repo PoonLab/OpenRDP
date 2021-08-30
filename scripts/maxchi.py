@@ -1,8 +1,9 @@
-from scipy.signal import find_peaks
-from scipy.ndimage import gaussian_filter1d
-import numpy as np
-from scripts.common import calculate_chi2
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.ndimage import gaussian_filter1d
+from scipy.signal import find_peaks
+
+from scripts.common import calculate_chi2
 
 
 class MaxChi:

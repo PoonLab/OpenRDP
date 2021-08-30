@@ -1,9 +1,12 @@
-import unittest
-from scripts.chimaera import Chimaera
-from scripts.main import read_fasta
-from scripts.common import generate_triplets, Triplet
 import configparser
+import os
+import unittest
+
 import numpy as np
+
+from openrdp import read_fasta
+from scripts.chimaera import Chimaera
+from scripts.common import generate_triplets, Triplet
 
 
 class TestChimaera(unittest.TestCase):
@@ -11,10 +14,12 @@ class TestChimaera(unittest.TestCase):
     def setUp(self):
         # Set up test example
         config = configparser.ConfigParser()
-        config.read('test_short.ini')
+        short_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_short.ini')
+        config.read(short_cfg_path)
         test_settings = dict(config.items('Chimaera'))
 
-        with open('short.fasta') as small_test:
+        short_seq_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'short.fasta')
+        with open(short_seq_path) as small_test:
             names, test_seqs = read_fasta(small_test)
             self.short_align = np.array(list(map(list, test_seqs)))
             self.test_short = Chimaera(self.short_align, names, settings=test_settings)
@@ -25,10 +30,12 @@ class TestChimaera(unittest.TestCase):
 
         # Set up test example 2
         config = configparser.ConfigParser()
-        config.read('test_long.ini')
+        long_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_long.ini')
+        config.read(long_cfg_path)
         test_settings = dict(config.items('Chimaera'))
 
-        with open('long.fasta') as test:
+        long_seq_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'long.fasta')
+        with open(long_seq_path) as test:
             names, test_seqs = read_fasta(test)
             self.long_align = np.array(list(map(list, test_seqs)))
             self.test_long = Chimaera(self.long_align, names, settings=test_settings)
@@ -39,10 +46,12 @@ class TestChimaera(unittest.TestCase):
 
         # Set up HIV CRF07 test case
         config = configparser.ConfigParser()
-        config.read('default.ini')
+        hiv_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'default.ini')
+        config.read(hiv_cfg_path)
         settings = dict(config.items('Chimaera'))
 
-        with open('CRF_07_test.fasta') as hiv_test:
+        hiv_seq_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'CRF_07_test.fasta')
+        with open(hiv_seq_path) as hiv_test:
             names, crf07_seqs = read_fasta(hiv_test)
             self.hiv_align = np.array(list(map(list, crf07_seqs)))
             self.test_hiv = Chimaera(self.hiv_align, names, settings=settings)
@@ -244,7 +253,7 @@ class TestChimaera(unittest.TestCase):
                     ('E', 'D', 'A'): [(3, 11, 0.8556951983876534)],
                     ('E', 'D', 'B'): [(1, 9, 0.8556951983876534)],
                     ('E', 'D', 'C'): []}
-        result = self.test_short.execute(self.short_triplets)
+        result = self.test_short.execute(self.short_triplets, quiet=True)
         self.assertEqual(expected, result)
 
     def test_execute_long(self):
@@ -260,7 +269,7 @@ class TestChimaera(unittest.TestCase):
                     ('Test4', 'Test2', 'Test1 '): [],
                     ('Test4', 'Test3', 'Test1 '): [],
                     ('Test4', 'Test3', 'Test2'): [(176, 219, 1.0)]}
-        result = self.test_long.execute(self.long_triplets)
+        result = self.test_long.execute(self.long_triplets, quiet=True)
         self.assertEqual(expected, result)
 
     def test_execute_hiv(self):
@@ -302,7 +311,7 @@ class TestChimaera(unittest.TestCase):
                                           (5111, 5164, 0.04926030700200058),
                                           (5185, 5238, 0.010181534711170576)]}
 
-        result = self.test_hiv.execute(self.hiv_triplets)
+        result = self.test_hiv.execute(self.hiv_triplets, quiet=True)
         self.assertEqual(expected, result)
 
 

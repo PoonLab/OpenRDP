@@ -1,5 +1,6 @@
 import os
 import unittest
+import itertools
 
 from openrdp import read_fasta
 from scripts.common import *
@@ -63,6 +64,82 @@ class TestCommon(unittest.TestCase):
         res_chi2, res_p_value = calculate_chi2(c_table, 500)
         self.assertEqual(exp_chi2, round(res_chi2, 2))
         self.assertEqual(exp_p_value, round(res_p_value, 3))
+
+    def test_percent_diff_short(self):
+        # Generate all pairs of sequences (5 sequences)
+        # (0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)
+        pairs = list(itertools.combinations(range(self.short_align.shape[0]), 2))
+
+        expected = [0.7272727272727273, 0.8181818181818182, 0.6818181818181818, 0.7727272727272727, 0.7727272727272727,
+                    0.6363636363636364, 0.6818181818181818, 0.6818181818181818, 0.6363636363636364, 0.5909090909090909]
+        for i, pair in enumerate(pairs):
+            s1 = self.short_align[pair[0]]
+            s2 = self.short_align[pair[1]]
+            result = percent_diff(s1, s2)
+            self.assertEqual(expected[i], result)
+
+    def test_percent_diff_long(self):
+        # Generate all pairs of sequences (4 sequences)
+        # (0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)
+        pairs = list(itertools.combinations(range(self.long_align.shape[0]), 2))
+
+        expected = [0.054637865311308764, 0.15374841168996187, 0.13468869123252858, 0.1207115628970775,
+                    0.12198221092757307, 0.08005082592121983]
+        for i, pair in enumerate(pairs):
+            s1 = self.long_align[pair[0]]
+            s2 = self.long_align[pair[1]]
+            result = percent_diff(s1, s2)
+            self.assertEqual(expected[i], result)
+
+    def test_percent_diff_hiv(self):
+        # Generate all pairs of sequences (3 sequences)
+        # (0, 1), (0, 2), (1, 2)
+        pairs = list(itertools.combinations(range(self.hiv_align.shape[0]), 2))
+
+        expected = [0.1383217410814449, 0.12356954225352113, 0.07229984475493458]
+        for i, pair in enumerate(pairs):
+            s1 = self.hiv_align[pair[0]]
+            s2 = self.hiv_align[pair[1]]
+            result = percent_diff(s1, s2)
+            self.assertEqual(expected[i], result)
+
+    def test_jc_distance_short(self):
+        # Generate all pairs of sequences (5 sequences)
+        # (0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)
+        pairs = list(itertools.combinations(range(self.short_align.shape[0]), 2))
+
+        expected = [2.6223806710998607, 1, 1.7984214545987776, 1, 1, 1.415302236774285, 1.7984214545987776,
+                    1.7984214545987776, 1.415302236774285, 1.1629480593083754]
+        for i, pair in enumerate(pairs):
+            s1 = self.short_align[pair[0]]
+            s2 = self.short_align[pair[1]]
+            result = jc_distance(s1, s2)
+            self.assertEqual(expected[i], result)
+
+    def test_jc_distance_long(self):
+        # Generate all pairs of sequences (4 sequences)
+        # (0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)
+        pairs = list(itertools.combinations(range(self.long_align.shape[0]), 2))
+
+        expected = [0.056730329671987476, 0.1720578753742531, 0.1484586552588878,
+                    0.13161261779022151, 0.13312853543617206, 0.08465351745505377]
+        for i, pair in enumerate(pairs):
+            s1 = self.long_align[pair[0]]
+            s2 = self.long_align[pair[1]]
+            result = jc_distance(s1, s2)
+            self.assertEqual(expected[i], result)
+
+    def test_jc_distance_hiv(self):
+        # Generate all pairs of sequences (3 sequences)
+        # (0, 1), (0, 2), (1, 2)
+        pairs = list(itertools.combinations(range(self.hiv_align.shape[0]), 2))
+
+        expected = [0.15290008723420206, 0.13502657966855233, 0.0760261989839483]
+        for i, pair in enumerate(pairs):
+            s1 = self.hiv_align[pair[0]]
+            s2 = self.hiv_align[pair[1]]
+            result = jc_distance(s1, s2)
+            self.assertEqual(expected[i], result)
 
 
 class TestTriplet(unittest.TestCase):

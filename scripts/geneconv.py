@@ -6,8 +6,8 @@ import sys
 
 
 class GeneConv:
-    def __init__(self, settings=None, gscale=1, ignore_indels=False, min_length=1, min_poly=2, min_score=2,
-                 max_overlap=1):
+    def __init__(self, gscale=1, ignore_indels=False, min_length=1, min_poly=2, min_score=2,
+                 max_overlap=1, settings=None,):
         """
         Constructs a GeneConv object
         :param gscale: mismatch penalty
@@ -28,6 +28,9 @@ class GeneConv:
             self.min_poly = min_poly
             self.min_score = min_score
             self.max_overlap = max_overlap
+
+        self.raw_results = []
+        self.results = []
 
     def set_options_from_config(self, settings):
         """
@@ -148,7 +151,7 @@ class GeneConv:
         :param out_path: Path to the output file
         :return: List of results
         """
-        gc_results = {}
+        self.raw_results = []
 
         # Check that the out file exists
         try:
@@ -158,14 +161,17 @@ class GeneConv:
                     if not line.startswith('#'):
                         line = line.strip()
                         line = line.split()
-                        seqs = line[1]  # Sequence pairs
-                        uncorr_p_value = line[2]  # Uncorrected p_value
+                        seqs = line[1].split(';')  # Sequences, potential recombinant is first
+                        rec_name = seqs[0]
+                        if len(seqs) == 2:
+                            parents = [seqs[1], '-']
+                        else:
+                            parents = ['-', '-']
                         corr_p_value = line[3]  # Bonferroni Corrected - Karlin-Altschul
-                        locations = (line[4], line[5])  # Locations in alignment
-                        type = line[0]  # Global inner (GI), global outer (GO), additional inner (AI)
-                        gc_results[locations] = [seqs, uncorr_p_value, corr_p_value, type]
+                        locations = (int(line[4]), int(line[5]))  # Locations in alignment
+                        self.raw_results.append((rec_name, parents, locations, corr_p_value))
 
         except FileNotFoundError as e:
             print(e)
 
-        return gc_results
+        return self.raw_results

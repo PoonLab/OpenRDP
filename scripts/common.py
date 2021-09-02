@@ -41,6 +41,37 @@ def reduce_to_unique_seqs(aln):
     return list(set(aln))
 
 
+def percent_diff(s1, s2):
+    s1_valid = (s1 == 'A') | (s1 == 'T') | (s1 == 'G') | (s1 == 'C')
+    s2_valid = (s2 == 'A') | (s2 == 'T') | (s2 == 'G') | (s2 == 'C')
+    valid = s1_valid & s2_valid
+    diffs = np.sum(s1[valid] != s2[valid])
+    num_valid = valid.sum()
+    return diffs.sum() / num_valid if num_valid else 0
+
+
+def jc_distance(s1, s2):
+    """
+    Calculate the pairwise Jukes-Cantor distance between 2 sequences
+    :param s1: the first sequence
+    :param s2: the second sequence
+    :return: the pairwise JC69 distance between 2 sequences
+    """
+    p_dist = percent_diff(s1, s2)
+    if p_dist >= 0.75:
+        return 1
+    return -0.75 * np.log(1 - (p_dist * 4 / 3)) if p_dist else 0
+
+
+def all_items_equal(x):
+    """
+    Check if all items in a list are identical
+    :param x: the list
+    :return: True if all the items are identical, false otherwise
+    """
+    return x.count(x[0]) == len(x)
+
+
 class Triplet:
 
     def __init__(self, alignment, seq_names, trp_idxs):
@@ -58,6 +89,11 @@ class Triplet:
 
     def get_sequence_name(self, trp_idx):
         return self.names[trp_idx]
+
+    def get_seq_from_name(self, trp_name):
+        for i, name in enumerate(self.names):
+            if trp_name == name:
+                return self.sequences[i]
 
     def remove_uninformative_sites(self):
         """

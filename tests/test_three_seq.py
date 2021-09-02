@@ -13,8 +13,8 @@ class Test3Seq(unittest.TestCase):
 
     def test_parse_results_long(self):
         self.long_test.execute()
-        expected = [[['Test3', 'Test1', 'Test2'], '0.000000000025', '5.982096e-10', ['202-204 & 742-759', '202-204 & 784-787']],
-                    [['Test2', 'Test4', 'Test3'], '0.000000220615', '5.294757e-06', ['181-193 & 742-750', '181-193 & 784-787']]]
+        expected = [('Test3', ('Test1', 'Test2'), '202', '787', '5.982096e-10'),
+                    ('Test2', ('Test3', 'Test4'), '181', '787', '5.294757e-06')]
         long_res_path = os.path.join(os.getcwd(), 'long.fasta.3s.rec')
         print(long_res_path)
         result = self.long_test.parse_output(long_res_path)
@@ -22,10 +22,7 @@ class Test3Seq(unittest.TestCase):
 
     def test_parse_results_crf(self):
         self.crf_test.execute()
-        expected = [[['C', 'B', '07_BC'],
-                     '0.000000000002',
-                     '1.270678e-11',
-                     ['1989-2030 & 2617-2617', '1989-2030 & 2636-2644']]]
+        expected = [('C', ('07_BC', 'B'), '1989', '2644', '1.270678e-11')]
         crf_res_path = os.path.join(os.getcwd(), 'CRF_07_test.fasta.3s.rec')
         result = self.crf_test.parse_output(crf_res_path)
         self.assertEqual(expected, result)

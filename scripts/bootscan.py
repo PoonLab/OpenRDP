@@ -1,8 +1,10 @@
 import multiprocessing
 import random
+import copy
 
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
+from scripts.common import jc_distance
 
 
 class Bootscan:
@@ -29,7 +31,8 @@ class Bootscan:
         if not quiet:
             print('Finished Scanning Phase of Bootscan/Recscan')
 
-        self.results = {}
+        self.raw_results = []
+        self.results = []
 
     def set_options_from_config(self, settings):
         """
@@ -70,28 +73,6 @@ class Bootscan:
             print("Invalid option for 'cutoff_percentage'.\nUsing default value (0.7) instead.")
             self.cutoff = 0.7
 
-    @staticmethod
-    def percent_diff(s1, s2):
-        s1_valid = (s1 == 'A') | (s1 == 'T') | (s1 == 'G') | (s1 == 'C')
-        s2_valid = (s2 == 'A') | (s2 == 'T') | (s2 == 'G') | (s2 == 'C')
-        valid = s1_valid & s2_valid
-        diffs = np.sum(s1[valid] != s2[valid])
-        num_valid = valid.sum()
-        return diffs.sum() / num_valid if num_valid else 0
-
-    @staticmethod
-    def jc_distance(s1, s2):
-        """
-        Calculate the pairwise Jukes-Cantor distance between 2 sequences
-        :param s1: the first sequence
-        :param s2: the second sequence
-        :return: the pairwise JC69 distance between 2 sequences
-        """
-        p_dist = Bootscan.percent_diff(s1, s2)
-        if p_dist >= 0.75:
-            return 1
-        return -0.75 * np.log(1 - (p_dist * 4 / 3)) if p_dist else 0
-
     def find_potential_events(self, pair1, pair2):
         # Loop over coordinates for peaks to high bootstrap support that alternates between two pairs
         putative_regions = []
@@ -130,7 +111,7 @@ class Bootscan:
         for rep in range(self.num_replicates):
             # Shuffle columns with replacement
             rep_window = window[:, np.random.randint(0, window.shape[1], window.shape[1])]
-            dist_mat = squareform(pdist(rep_window, Bootscan.jc_distance))
+            dist_mat = squareform(pdist(rep_window, jc_distance))
             dists.append(dist_mat)
         return dists
 
@@ -155,10 +136,6 @@ class Bootscan:
             if not quiet:
                 print("Scanning triplet {} / {}".format(trp_count, G))
             trp_count += 1
-
-            # Prepare dictionary to store sequences involved in recombination
-            names = tuple(triplet.names)
-            self.results[names] = []
 
             # Look at boostrap support for sequence pairs
             ab_support = []
@@ -235,11 +212,60 @@ class Bootscan:
                     uncorr_pvalue = (l / n) * val
                     corr_p_value = G * uncorr_pvalue
 
-                    rec_name = triplet.names[recomb_candidate]
+                    # Get potential recombinant and the parents
+                    trp_names = copy.copy(triplet.names)
+                    for i, name in enumerate(trp_names):
+                        if i == recomb_candidate:
+                            rec_name = trp_names.pop(i)
+                            parents = trp_names
 
-                    try:
-                        self.results[names].append((rec_name, *event, uncorr_pvalue, corr_p_value))
-                    except KeyError:
-                        self.results[names] = (rec_name, *event, uncorr_pvalue, corr_p_value)
+                        self.raw_results.append((rec_name, parents, *event, corr_p_value))
+
+        self.results = self.merge_breakpoints()
 
         return self.results
+
+    def merge_breakpoints(self):
+        """
+        Merge overlapping breakpoint locations
+        :return: list of breakpoint locations where overlapping intervals are merged
+        """
+        results_dict = {}
+        results = []
+
+        # Gather all regions with the same recombinant
+        for i, bp in enumerate(self.raw_results):
+            rec_name = self.raw_results[i][0]
+            parents = tuple(sorted(self.raw_results[i][1]))
+            key = (rec_name, parents)
+            if key not in results_dict:
+                results_dict[key] = []
+            results_dict[key].append(self.raw_results[i][2:])
+
+        # Merge any locations that overlap - eg [1, 5] and [3, 7] would become [1, 7]
+        for key in results_dict:
+            merged_regions = []
+            for region in results_dict[key]:
+                region = list(region)
+                old_regions = list(results_dict[key])
+                for region2 in old_regions:
+                    start = region[0]
+                    end = region[1]
+                    start2 = region2[0]
+                    end2 = region2[1]
+                    if start <= start2 <= end or start <= end2 <= end:
+                        region[0] = min(start,start2)
+                        region[1] = max(end, end2)
+                        results_dict[key].remove(region2)
+                merged_regions.append(region)
+
+            # Output the results
+            for region in merged_regions:
+                rec_name = key[0]
+                parents = key[1]
+                start = region[0]
+                end = region[1]
+                p_value = region[2]
+                results.append((rec_name, parents, start, end, p_value))
+
+        return results

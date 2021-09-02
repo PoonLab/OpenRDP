@@ -1,8 +1,10 @@
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
+from scipy.stats import pearsonr
 
-from scripts.common import calculate_chi2
+from scripts.common import calculate_chi2, jc_distance, all_items_equal
+import copy
 
 
 class Chimaera:
@@ -28,7 +30,8 @@ class Chimaera:
             self.frac_var_sites = frac_var_sites
 
         self.align = align
-        self.results = {}
+        self.raw_results = []
+        self.results = []
 
     def set_options_from_config(self, settings):
         """
@@ -152,14 +155,6 @@ class Chimaera:
             combos = [(0, 1, 2), (1, 2, 0), (2, 1, 0)]
             for run in combos:
 
-                rec_name = triplet.get_sequence_name(run[0])
-                p1_name = triplet.get_sequence_name(run[1])
-                p2_name = triplet.get_sequence_name(run[2])
-
-                # Prepare dictionary to store sequences involved in recombination
-                names = tuple([rec_name, p1_name, p2_name])
-                self.results[names] = []
-
                 # Initialize lists to map chi2 and p-values to window positions
                 chi2_values = np.zeros(self.align.shape[1])
                 p_values = np.ones(self.align.shape[1])  # Map window position to p-values
@@ -167,6 +162,9 @@ class Chimaera:
                 # Build new alignment with uninformative sites removed
                 # Uninformative sites where neither parental matches recombinant
                 new_aln = triplet.sequences[:, triplet.info_sites]
+
+                # Rearrange the new alignment to try every possible combination of "parentals" and "recombinant"
+                new_aln = np.array([new_aln[run[0]], new_aln[run[1]], new_aln[run[2]]])
 
                 # Compress into a bitstring
                 comp_seq = self.compress_triplet_aln(new_aln)
@@ -224,7 +222,100 @@ class Chimaera:
                         aln_pos = (int(peak - search_win_size), int(peak + self.win_size))
 
                     # Check that breakpoint has not already been detected
-                    if (*aln_pos, p_values[k]) not in self.results[names]:
-                        self.results[names].append((*aln_pos, p_values[peak]))
+                    rec_name, parents = self.identify_recombinant(triplet, aln_pos)
+                    if ((rec_name, parents, *aln_pos)) not in self.raw_results and p_values[peak] != 1.0:
+                        self.raw_results.append((rec_name, parents, *aln_pos, p_values[peak]))
+
+                    self.raw_results = sorted(self.raw_results)
+
+        self.results = self.merge_breakpoints()
 
         return self.results
+
+    def identify_recombinant(self, trp, aln_pos):
+        """
+        Find the most likely recombinant sequence using the PhPr method described in the RDP5 documentation
+        and Weiler GF (1998) Phylogenetic profiles: A graphical method for detecting genetic recombinations
+        in homologous sequences. Mol Biol Evol 15: 326–335
+        :return: name of the recombinant sequence and the names of the parental sequences
+        """
+        upstream_dists = []
+        downstream_dists = []
+
+        # Get possible breakpoint locations
+        for i in range(len(trp.names)):
+            upstream_dists.append([])
+            downstream_dists.append([])
+            for j in range(len(trp.names)):
+                if i != j:
+                    # Calculate pairwise Jukes-Cantor distances for regions upstream and downstream of breakpoint
+                    upstream_dists[i].append(jc_distance(trp.sequences[i][0: aln_pos[0]],
+                                                         trp.sequences[j][0: aln_pos[0]]))
+                    downstream_dists[i].append(jc_distance(trp.sequences[i][aln_pos[1]: trp.sequences.shape[1]],
+                                                           trp.sequences[j][aln_pos[1]: trp.sequences.shape[1]]))
+
+        # Calculate Pearson's correlation coefficient for 2 lists
+        r_coeff = [0, 0, 0]
+        if all_items_equal(upstream_dists[0]) or all_items_equal(downstream_dists[0]):
+            r_coeff[0] = float('NaN')
+        elif all_items_equal(upstream_dists[1]) or all_items_equal(downstream_dists[1]):
+            r_coeff[1] = float('NaN')
+        elif all_items_equal(upstream_dists[2]) or all_items_equal(downstream_dists[2]):
+            r_coeff[2] = float('NaN')
+
+        else:
+            r_coeff[0], _ = pearsonr(upstream_dists[0], downstream_dists[0])
+            r_coeff[1], _ = pearsonr(upstream_dists[1], downstream_dists[1])
+            r_coeff[2], _ = pearsonr(upstream_dists[2], downstream_dists[2])
+
+        # Most likely recombinant sequence is sequence with lowest coefficient
+        trp_names = copy.copy(trp.names)
+        rec_name = trp_names.pop(np.argmin(r_coeff))
+        p_names = trp_names
+
+        return rec_name, p_names
+
+    def merge_breakpoints(self):
+        """
+        Merge overlapping breakpoint locations
+        :return: list of breakpoint locations, where overlapping regions are merged
+        """
+        results_dict = {}
+        results = []
+
+        # Gather all regions with the same recombinant
+        for i, bp in enumerate(self.raw_results):
+            rec_name = self.raw_results[i][0]
+            parents = tuple(sorted(self.raw_results[i][1]))
+            key = (rec_name, parents)
+            if key not in results_dict:
+                results_dict[key] = []
+            results_dict[key].append(self.raw_results[i][2:])
+
+        # Merge any locations that overlap - eg [1, 5] and [3, 7] would become [1, 7]
+        for key in results_dict:
+            merged_regions = []
+            for region in results_dict[key]:
+                region = list(region)
+                old_regions = list(results_dict[key])
+                for region2 in old_regions:
+                    start = region[0]
+                    end = region[1]
+                    start2 = region2[0]
+                    end2 = region2[1]
+                    if start <= start2 <= end or start <= end2 <= end:
+                        region[0] = min(start,start2)
+                        region[1] = max(end, end2)
+                        results_dict[key].remove(region2)
+                merged_regions.append(region)
+
+            # Output the results
+            for region in merged_regions:
+                rec_name = key[0]
+                parents = key[1]
+                start = region[0]
+                end = region[1]
+                p_value = region[2]
+                results.append((rec_name, parents, start, end, p_value))
+
+        return results

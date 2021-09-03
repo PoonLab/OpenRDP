@@ -137,8 +137,8 @@ class GeneConv:
         except OSError:
             pass
 
-        # Parse the output of 3Seq
-        in_name = os.path.basename(in_path).split('.')[0]
+        # Parse the output of Geneconv
+        in_name = os.path.splitext(os.path.basename(in_path))[0]
         out_name = in_name + '.frags'
         out_path = os.path.join(os.path.dirname(in_path), out_name)
         gc_results = self.parse_output(out_path)

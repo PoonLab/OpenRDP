@@ -185,8 +185,7 @@ class RdpMethod:
                     rec_name, parents = self.identify_recombinant(triplet, coord)
                     self.raw_results.append((rec_name, parents, *coord, corr_p_value))
 
-            self.raw_results = sorted(self.raw_results)
-
+        self.raw_results = sorted(self.raw_results)
         self.results = self.merge_breakpoints()
         return self.raw_results
 

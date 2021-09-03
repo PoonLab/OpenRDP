@@ -221,6 +221,7 @@ class Bootscan:
 
                         self.raw_results.append((rec_name, parents, *event, corr_p_value))
 
+        self.raw_results = sorted(self.raw_results)
         self.results = self.merge_breakpoints()
 
         return self.results

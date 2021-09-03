@@ -11,7 +11,7 @@ from scripts.common import jc_distance, all_items_equal
 
 class Siscan:
     def __init__(self, align, win_size=200, step_size=20, strip_gaps=True, pvalue_perm_num=1100,
-                 scan_perm_num=100, random_seed=3, settings=None):
+                 scan_perm_num=100, random_seed=3, max_pvalue=0.05, settings=None):
         """
         Constructs a Siscan object
         :param win_size: the size of the sliding window
@@ -32,6 +32,7 @@ class Siscan:
             self.pvalue_perm_num = pvalue_perm_num
             self.scan_perm_num = scan_perm_num
             self.random_seed = random_seed
+            self.max_pvalue = max_pvalue
 
         self.raw_results = []
         self.results = []
@@ -43,6 +44,7 @@ class Siscan:
         """
         self.win_size = int(settings['win_size'])
         self.step_size = int(settings['step_size'])
+        self.max_pvalue = abs(float(settings['max_pvalue']))
 
         if settings['strip_gaps'] == 'True':
             self.strip_gaps = True
@@ -222,8 +224,8 @@ class Siscan:
                     rec_name, parents = self.identify_recombinant(triplet, aln_pos)
                     self.raw_results.append((rec_name, parents, *aln_pos, abs(sum_pat_zscore[peak])))
 
-                # self.raw_results.append((triplet, window, pat_zscore, sum_pat_zscore))
-                self.raw_results = sorted(self.raw_results)
+        # self.raw_results.append((triplet, window, pat_zscore, sum_pat_zscore))
+        self.raw_results = sorted(self.raw_results)
 
         self.results = self.merge_breakpoints()
         return self.results
@@ -312,6 +314,7 @@ class Siscan:
                 start = region[0]
                 end = region[1]
                 p_value = region[2]
-                results.append((rec_name, parents, start, end, p_value))
+                if p_value < self.max_pvalue:
+                    results.append((rec_name, parents, start, end, p_value))
 
         return results

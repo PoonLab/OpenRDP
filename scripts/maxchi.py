@@ -211,8 +211,7 @@ class MaxChi:
                     if ((rec_name, parents, *aln_pos)) not in self.raw_results and p_values[peak] != 1.0:
                         self.raw_results.append((rec_name, parents, *aln_pos, p_values[peak]))
 
-                    self.raw_results = sorted(self.raw_results)
-
+        self.raw_results = sorted(self.raw_results)
         self.results = self.merge_breakpoints()
 
         return self.results

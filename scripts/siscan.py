@@ -1,12 +1,10 @@
-import copy
 import random
 
 import numpy as np
-from scipy.stats import pearsonr
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
 
-from scripts.common import jc_distance, all_items_equal
+from scripts.common import identify_recombinant
 
 
 class Siscan:
@@ -80,7 +78,8 @@ class Siscan:
             print("Invalid option for 'random_seed'.\nUsing default value (3) instead.")
             self.random_seed = 3
 
-    def count_patterns(self, seq_array):
+    @staticmethod
+    def count_patterns(seq_array):
         a = seq_array[0]
         b = seq_array[1]
         c = seq_array[2]
@@ -132,146 +131,94 @@ class Siscan:
 
         return sum_pat_counts
 
-    def execute(self, triplets, quiet=False):
+    def execute(self, triplet):
         """
         Do Sister-scanning as described in Gibbs, Armstrong, and Gibbs (2000), using a randomized 4th sequence
+        :param triplet: a triplet object
         """
         random.seed(self.random_seed)
         np.random.seed(self.random_seed)
 
-        trp_count = 1
-        total_num_trps = len(triplets)
-        for triplet in triplets:
-            if not quiet:
-                print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
-            trp_count += 1
+        # Initialize list to map z_values to window positions
+        z_values = np.zeros(triplet.sequences.shape[1])
 
-            # Initialize list to map z_values to window positions
-            z_values = np.zeros(triplet.sequences.shape[1])
+        # Based on leading edge of the window
+        for window in range(0, self.align.shape[1], self.step_size):
+            win_start = 0
+            win_end = win_start + self.win_size
 
-            # Based on leading edge of the window
-            for window in range(0, self.align.shape[1], self.step_size):
-                win_start = 0
-                win_end = win_start + self.win_size
+            # Label sequences
+            a = triplet.sequences[0][win_start: win_end]
+            b = triplet.sequences[1][win_start: win_end]
+            c = triplet.sequences[2][win_start: win_end]
 
-                # Label sequences
-                a = triplet.sequences[0][win_start: win_end]
-                b = triplet.sequences[1][win_start: win_end]
-                c = triplet.sequences[2][win_start: win_end]
+            # Create the fourth sequence through horizontal randomization
+            selected_seq = random.choice((0, 1, 2))
+            d = triplet.sequences[selected_seq][win_start: win_end]
+            np.random.shuffle(d)
 
-                # Create the fourth sequence through horizontal randomization
-                selected_seq = random.choice((0, 1, 2))
-                d = triplet.sequences[selected_seq][win_start: win_end]
-                np.random.shuffle(d)
+            # (1) Count number of positions within a window that conform to each pattern
+            seq_array = np.array([a, b, c, d])
+            pat_counts = self.count_patterns(seq_array)
 
-                # (1) Count number of positions within a window that conform to each pattern
-                seq_array = np.array([a, b, c, d])
-                pat_counts = self.count_patterns(seq_array)
+            # (2) Sum counts where 2 sequences are identical
+            sum_pat_counts = self.sum_pattern_counts(pat_counts)
 
-                # (2) Sum counts where 2 sequences are identical
-                sum_pat_counts = self.sum_pattern_counts(pat_counts)
+            # (3) Sum counts of each kind of informative site for each window
+            sum_pat_counts[0] = pat_counts[1] + pat_counts[6] + pat_counts[7]  # 2 + 7 + 8
+            sum_pat_counts[1] = pat_counts[2] + pat_counts[5] + pat_counts[8]  # 3 + 6 + 9
+            sum_pat_counts[2] = pat_counts[3] + pat_counts[4] + pat_counts[9]  # 4 + 5 + 10
 
-                # (3) Sum counts of each kind of informative site for each window
-                sum_pat_counts[0] = pat_counts[1] + pat_counts[6] + pat_counts[7]  # 2 + 7 + 8
-                sum_pat_counts[1] = pat_counts[2] + pat_counts[5] + pat_counts[8]  # 3 + 6 + 9
-                sum_pat_counts[2] = pat_counts[3] + pat_counts[4] + pat_counts[9]  # 4 + 5 + 10
+            # (4) Create 4 vertically randomized sequences (steps 1 and 2), repeat for 100 times
+            p_counts = []
+            sum_p_counts = []
+            for i in range(self.scan_perm_num):
 
-                # (4) Create 4 vertically randomized sequences (steps 1 and 2), repeat for 100 times
-                p_counts = []
-                sum_p_counts = []
-                for i in range(self.scan_perm_num):
+                # Generate 4 vertically randomized sequences (shuffle the values in the columns)
+                a1 = seq_array[:, np.random.permutation(seq_array.shape[1])]
 
-                    # Generate 4 vertically randomized sequences (shuffle the values in the columns)
-                    a1 = seq_array[:, np.random.permutation(seq_array.shape[1])]
+                # Count number of patterns and sum counts
+                p_counts = self.count_patterns(a1)
+                sum_p_counts = self.sum_pattern_counts(p_counts)
 
-                    # Count number of patterns and sum counts
-                    p_counts = self.count_patterns(a1)
-                    sum_p_counts = self.sum_pattern_counts(p_counts)
+            # (5) Calculate Z-scores for each pattern and sum of patterns for each window
+            pop_mean_pcounts = np.mean(p_counts)
+            pop_mean_patsum = np.mean(sum_p_counts)
+            pop_std_pcounts = np.std(p_counts)
+            pop_std_patsum = np.std(sum_p_counts)
 
-                # (5) Calculate Z-scores for each pattern and sum of patterns for each window
-                pop_mean_pcounts = np.mean(p_counts)
-                pop_mean_patsum = np.mean(sum_p_counts)
-                pop_std_pcounts = np.std(p_counts)
-                pop_std_patsum = np.std(sum_p_counts)
+            pat_zscore = []
+            for val in pat_counts:
+                z = (val - pop_mean_pcounts) / pop_std_pcounts
+                pat_zscore.append(z)
 
-                pat_zscore = []
-                for val in pat_counts:
-                    z = (val - pop_mean_pcounts) / pop_std_pcounts
-                    pat_zscore.append(z)
+            sum_pat_zscore = []
+            for val in sum_pat_counts:
+                z = (val - pop_mean_patsum) / pop_std_patsum
+                sum_pat_zscore.append(z)
 
-                sum_pat_zscore = []
-                for val in sum_pat_counts:
-                    z = (val - pop_mean_patsum) / pop_std_patsum
-                    sum_pat_zscore.append(z)
+            # Smooth z-values
+            sum_pat_zscore = gaussian_filter1d(sum_pat_zscore, 1.5)
 
-                # Smooth z-values
-                sum_pat_zscore = gaussian_filter1d(sum_pat_zscore, 1.5)
+            peaks = find_peaks(sum_pat_zscore, distance=self.win_size)
+            for k, peak in enumerate(peaks[0]):
+                search_win_size = 1
+                while peak - search_win_size > 0 \
+                        and peak + search_win_size < len(sum_pat_zscore) - 1 \
+                        and sum_pat_zscore[peak + search_win_size] > 0.3 * sum_pat_zscore[peak] \
+                        and sum_pat_zscore[peak - search_win_size] > 0.3 * sum_pat_zscore[peak]:
+                    search_win_size += 1
 
-                peaks = find_peaks(sum_pat_zscore, distance=self.win_size)
-                for k, peak in enumerate(peaks[0]):
-                    search_win_size = 1
-                    while peak - search_win_size > 0 \
-                            and peak + search_win_size < len(sum_pat_zscore) - 1 \
-                            and sum_pat_zscore[peak + search_win_size] > 0.3 * sum_pat_zscore[peak] \
-                            and sum_pat_zscore[peak - search_win_size] > 0.3 * sum_pat_zscore[peak]:
-                        search_win_size += 1
+                if sum_pat_zscore[peak + search_win_size] > sum_pat_zscore[peak - search_win_size]:
+                    aln_pos = (int(peak), int(peak + search_win_size + self.win_size))
+                else:
+                    aln_pos = (int(peak - search_win_size), int(peak + self.win_size))
 
-                    if sum_pat_zscore[peak + search_win_size] > sum_pat_zscore[peak - search_win_size]:
-                        aln_pos = (int(peak), int(peak + search_win_size + self.win_size))
-                    else:
-                        aln_pos = (int(peak - search_win_size), int(peak + self.win_size))
-
-                    rec_name, parents = self.identify_recombinant(triplet, aln_pos)
+                rec_name, parents = identify_recombinant(triplet, aln_pos)
+                if (rec_name, parents, *aln_pos, abs(sum_pat_zscore[peak])) not in self.raw_results:
                     self.raw_results.append((rec_name, parents, *aln_pos, abs(sum_pat_zscore[peak])))
 
-        # self.raw_results.append((triplet, window, pat_zscore, sum_pat_zscore))
-        self.raw_results = sorted(self.raw_results)
-
-        self.results = self.merge_breakpoints()
-        return self.results
-
-    def identify_recombinant(self, trp, aln_pos):
-        """
-        Find the most likely recombinant sequence using the PhPr method described in the RDP5 documentation
-        and Weiler GF (1998) Phylogenetic profiles: A graphical method for detecting genetic recombinations
-        in homologous sequences. Mol Biol Evol 15: 326–335
-        :return: name of the recombinant sequence and the names of the parental sequences
-        """
-        upstream_dists = []
-        downstream_dists = []
-
-        # Get possible breakpoint locations
-        for i in range(len(trp.names)):
-            upstream_dists.append([])
-            downstream_dists.append([])
-            for j in range(len(trp.names)):
-                if i != j:
-                    # Calculate pairwise Jukes-Cantor distances for regions upstream and downstream of breakpoint
-                    upstream_dists[i].append(jc_distance(trp.sequences[i][0: aln_pos[0]],
-                                                         trp.sequences[j][0: aln_pos[0]]))
-                    downstream_dists[i].append(jc_distance(trp.sequences[i][aln_pos[1]: trp.sequences.shape[1]],
-                                                           trp.sequences[j][aln_pos[1]: trp.sequences.shape[1]]))
-
-        # Calculate Pearson's correlation coefficient for 2 lists
-        r_coeff = [0, 0, 0]
-        if all_items_equal(upstream_dists[0]) or all_items_equal(downstream_dists[0]):
-            r_coeff[0] = float('NaN')
-        elif all_items_equal(upstream_dists[1]) or all_items_equal(downstream_dists[1]):
-            r_coeff[1] = float('NaN')
-        elif all_items_equal(upstream_dists[2]) or all_items_equal(downstream_dists[2]):
-            r_coeff[2] = float('NaN')
-
-        else:
-            r_coeff[0], _ = pearsonr(upstream_dists[0], downstream_dists[0])
-            r_coeff[1], _ = pearsonr(upstream_dists[1], downstream_dists[1])
-            r_coeff[2], _ = pearsonr(upstream_dists[2], downstream_dists[2])
-
-        # Most likely recombinant sequence is sequence with lowest coefficient
-        trp_names = copy.copy(trp.names)
-        rec_name = trp_names.pop(np.argmin(r_coeff))
-        p_names = trp_names
-
-        return rec_name, p_names
+            return
 
     def merge_breakpoints(self):
         """
@@ -280,6 +227,7 @@ class Siscan:
         """
         results_dict = {}
         results = []
+        self.results = sorted(list(self.raw_results))
 
         # Gather all regions with the same recombinant
         for i, bp in enumerate(self.raw_results):

@@ -83,47 +83,38 @@ class TestSiscan(unittest.TestCase):
         self.assertEqual(3, self.test_hiv.random_seed)
 
     def test_execute_short(self):
-        expected = [('A', ('B', 'C'), 2, 14, 0.6936497660301494),
-                    ('A', ('B', 'D'), 0, 11, 0.2712988780903053),
-                    ('A', ('B', 'E'), 0, 14, 0.017491303540256298),
-                    ('A', ('C', 'D'), 0, 14, 0.017491303540256298),
-                    ('A', ('C', 'E'), 3, 11, 0.7623133685530908),
-                    ('A', ('D', 'E'), 0, 9, 0.16809551850276472),
-                    ('B', ('A', 'E'), 3, 11, 0.5823189648769475),
-                    ('B', ('C', 'D'), 4, 14, 0.6148083133771495),
-                    ('B', ('C', 'E'), 3, 11, 0.7154326277820072),
-                    ('B', ('D', 'E'), 1, 13, 0.7164743750877498),
-                    ('C', ('A', 'E'), 3, 14, 0.732581251074242),
-                    ('C', ('B', 'D'), 1, 8, 0.3121175827892353),
-                    ('C', ('B', 'E'), 2, 14, 0.802097907199899),
-                    ('C', ('D', 'E'), 2, 13, 0.7465417522802897),
-                    ('D', ('A', 'E'), 5, 14, 0.694825913849001),
-                    ('E', ('A', 'B'), 3, 11, 0.7154326277820072),
-                    ('E', ('A', 'C'), 3, 11, 0.6919841462633497),
-                    ('E', ('C', 'D'), 2, 14, 0.7836931309660096)]
-        result = self.test_short.execute(self.short_triplets, quiet=True)
+        expected = [('A', ('B', 'C'), 2, 11, 0.7787397893226586),
+                    ('A', ('B', 'D'), 3, 11, 0.7524567011843551),
+                    ('A', ('B', 'E'), 2, 11, 0.7787397893226586),
+                    ('A', ('C', 'D'), 2, 11, 0.7685248858128534),
+                    ('C', ('A', 'E'), 2, 11, 0.804804577675132),
+                    ('A', ('D', 'E'), 2, 11, 0.7260095477693602),
+                    ('C', ('B', 'D'), 2, 11, 0.7838806032521947),
+                    ('B', ('C', 'E'), 3, 11, 0.7750581068141527),
+                    ('B', ('D', 'E'), 3, 11, 0.745172605746384),
+                    ('C', ('D', 'E'), 2, 11, 0.7465417522802897)]
+
+        for trp in self.short_triplets:
+            self.test_short.execute(trp)
+        result = self.test_short.merge_breakpoints()
         self.assertEqual(expected, result)
 
     def test_execute_long(self):
-        expected = [('Test1 ', ('Test2', 'Test3'), 0, 55, 0.040289150619780056),
-                    ('Test1 ', ('Test2', 'Test4'), 0, 58, 0.016337725552167226),
-                    ('Test1 ', ('Test3', 'Test4'), 0, 58, 0.013332210495479169),
-                    ('Test2', ('Test1 ', 'Test3'), 2, 55, 0.7365813968714297),
-                    ('Test2', ('Test1 ', 'Test4'), 2, 58, 0.7657205072921975),
-                    ('Test2', ('Test3', 'Test4'), 0, 55, 0.01754957684396985),
-                    ('Test3', ('Test1 ', 'Test2'), 1, 55, 0.06817619324278229),
-                    ('Test3', ('Test1 ', 'Test4'), 1, 55, 0.06938539363644475),
-                    ('Test3', ('Test2', 'Test4'), 1, 55, 0.09766520576061671),
-                    ('Test4', ('Test1 ', 'Test2'), 2, 55, 0.7378186976647264),
-                    ('Test4', ('Test1 ', 'Test3'), 2, 55, 0.6777401038341523),
-                    ('Test4', ('Test2', 'Test3'), 2, 55, 0.723655056240975)]
-        result = self.test_long.execute(self.long_triplets, quiet=True)
+        expected = [('Test1 ', ('Test2', 'Test3'), 2, 55, 0.7521364874425969),
+                    ('Test1 ', ('Test2', 'Test4'), 2, 55, 0.7669294010627822),
+                    ('Test1 ', ('Test3', 'Test4'), 2, 55, 0.7651446184495414),
+                    ('Test2', ('Test3', 'Test4'), 2, 55, 0.7651446184495414)]
+
+        for trp in self.long_triplets:
+            self.test_long.execute(trp)
+        result = self.test_long.merge_breakpoints()
         self.assertEqual(expected, result)
 
     def test_execute_hiv(self):
-        self.maxDiff = None
-        expected = [('B', ('07_BC', 'C'), 5, 208, 0.32316506014686414)]
-        result = self.test_hiv.execute(self.hiv_triplets, quiet=True)
+        expected = []   # Breakpoints have p_values that are too large (above threshold)
+        for trp in self.hiv_triplets:
+            self.test_hiv.execute(trp)
+        result = self.test_hiv.merge_breakpoints()
         self.assertEqual(expected, result)
 
 

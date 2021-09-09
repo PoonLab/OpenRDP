@@ -80,33 +80,32 @@ class TestBootscan(unittest.TestCase):
         self.assertEqual(0.7, self.test_hiv.cutoff)
 
     def test_execute_short(self):
-        expected = []
-        result = self.test_short.execute(self.short_triplets, True)
+        expected = []   # No breakpoints found
+        for trp in self.short_triplets:
+            self.test_short.execute(trp)
+        result = self.test_short.merge_breakpoints()
         self.assertEqual(expected, result)
 
     def test_execute_long(self):
-        expected = [('Test1 ', ('Test3', 'Test4'), 155, 195, 0.0),
-                    ('Test1 ', ('Test3', 'Test4'), 550, 560, 0.0),
-                    ('Test3', ('Test1 ', 'Test4'), 155, 195, 0.0),
-                    ('Test3', ('Test1 ', 'Test4'), 550, 560, 99.89971156269027)]
-        result = self.test_long.execute(self.long_triplets, True)
+        expected = []   # P-value of breakpoints is outside the threshold
+        for trp in self.long_triplets:
+            self.test_long.execute(trp)
+        result = self.test_long.merge_breakpoints()
         self.assertEqual(expected, result)
 
     def test_execute_hiv(self):
-        expected = [('B', ('07_BC', 'C'), 100, 560, 7.549245243949326e-18),
-                    ('B', ('07_BC', 'C'), 1280, 1340, 3.599366796863919),
-                    ('B', ('07_BC', 'C'), 3000, 3160, 5.126961605427604e-06),
-                    ('B', ('07_BC', 'C'), 8960, 9140, 0.00082344373678815),
-                    ('C', ('07_BC', 'B'), 100, 560, 2.467762123557746),
-                    ('C', ('07_BC', 'B'), 580, 1260, 0.5929199341651085),
-                    ('C', ('07_BC', 'B'), 3260, 5680, 3.765271523156985e-33),
-                    ('07_BC', ('B', 'C'), 580, 1260, 1.4656210312101543e-08),
-                    ('07_BC', ('B', 'C'), 1280, 1340, 3.929355411778469),
-                    ('07_BC', ('B', 'C'), 2060, 2560, 3.419613887366981e-05),
-                    ('07_BC', ('B', 'C'), 3000, 3160, 0.21399128509669785),
-                    ('07_BC', ('B', 'C'), 3260, 5680, 6.176983808734789e-40),
-                    ('07_BC', ('B', 'C'), 8960, 9140, 0.05488355576786701)]
-        result = self.test_hiv.execute(self.hiv_triplets, True)
+        expected = [('07_BC', ('B', 'C'), 580, 1260, 1.0158213242512536e-09),
+                    ('07_BC', ('B', 'C'), 2060, 2560, 1.7427448207965451e-06),
+                    ('07_BC', ('B', 'C'), 3000, 3160, 0.003489818124092514),
+                    ('07_BC', ('B', 'C'), 8960, 9140, 0.0010069350767726085),
+                    ('B', ('07_BC', 'C'), 100, 560, 3.53955031313494e-19),
+                    ('B', ('07_BC', 'C'), 2060, 2560, 1.6836162768997676e-11),
+                    ('B', ('07_BC', 'C'), 8960, 9140, 1.5107519378439202e-05),
+                    ('C', ('07_BC', 'B'), 2620, 2900, 0.00022445087998712194)]
+
+        for trp in self.hiv_triplets:
+            self.test_hiv.execute(trp)
+        result = self.test_hiv.merge_breakpoints()
         self.assertEqual(expected, result)
 
 

@@ -233,7 +233,9 @@ class TestChimaera(unittest.TestCase):
                     ('B', ('D', 'E'), 1, 10, 0.8556951983876534),
                     ('C', ('B', 'D'), 3, 11, 0.8556951983876534),
                     ('E', ('A', 'D'), 3, 11, 0.8556951983876534)]
-        result = self.test_short.execute(self.short_triplets, quiet=True)
+        for trp in self.short_triplets:
+            self.test_short.execute(trp)
+        result = self.test_short.merge_breakpoints()
         self.assertEqual(expected, result)
 
     def test_execute_long(self):
@@ -241,7 +243,9 @@ class TestChimaera(unittest.TestCase):
                     ('Test1 ', ('Test3', 'Test4'), 192, 235, 0.02047438504938101),
                     ('Test2', ('Test1 ', 'Test3'), 243, 286, 0.0018132288986577026),
                     ('Test2', ('Test3', 'Test4'), 176, 219, 0.0019834358538684586)]
-        result = self.test_long.execute(self.long_triplets, quiet=True)
+        for trp in self.long_triplets:
+            self.test_long.execute(trp)
+        result = self.test_long.merge_breakpoints()
         self.assertEqual(expected, result)
 
     def test_execute_hiv(self):
@@ -262,8 +266,9 @@ class TestChimaera(unittest.TestCase):
                     ('B', ('07_BC', 'C'), 5909, 5964, 0.0007511156049633134),
                     ('B', ('07_BC', 'C'), 6451, 6504, 0.04926030700200055),
                     ('C', ('07_BC', 'B'), 611, 675, 0.0014988494708724491)]
-
-        result = self.test_hiv.execute(self.hiv_triplets, quiet=True)
+        for trp in self.hiv_triplets:
+            self.test_hiv.execute(trp)
+        result = self.test_hiv.merge_breakpoints()
         self.assertEqual(expected, result)
 
 

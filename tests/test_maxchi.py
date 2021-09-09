@@ -214,14 +214,20 @@ class TestMaxChi(unittest.TestCase):
                     ('D', ('C', 'E'), 3, 13, 0.8780986177504423),
                     ('E', ('A', 'B'), 5, 17, 0.8780986177504423),
                     ('E', ('A', 'D'), 6, 17, 0.5578254003710748)]
-        result = self.test_short.execute(self.short_triplets, quiet=True)
+
+        for trp in self.short_triplets:
+            self.test_short.execute(trp)
+        result = self.test_short.merge_breakpoints()
         self.assertEqual(expected, result)
 
     def test_execute_long(self):
         expected = [('Test1 ', ('Test2', 'Test3'), 475, 518, 0.04042768199451279),
                     ('Test1 ', ('Test2', 'Test4'), 475, 518, 0.04042768199451279),
                     ('Test1 ', ('Test3', 'Test4'), 439, 482, 0.04042768199451279)]
-        result = self.test_long.execute(self.long_triplets, quiet=True)
+
+        for trp in self.long_triplets:
+            self.test_long.execute(trp)
+        result = self.test_long.merge_breakpoints()
         self.assertEqual(expected, result)
 
     def test_execute_hiv(self):
@@ -232,7 +238,9 @@ class TestMaxChi(unittest.TestCase):
                     ('B', ('07_BC', 'C'), 7673, 7811, 0.03739106813700015),
                     ('B', ('07_BC', 'C'), 8241, 8392, 0.004821912746418881),
                     ('C', ('07_BC', 'B'), 620, 725, 9.2704597756479e-17)]
-        result = self.test_hiv.execute(self.hiv_triplets, quiet=True)
+        for trp in self.hiv_triplets:
+            self.test_hiv.execute(trp)
+        result = self.test_hiv.merge_breakpoints()
         self.assertEqual(expected, result)
 
 

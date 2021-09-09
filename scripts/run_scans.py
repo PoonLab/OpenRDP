@@ -10,6 +10,7 @@ from scripts.maxchi import MaxChi
 from scripts.rdp import RdpMethod
 from scripts.siscan import Siscan
 from scripts.threeseq import ThreeSeq
+from itertools import combinations
 
 
 class Scanner:
@@ -77,16 +78,12 @@ class Scanner:
             self.write_output(threeseq_res, geneconv_res, bootscan_res, maxchi_res, chimaera_res, rdp_res, siscan_res)
             return
 
-        triplets = []
-        for trp in generate_triplets(alignment):
-            triplets.append(Triplet(alignment, self.seq_names, trp))
-
         maxchi, chimaera, rdp, bootscan, siscan = None, None, None, None, None
 
         # Setup MaxChi
         if self.maxchi:
             if not self.quiet:
-                print("Starting MaxChi Analysis")
+                print("Setting Up MaxChi Analysis")
             if config:
                 maxchi = MaxChi(alignment, settings=dict(config.items('MaxChi')))
             else:
@@ -95,7 +92,7 @@ class Scanner:
         # Setup Chimaera
         if self.chimaera:
             if not self.quiet:
-                print("Starting Chimaera Analysis")
+                print("Setting Up Chimaera Analysis")
             if config:
                 chimaera = Chimaera(alignment, settings=dict(config.items('Chimaera')))
             else:
@@ -104,7 +101,7 @@ class Scanner:
         # Setup RDP
         if self.rdp:
             if not self.quiet:
-                print("Starting RDP Analysis")
+                print("Setting Up RDP Analysis")
             if config:
                 rdp = RdpMethod(alignment, settings=dict(config.items('RDP')))
             else:
@@ -113,7 +110,7 @@ class Scanner:
         # Setup Bootscan
         if self.bootscan:
             if not self.quiet:
-                print("Starting Bootscan Analysis")
+                print("Setting Up Bootscan Analysis")
             if config:
                 bootscan = Bootscan(alignment, settings=dict(config.items('Bootscan')), quiet=self.quiet)
             else:
@@ -122,41 +119,47 @@ class Scanner:
         # Setup Siscan
         if self.siscan:
             if not self.quiet:
-                print("Starting Siscan Analysis")
+                print("Setting Up Siscan Analysis")
             if config:
                 siscan = Siscan(alignment, settings=dict(config.items('Siscan')))
             else:
                 siscan = Siscan(alignment)
 
-        # Run MaxChi
+        trp_count = 1
+        total_num_trps = sum(1 for _ in combinations(range(alignment.shape[0]), 3))
+        for trp in generate_triplets(alignment):
+            triplet = Triplet(alignment, self.seq_names, trp)
+            if not self.quiet:
+                print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
+            trp_count += 1
+
+            # Run MaxChi
+            if self.maxchi:
+                maxchi.execute(triplet)
+            # Run Chimaera
+            if self.chimaera:
+                chimaera.execute(triplet)
+            # Run RDP Method
+            if self.rdp:
+                rdp.execute(triplet)
+            # Run Bootscan
+            if self.bootscan:
+                bootscan.execute(triplet)
+            # Run Siscan
+            if self.siscan:
+                siscan.execute(triplet)
+
+        # Process results by joining breakpoint locations that overlap
         if self.maxchi:
-            maxchi_res = maxchi.execute(triplets, self.quiet)
-            if not self.quiet:
-                print("Finished MaxChi Analysis")
-
-        # Run Chimaera
+            maxchi_res = maxchi.merge_breakpoints()
         if self.chimaera:
-            chimaera_res = chimaera.execute(triplets, self.quiet)
-            if not self.quiet:
-                print("Finished Chimaera Analysis")
-
-        # Run RDP Method
+            chimaera_res = chimaera.merge_breakpoints()
         if self.rdp:
-            rdp_res = rdp.execute(triplets, self.quiet)
-            if not self.quiet:
-                print("Finished RDP Analysis")
-
-        # Run Bootscan
+            rdp_res = rdp.merge_breakpoints()
         if self.bootscan:
-            bootscan_res = bootscan.execute(triplets, self.quiet)
-            if not self.quiet:
-                print("Finished Bootscan Analysis")
-
-        # Run Siscan
+            bootscan_res = bootscan.merge_breakpoints()
         if self.siscan:
-            siscan_res = siscan.execute(triplets, self.quiet)
-            if not self.quiet:
-                print("Finished Siscan Analysis")
+            siscan_res = siscan.merge_breakpoints()
 
         self.write_output(threeseq_res, geneconv_res, bootscan_res, maxchi_res, chimaera_res, rdp_res, siscan_res)
 
@@ -217,7 +220,7 @@ class Scanner:
         :param rdp_res: results of RDP analysis
         :param siscan_res: results of Siscan analysis
         """
-        print('Method,StartLocation,EndLocation,Recombinant,Parent1,Parent2,Pvalue')
+        print('Method\tStartLocation\tEndLocation\tRecombinant\tParent1\tParent2\tPvalue')
         if self.threeseq:
             for event in threeseq_res:
                 print('3Seq\t{}\t{}\t{}\t{}\t{}\t{}'

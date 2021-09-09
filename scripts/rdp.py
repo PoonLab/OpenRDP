@@ -1,8 +1,7 @@
 import re
-from scipy.stats import pearsonr
-from scripts.common import jc_distance, all_items_equal
+from scripts.common import identify_recombinant
 import numpy as np
-import copy
+from itertools import combinations
 
 
 class RdpMethod:
@@ -98,27 +97,22 @@ class RdpMethod:
 
         return percent_identity_ab, percent_identity_bc, percent_identity_ac
 
-    def execute(self, triplets, quiet=False):
+    def execute(self, triplet):
         """
         Performs RDP detection method for one triplet of sequences
         :return: the coordinates of the potential recombinant region and the p_value
         """
+        G = sum(1 for _ in combinations(range(self.align.shape[0]), 3)) # Number of triplets
 
-        # Get the triplet sequences
-        trps = self.triplet_identity(triplets)
+        # Get the three pairs of sequences
+        ab = np.array([triplet.info_sites_align[0], triplet.info_sites_align[1]])
+        bc = np.array([triplet.info_sites_align[1], triplet.info_sites_align[2]])
+        ac = np.array([triplet.info_sites_align[0], triplet.info_sites_align[2]])
 
-        trp_count = 1
-        G = len(trps)
-        for triplet in trps:
-            if not quiet:
-                print("Scanning triplet {} / {}".format(trp_count, G))
-            trp_count += 1
+        ab_id, bc_id, ac_id = self.pairwise_identity(ab, bc, ac)
 
-            # Get the three pairs of sequences
-            ab = np.array([triplet.info_sites_align[0], triplet.info_sites_align[1]])
-            bc = np.array([triplet.info_sites_align[1], triplet.info_sites_align[2]])
-            ac = np.array([triplet.info_sites_align[0], triplet.info_sites_align[2]])
-
+        # Include only triplets whose percent identity is in the valid range
+        if self.min_id < ab_id < self.max_id and self.min_id < bc_id < self.max_id and self.min_id < ac_id < self.max_id:
             len_trp = triplet.info_sites_align.shape[1]
 
             # 2. Sliding window over subsequence and calculate average percent identity at each position
@@ -181,62 +175,19 @@ class RdpMethod:
                 else:
                     corr_p_value = 'NS'
 
-                if corr_p_value != 'NS':
-                    rec_name, parents = self.identify_recombinant(triplet, coord)
+                if corr_p_value != 'NS' and corr_p_value != 0.0:
+                    rec_name, parents = identify_recombinant(triplet, coord)
                     self.raw_results.append((rec_name, parents, *coord, corr_p_value))
 
-        self.raw_results = sorted(self.raw_results)
-        self.results = self.merge_breakpoints()
-        return self.raw_results
-
-    def identify_recombinant(self, trp, aln_pos):
-        """
-        Find the most likely recombinant sequence using the PhPr method described in the RDP5 documentation
-        and Weiler GF (1998) Phylogenetic profiles: A graphical method for detecting genetic recombinations
-        in homologous sequences. Mol Biol Evol 15: 326–335
-        :return: name of the recombinant sequence and the names of the parental sequences
-        """
-        upstream_dists = []
-        downstream_dists = []
-
-        # Get possible breakpoint locations
-        for i in range(len(trp.names)):
-            upstream_dists.append([])
-            downstream_dists.append([])
-            for j in range(len(trp.names)):
-                if i != j:
-                    # Calculate pairwise Jukes-Cantor distances for regions upstream and downstream of breakpoint
-                    upstream_dists[i].append(jc_distance(trp.sequences[i][0: aln_pos[0]],
-                                                         trp.sequences[j][0: aln_pos[0]]))
-                    downstream_dists[i].append(jc_distance(trp.sequences[i][aln_pos[1]: trp.sequences.shape[1]],
-                                                           trp.sequences[j][aln_pos[1]: trp.sequences.shape[1]]))
-
-        # Calculate Pearson's correlation coefficient for 2 lists
-        r_coeff = [0, 0, 0]
-        if all_items_equal(upstream_dists[0]) or all_items_equal(downstream_dists[0]):
-            r_coeff[0] = float('NaN')
-        elif all_items_equal(upstream_dists[1]) or all_items_equal(downstream_dists[1]):
-            r_coeff[1] = float('NaN')
-        elif all_items_equal(upstream_dists[2]) or all_items_equal(downstream_dists[2]):
-            r_coeff[2] = float('NaN')
-
-        else:
-            r_coeff[0], _ = pearsonr(upstream_dists[0], downstream_dists[0])
-            r_coeff[1], _ = pearsonr(upstream_dists[1], downstream_dists[1])
-            r_coeff[2], _ = pearsonr(upstream_dists[2], downstream_dists[2])
-
-        # Most likely recombinant sequence is sequence with lowest coefficient
-        trp_names = copy.copy(trp.names)
-        rec_name = trp_names.pop(np.argmin(r_coeff))
-        p_names = trp_names
-
-        return rec_name, p_names
+            return
 
     def merge_breakpoints(self):
         """
         Merge overlapping breakpoint locations
         :return: list of breakpoint locations where overlapping intervals are merged
         """
+        self.raw_results = sorted(self.raw_results)
+
         results_dict = {}
         results = []
 

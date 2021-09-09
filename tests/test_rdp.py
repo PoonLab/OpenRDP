@@ -152,29 +152,37 @@ class TestRdpMethod(unittest.TestCase):
             self.assertEqual(expected_trps[i], res_trps.names)
 
     def test_execute_short(self):
-        expected = [('A', ['B', 'E'], 11, 14, 2.682960024379628),
-                    ('A', ['C', 'D'], 1, 5, 0.8385930543740799),
-                    ('A', ['C', 'E'], 2, 12, 0.0012352588146716803),
-                    ('B', ['C', 'D'], 2, 10, 0.26774913658655286),
-                    ('B', ['C', 'E'], 6, 7, 17.355371900826448),
-                    ('D', ['C', 'E'], 4, 5, 20.82644628099174),
-                    ('E', ['A', 'D'], 3, 13, 0.0016844438381886549)]
-        result = self.test_short.execute(self.short_triplets, quiet=True)
+        expected = [('A', ('B', 'E'), 11, 14, 2.682960024379628),
+                    ('A', ('C', 'D'), 1, 5, 0.8385930543740799),
+                    ('A', ('C', 'E'), 2, 12, 0.0012352588146716803),
+                    ('B', ('C', 'D'), 2, 10, 0.26774913658655286),
+                    ('B', ('C', 'E'), 6, 7, 17.355371900826448),
+                    ('D', ('C', 'E'), 4, 5, 20.82644628099174),
+                    ('E', ('A', 'D'), 3, 13, 0.0016844438381886549)]
+
+        for trp in self.short_triplets:
+            self.test_short.execute(trp)
+        result = self.test_short.merge_breakpoints()
         self.assertEqual(expected, result)
 
     def test_execute_long(self):
-        expected = [('Test1 ', ['Test2', 'Test3'], 6, 15, 30.65552740356523),
-                    ('Test1 ', ['Test3', 'Test4'], 6, 504, 0.00011043309358570222),
-                    ('Test4', ['Test2', 'Test3'], 36, 481, 0.0012461747522432057)]
-        result = self.test_long.execute(self.long_triplets, quiet=True)
+        expected = [('Test1 ', ('Test2', 'Test3'), 6, 15, 30.65552740356523),
+                    ('Test1 ', ('Test3', 'Test4'), 6, 504, 0.00011043309358570222),
+                    ('Test4', ('Test2', 'Test3'), 36, 481, 0.0012461747522432057)]
+
+        for trp in self.long_triplets:
+            self.test_long.execute(trp)
+        result = self.test_long.merge_breakpoints()
         self.assertEqual(expected, result)
 
     def test_execute_hiv(self):
         self.maxDiff = None
-        expected = [('07_BC', ['B', 'C'], 6655, 9748, 6.341013016851143e-50),
-                    ('B', ['C', '07_BC'], 431, 6337, 0.0),
-                    ('B', ['C', '07_BC'], 6550, 6647, 0.49389675506775216)]
-        result = self.test_hiv.execute(self.hiv_triplets, quiet=True)
+        expected = [('07_BC', ('B', 'C'), 6655, 9748, 6.341013016851143e-50),
+                    ('B', ('07_BC', 'C'), 6550, 6647, 0.49389675506775216)]
+
+        for trp in self.hiv_triplets:
+            self.test_hiv.execute(trp)
+        result = self.test_hiv.merge_breakpoints()
         self.assertEqual(expected, result)
 
 

@@ -11,7 +11,7 @@ Similarly, [GENECONV](https://www.math.wustl.edu/~sawyer/geneconv/index.html) is
 For your convenience, we package these binaries along with their respective licenses.
 
 
-##Dependencies 
+## Dependencies 
 * Python 3 (tested on version [3.8.10](https://www.python.org/downloads/release/python-3810/))
 * `numpy` version [1.17.4](https://numpy.org/devdocs/release/1.17.4-notes.html) or later
 * `scipy` version [1.5.0](https://docs.scipy.org/doc/scipy/reference/release.1.5.0.html) or later

@@ -6,7 +6,7 @@ from itertools import combinations
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
 
-from scripts.common import jc_distance
+from .common import jc_distance
 
 
 class Bootscan:

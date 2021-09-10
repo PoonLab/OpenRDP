@@ -1,6 +1,6 @@
 import argparse
 import sys
-from scripts.run_scans import Scanner
+from .scripts.run_scans import Scanner
 from datetime import datetime
 
 DNA_ALPHABET = ['A', 'T', 'G', 'C', '-', '*']
@@ -80,6 +80,9 @@ def parse_args():
     parser.add_argument('infile',
                         help='File containing sequence alignment (FASTA or CLUSTAL) format')
 
+    parser.add_argument('outfile',
+                        help='Path to the output file')
+
     parser.add_argument('-cfg',
                         help='Path to file that contains parameters')
 
@@ -111,8 +114,12 @@ def parse_args():
                         help='Perform RDP analysis',
                         action='store_true')
 
-    parser.add_argument('--quiet',
+    parser.add_argument('-quiet', '--quiet',
                         help='Hide progress messages',
+                        action='store_true')
+
+    parser.add_argument('-all', '--all',
+                        help='Perform all 7 analyses',
                         action='store_true')
 
     return parser.parse_args()
@@ -137,20 +144,31 @@ def main():
 
     # Retrieve arguments
     infile = args.infile
+    outfile = args.outfile
     cfg = args.cfg
-    run_geneconv = args.geneconv
-    run_three_seq = args.threeseq
-    run_rdp = args.rdp
-    run_siscan = args.siscan
-    run_maxchi = args.maxchi
-    run_chimaera = args.chimaera
-    run_bootscan = args.bootscan
+    if args.all:
+        run_geneconv = True
+        run_three_seq = True
+        run_rdp = True
+        run_siscan = True
+        run_maxchi = True
+        run_chimaera = True
+        run_bootscan = True
+    else:
+        run_geneconv = args.geneconv
+        run_three_seq = args.threeseq
+        run_rdp = args.rdp
+        run_siscan = args.siscan
+        run_maxchi = args.maxchi
+        run_chimaera = args.chimaera
+        run_bootscan = args.bootscan
 
-    startTime = datetime.now()
-    scanner = Scanner(names, infile, cfg, run_geneconv, run_three_seq, run_rdp,
+    # startTime = datetime.now()
+    scanner = Scanner(names, infile, outfile, cfg, run_geneconv, run_three_seq, run_rdp,
                       run_siscan, run_maxchi, run_chimaera, run_bootscan, args.quiet)
     scanner.run_scans(aln)
-    print(datetime.now() - startTime)
+    # if not args.quiet:
+    #     print(datetime.now() - startTime)
 
 
 if __name__ == '__main__':

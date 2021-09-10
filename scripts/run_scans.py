@@ -2,19 +2,19 @@ import configparser
 
 import numpy as np
 
-from scripts.bootscan import Bootscan
-from scripts.chimaera import Chimaera
-from scripts.common import generate_triplets, Triplet
-from scripts.geneconv import GeneConv
-from scripts.maxchi import MaxChi
-from scripts.rdp import RdpMethod
-from scripts.siscan import Siscan
-from scripts.threeseq import ThreeSeq
+from .bootscan import Bootscan
+from .chimaera import Chimaera
+from .common import generate_triplets, Triplet
+from .geneconv import GeneConv
+from .maxchi import MaxChi
+from .rdp import RdpMethod
+from .siscan import Siscan
+from .threeseq import ThreeSeq
 from itertools import combinations
 
 
 class Scanner:
-    def __init__(self, names, infile, cfg, run_geneconv=False, run_three_seq=False, run_rdp=False,
+    def __init__(self, names, infile, outfile, cfg, run_geneconv=False, run_three_seq=False, run_rdp=False,
                  run_siscan=False, run_maxchi=False, run_chimaera=False, run_bootscan=False, quiet=False):
         self.seq_names = names
         self.infile = infile
@@ -27,6 +27,7 @@ class Scanner:
         self.chimaera = run_chimaera
         self.bootscan = run_bootscan
         self.quiet = quiet
+        self.outfile = outfile
 
     def run_scans(self, aln):
         """
@@ -177,7 +178,7 @@ class Scanner:
         :param rdp_res: results of RDP analysis
         :param siscan_res: results of Siscan analysis
         """
-        with open('results.csv', 'w+') as outfile:
+        with open(self.outfile, 'w+') as outfile:
             outfile.write('Method,StartLocation,EndLocation,Recombinant,Parent1,Parent2,Pvalue\n')
 
             if self.threeseq:
@@ -220,32 +221,34 @@ class Scanner:
         :param rdp_res: results of RDP analysis
         :param siscan_res: results of Siscan analysis
         """
-        print('Method\tStartLocation\tEndLocation\tRecombinant\tParent1\tParent2\tPvalue')
+        print('\n{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}'
+              .format('Method', 'StartLocation', 'EndLocation', 'Recombinant', 'Parent1', 'Parent2', 'Pvalue'))
+
         if self.threeseq:
             for event in threeseq_res:
-                print('3Seq\t{}\t{}\t{}\t{}\t{}\t{}'
-                      .format(event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
+                print('{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}'
+                      .format('3Seq', event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
         if self.geneconv:
             for event in geneconv_res:
-                print('Geneconv\t{}\t{}\t{}\t{}\t{}\t{}'
-                      .format(event[2][0], event[2][1], event[0], event[1][0], event[1][1], event[3]))
+                print('{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}'
+                      .format('Geneconv', event[2][0], event[2][1], event[0], event[1][0], event[1][1], event[3]))
         if self.bootscan:
             for event in bootscan_res:
-                print('Bootscan\t{}\t{}\t{}\t{}\t{}\t{}'
-                      .format(event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
+                print('{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}'
+                      .format('Bootscan', event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
         if self.maxchi:
             for event in maxchi_res:
-               print('MaxChi\t{}\t{}\t{}\t{}\t{}\t{}'
-                     .format(event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
+                print('{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}'
+                      .format('MaxChi', event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
         if self.chimaera:
             for event in chimaera_res:
-                print('Chimaera\t{}\t{}\t{}\t{}\t{}\t{}'
-                      .format(event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
+                print('{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}'
+                      .format('Chimaera', event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
         if self.rdp:
             for event in rdp_res:
-                print('RDP\t{}\t{}\t{}\t{}\t{}\t{}'
-                      .format(event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
+                print('{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}'
+                      .format('RDP', event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
         if self.siscan:
             for event in siscan_res:
-                print('Siscan\t{}\t{}\t{}\t{}\t{}\t{}'
-                      .format(event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
+                print('{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}'
+                      .format('Siscan', event[2], event[3], event[0], event[1][0], event[1][1], event[4]))

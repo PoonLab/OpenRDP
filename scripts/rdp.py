@@ -1,5 +1,5 @@
 import re
-from scripts.common import identify_recombinant
+from .common import identify_recombinant
 import numpy as np
 from itertools import combinations
 

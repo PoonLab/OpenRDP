@@ -125,22 +125,29 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
-    args = parse_args()
-
-    with open(args.infile) as in_handle:
-        if args.infile.endswith('.fa') or args.infile.endswith('.fasta'):
-            names, aln = read_fasta(in_handle)
-
-    if not valid_alignment(aln) and not valid_chars(aln):
-        sys.exit(1)
-
+def openrdp(infile, outfile, cfg=None, run_geneconv=True, run_three_seq=True, run_rdp=True,
+                      run_siscan=True, run_maxchi=True, run_chimaera=True, run_bootscan=True, quiet=False):
     # Check that the OS is valid
     platform = sys.platform
     try:
         platform.startswith("win") or platform.startswith("linux") or sys.platform == "darwin"
     except OSError:
         print("OSError: {} is not supported".format(sys.platform))
+
+    with open(infile) as in_handle:
+        if infile.endswith('.fa') or infile.endswith('.fasta'):
+            names, aln = read_fasta(in_handle)
+
+    if not valid_alignment(aln) and not valid_chars(aln):
+        sys.exit(1)
+
+    scanner = Scanner(names, infile, outfile, cfg, run_geneconv, run_three_seq, run_rdp,
+                      run_siscan, run_maxchi, run_chimaera, run_bootscan, quiet)
+    scanner.run_scans(aln)
+
+
+def main():
+    args = parse_args()
 
     # Retrieve arguments
     infile = args.infile
@@ -163,12 +170,8 @@ def main():
         run_chimaera = args.chimaera
         run_bootscan = args.bootscan
 
-    # startTime = datetime.now()
-    scanner = Scanner(names, infile, outfile, cfg, run_geneconv, run_three_seq, run_rdp,
+    openrdp(infile, outfile, cfg, run_geneconv, run_three_seq, run_rdp,
                       run_siscan, run_maxchi, run_chimaera, run_bootscan, args.quiet)
-    scanner.run_scans(aln)
-    # if not args.quiet:
-    #     print(datetime.now() - startTime)
 
 
 if __name__ == '__main__':

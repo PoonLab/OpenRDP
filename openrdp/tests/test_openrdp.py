@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from openrdp import *
+from openrdp.main import *
 
 SHORT_SEQ_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'short.fasta')
 

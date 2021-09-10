@@ -107,12 +107,13 @@ class GeneConv:
             cfg_path = format(os.path.realpath("geneconv.cfg"))
 
         # Path to GENECONV executables
+        bin_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, 'bin')
         if sys.platform.startswith("win"):
-            bin_path = os.path.abspath('bin/GENECONV/windows_geneconv.exe')
+            bin_path = os.path.join(bin_dir, 'GENECONV', 'windows_geneconv.exe')
         elif sys.platform == 'darwin':
-            bin_path = os.path.abspath('bin/GENECONV/geneconv.macOS')
+            bin_path = os.path.join(bin_dir, 'GENECONV', 'geneconv.macOS')
         else:
-            bin_path = os.path.abspath('bin/GENECONV/geneconv.Unix')
+            bin_path = os.path.join(bin_dir, 'GENECONV', 'geneconv.Unix')
 
         if not os.path.isfile(bin_path):
             logging.error("No GENECONV executable file exists")

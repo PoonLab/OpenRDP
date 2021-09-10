@@ -4,9 +4,9 @@ import unittest
 
 import numpy as np
 
-from openrdp import read_fasta
-from scripts.common import generate_triplets, Triplet
-from scripts.rdp import RdpMethod
+from openrdp.main import read_fasta
+from openrdp.scripts.common import generate_triplets, Triplet
+from openrdp.scripts.rdp import RdpMethod
 
 
 class TestRdpMethod(unittest.TestCase):

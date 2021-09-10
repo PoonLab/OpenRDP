@@ -53,7 +53,7 @@ class Scanner:
         if self.threeseq:
             three_seq = ThreeSeq(self.infile)
             if not self.quiet:
-                print("Staring 3Seq Analysis")
+                print("Starting 3Seq Analysis")
 
             threeseq_res = three_seq.execute()
             if not self.quiet:

@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from scripts.threeseq import ThreeSeq
+from openrdp.scripts.threeseq import ThreeSeq
 
 
 class Test3Seq(unittest.TestCase):

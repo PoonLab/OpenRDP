@@ -2,8 +2,8 @@ import os
 import unittest
 import itertools
 
-from openrdp import read_fasta
-from scripts.common import *
+from openrdp.main import read_fasta
+from ..scripts.common import *
 
 SHORT_INFILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'short.fasta')
 LONG_INFILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'long.fasta')

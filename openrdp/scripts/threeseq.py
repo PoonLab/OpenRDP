@@ -30,12 +30,14 @@ class ThreeSeq:
                 pass
 
         # Set paths to 3Seq executables
+        bin_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, 'bin')
         if sys.platform.startswith("win"):
-            bin_path = os.path.abspath('bin/3Seq/windows_3seq.exe')
+            bin_path = os.path.join(bin_dir, '3Seq', 'windows_3seq.exe')
+            # bin_path = os.path.abspath('../bin/3Seq/windows_3seq.exe')
         elif sys.platform == 'darwin':
-            bin_path = os.path.abspath('bin/3Seq/3seq.macOS')
+            bin_path = os.path.join(bin_dir, '3Seq', '3seq.macOS')
         else:
-            bin_path = os.path.abspath('bin/3Seq/3seq.Unix')
+            bin_path = os.path.join(bin_dir, '3Seq', '3seq.Unix')
 
         if not os.path.isfile(bin_path):
             logging.error("No 3Seq executable file exists.")

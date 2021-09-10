@@ -4,25 +4,25 @@ import unittest
 
 import numpy as np
 
-from openrdp import read_fasta
-from scripts.common import generate_triplets, Triplet
-from scripts.siscan import Siscan
+from openrdp.main import read_fasta
+from openrdp.scripts.bootscan import Bootscan
+from openrdp.scripts.common import Triplet, generate_triplets
 
 
-class TestSiscan(unittest.TestCase):
+class TestBootscan(unittest.TestCase):
 
     def setUp(self):
         # Set up test example
         config = configparser.ConfigParser()
         short_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_short.ini')
         config.read(short_cfg_path)
-        test_settings = dict(config.items('Siscan'))
+        test_settings = dict(config.items('Bootscan'))
 
         short_seq_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'short.fasta')
         with open(short_seq_path) as small_test:
             names, test_seqs = read_fasta(small_test)
             self.short_align = np.array(list(map(list, test_seqs)))
-            self.test_short = Siscan(self.short_align, names, settings=test_settings)
+            self.test_short = Bootscan(self.short_align, names, settings=test_settings, quiet=True)
 
         self.short_triplets = []
         for trp in generate_triplets(self.short_align):
@@ -32,13 +32,13 @@ class TestSiscan(unittest.TestCase):
         config = configparser.ConfigParser()
         long_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_long.ini')
         config.read(long_cfg_path)
-        test_settings = dict(config.items('Siscan'))
+        test_settings = dict(config.items('Bootscan'))
 
         long_seq_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'long.fasta')
         with open(long_seq_path) as test:
             names, test_seqs = read_fasta(test)
             self.long_align = np.array(list(map(list, test_seqs)))
-            self.test_long = Siscan(self.long_align, names, settings=test_settings)
+            self.test_long = Bootscan(self.long_align, names, settings=test_settings, quiet=True)
 
         self.long_triplets = []
         for trp in generate_triplets(self.long_align):
@@ -48,13 +48,13 @@ class TestSiscan(unittest.TestCase):
         config = configparser.ConfigParser()
         hiv_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'default.ini')
         config.read(hiv_cfg_path)
-        settings = dict(config.items('Siscan'))
+        settings = dict(config.items('Bootscan'))
 
         hiv_seq_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'CRF_07_test.fasta')
         with open(hiv_seq_path) as hiv_test:
             names, crf07_seqs = read_fasta(hiv_test)
             self.hiv_align = np.array(list(map(list, crf07_seqs)))
-            self.test_hiv = Siscan(self.hiv_align, names, settings=settings)
+            self.test_hiv = Bootscan(self.hiv_align, names, settings=settings, quiet=True)
 
         self.hiv_triplets = []
         for trp in generate_triplets(self.hiv_align):
@@ -62,56 +62,47 @@ class TestSiscan(unittest.TestCase):
 
     def test_set_and_validate_options(self):
         self.assertEqual(6, self.test_short.win_size)
-        self.assertEqual(False, self.test_short.strip_gaps)
-        self.assertEqual(2, self.test_short.step_size)
-        self.assertEqual(1100, self.test_short.pvalue_perm_num)
-        self.assertEqual(100, self.test_short.scan_perm_num)
+        self.assertEqual(1, self.test_short.step_size)
+        self.assertEqual(3, self.test_short.num_replicates)
         self.assertEqual(3, self.test_short.random_seed)
+        self.assertEqual(0.7, self.test_short.cutoff)
 
         self.assertEqual(50, self.test_long.win_size)
-        self.assertEqual(True, self.test_long.strip_gaps)
-        self.assertEqual(20, self.test_long.step_size)
-        self.assertEqual(1100, self.test_long.pvalue_perm_num)
-        self.assertEqual(100, self.test_long.scan_perm_num)
+        self.assertEqual(5, self.test_long.step_size)
+        self.assertEqual(100, self.test_long.num_replicates)
         self.assertEqual(3, self.test_long.random_seed)
+        self.assertEqual(0.7, self.test_long.cutoff)
 
         self.assertEqual(200, self.test_hiv.win_size)
-        self.assertEqual(True, self.test_hiv.strip_gaps)
         self.assertEqual(20, self.test_hiv.step_size)
-        self.assertEqual(1100, self.test_hiv.pvalue_perm_num)
-        self.assertEqual(100, self.test_hiv.scan_perm_num)
+        self.assertEqual(100, self.test_hiv.num_replicates)
         self.assertEqual(3, self.test_hiv.random_seed)
+        self.assertEqual(0.7, self.test_hiv.cutoff)
 
     def test_execute_short(self):
-        expected = [('A', ('B', 'C'), 2, 11, 0.7787397893226586),
-                    ('A', ('B', 'D'), 3, 11, 0.7524567011843551),
-                    ('A', ('B', 'E'), 2, 11, 0.7787397893226586),
-                    ('A', ('C', 'D'), 2, 11, 0.7685248858128534),
-                    ('C', ('A', 'E'), 2, 11, 0.804804577675132),
-                    ('A', ('D', 'E'), 2, 11, 0.7260095477693602),
-                    ('C', ('B', 'D'), 2, 11, 0.7838806032521947),
-                    ('B', ('C', 'E'), 3, 11, 0.7750581068141527),
-                    ('B', ('D', 'E'), 3, 11, 0.745172605746384),
-                    ('C', ('D', 'E'), 2, 11, 0.7465417522802897)]
-
+        expected = []   # No breakpoints found
         for trp in self.short_triplets:
             self.test_short.execute(trp)
         result = self.test_short.merge_breakpoints()
         self.assertEqual(expected, result)
 
     def test_execute_long(self):
-        expected = [('Test1 ', ('Test2', 'Test3'), 2, 55, 0.7521364874425969),
-                    ('Test1 ', ('Test2', 'Test4'), 2, 55, 0.7669294010627822),
-                    ('Test1 ', ('Test3', 'Test4'), 2, 55, 0.7651446184495414),
-                    ('Test2', ('Test3', 'Test4'), 2, 55, 0.7651446184495414)]
-
+        expected = []   # P-value of breakpoints is outside the threshold
         for trp in self.long_triplets:
             self.test_long.execute(trp)
         result = self.test_long.merge_breakpoints()
         self.assertEqual(expected, result)
 
     def test_execute_hiv(self):
-        expected = []   # Breakpoints have p_values that are too large (above threshold)
+        expected = [('07_BC', ('B', 'C'), 580, 1260, 1.0158213242512536e-09),
+                    ('07_BC', ('B', 'C'), 2060, 2560, 1.7427448207965451e-06),
+                    ('07_BC', ('B', 'C'), 3000, 3160, 0.003489818124092514),
+                    ('07_BC', ('B', 'C'), 8960, 9140, 0.0010069350767726085),
+                    ('B', ('07_BC', 'C'), 100, 560, 3.53955031313494e-19),
+                    ('B', ('07_BC', 'C'), 2060, 2560, 1.6836162768997676e-11),
+                    ('B', ('07_BC', 'C'), 8960, 9140, 1.5107519378439202e-05),
+                    ('C', ('07_BC', 'B'), 2620, 2900, 0.00022445087998712194)]
+
         for trp in self.hiv_triplets:
             self.test_hiv.execute(trp)
         result = self.test_hiv.merge_breakpoints()

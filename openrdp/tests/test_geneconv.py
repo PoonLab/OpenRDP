@@ -3,7 +3,7 @@ import os
 import random
 import unittest
 
-from scripts.geneconv import GeneConv
+from openrdp.scripts.geneconv import GeneConv
 
 
 class TestGeneConv(unittest.TestCase):
@@ -13,14 +13,14 @@ class TestGeneConv(unittest.TestCase):
         default_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'default.ini')
         self.config.read(default_cfg_path)
         self.settings = self.config['Geneconv']
-        self.gc_default = GeneConv(self.settings)
+        self.gc_default = GeneConv(settings=self.settings)
 
         # Test with modified parameters
         self.test_config = configparser.ConfigParser()
         long_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_long.ini')
         self.test_config.read(long_cfg_path)
         self.test_settings = self.test_config['Geneconv']
-        self.gc_test = GeneConv(self.test_settings)
+        self.gc_test = GeneConv(settings=self.test_settings)
 
     def test_set_and_validate_options(self):
         self.assertEqual(1, self.gc_default.gscale)

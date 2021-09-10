@@ -4,9 +4,9 @@ import unittest
 
 import numpy as np
 
-from openrdp import read_fasta
-from scripts.common import generate_triplets, Triplet
-from scripts.maxchi import MaxChi
+from openrdp.main import read_fasta
+from openrdp.scripts.common import generate_triplets, Triplet
+from openrdp.scripts.maxchi import MaxChi
 
 
 class TestMaxChi(unittest.TestCase):

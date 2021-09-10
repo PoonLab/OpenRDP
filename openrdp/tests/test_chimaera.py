@@ -4,9 +4,9 @@ import unittest
 
 import numpy as np
 
-from openrdp import read_fasta
-from scripts.chimaera import Chimaera
-from scripts.common import generate_triplets, Triplet
+from openrdp.main import read_fasta
+from openrdp.scripts.chimaera import Chimaera
+from openrdp.scripts.common import generate_triplets, Triplet
 
 
 class TestChimaera(unittest.TestCase):

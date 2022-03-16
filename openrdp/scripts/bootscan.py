@@ -259,8 +259,8 @@ class Bootscan:
                     merged_regions.append(merged)
                     break
                 next_region = regions.pop()
-                while region[1] >= next_region[0]:
-                    merged[1] = max(region[1], next_region[1])
+                while merged[1] >= next_region[0]:
+                    merged[1] = max(merged[1], next_region[1])
                     if len(regions) == 0: break
                     next_region = regions.pop()
                 merged_regions.append(merged)

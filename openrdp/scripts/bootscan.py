@@ -2,6 +2,8 @@ import copy
 import multiprocessing
 import random
 from itertools import combinations
+import bisect
+import json
 
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
@@ -109,15 +111,22 @@ class Bootscan:
     def scan(self, i):
         window = self.align[:, i:i + self.win_size]
         # Make bootstrap replicates of alignment
-        dists = []
+        dist_matrices = {}
         np.random.seed(self.random_seed)
         random.seed(self.random_seed)
         for rep in range(self.num_replicates):
             # Shuffle columns with replacement
             rep_window = window[:, np.random.randint(0, window.shape[1], window.shape[1])]
             dist_mat = squareform(pdist(rep_window, jc_distance))
-            dists.append(dist_mat)
-        return dists
+            for row in range(self.align.shape[0]):
+                for col in range(row):
+                    if dist_mat[row, col] in dist_matrices:
+                        bisect.insort(dist_matrices[dist_mat[row,col]], (rep * self.align.shape[0]**2) + (self.align.shape[0] * row + col))
+                    else:
+                        dist_matrices.update({dist_mat[row,col] : [(rep * self.align.shape[0]**2) + (self.align.shape[0] * row + col)]})
+
+        with open('{}.json'.format(int(i/self.step_size)), 'w') as dist_json:
+            dist_json.write(json.dumps(dist_matrices))
 
     def do_scanning_phase(self, align):
         """
@@ -125,9 +134,16 @@ class Bootscan:
         :param align: a n x m array of aligned sequences
         """
         with multiprocessing.Pool() as p:
-            all_dists = p.map(self.scan, range(0, align.shape[1], self.step_size))
+            p.map(self.scan, range(0, align.shape[1], self.step_size))
 
-        return all_dists
+
+    def get_dist (self, dist_mat, rep, idx1, idx2):
+        pos = (rep * self.align.shape[0]**2) + (self.align.shape[0] * idx1 + idx2) if idx1 > idx2 else \
+              (rep * self.align.shape[0]**2) + (self.align.shape[0] * idx2 + idx1)
+        for num, positions in dist_mat.items():
+            if pos in positions:
+                return num
+        return -1
 
     def execute(self, triplet):
         """
@@ -139,13 +155,14 @@ class Bootscan:
         ab_support = []
         bc_support = []
         ac_support = []
-        for dists in self.dists:
+        for i, j in enumerate(range(0, self.align.shape[1], self.step_size)):
             supports = []
-            for dist_mat in dists:
-                # Access pairwise distances for each pair
-                ab_dist = dist_mat[triplet.idxs[0], triplet.idxs[1]]
-                bc_dist = dist_mat[triplet.idxs[1], triplet.idxs[2]]
-                ac_dist = dist_mat[triplet.idxs[0], triplet.idxs[2]]
+            with open('{}.json'.format(i)) as f:
+                dist_matrix = json.loads(f.read())
+            for rep in range(self.num_replicates):
+                ab_dist = self.get_dist(dist_matrix, rep, triplet.idxs[0], triplet.idxs[1])
+                bc_dist = self.get_dist(dist_matrix, rep, triplet.idxs[1], triplet.idxs[2])
+                ac_dist = self.get_dist(dist_matrix, rep, triplet.idxs[0], triplet.idxs[2])
                 supports.append(np.argmin([ab_dist, bc_dist, ac_dist]))
 
             ab_support.append(np.sum(np.equal(supports, 0)) / self.num_replicates)

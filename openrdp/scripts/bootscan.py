@@ -118,12 +118,13 @@ class Bootscan:
             # Shuffle columns with replacement
             rep_window = window[:, np.random.randint(0, window.shape[1], window.shape[1])]
             dist_mat = squareform(pdist(rep_window, jc_distance))
+            dist_matrices.update({rep: {}})
             for row in range(self.align.shape[0]):
                 for col in range(row):
-                    if dist_mat[row, col] in dist_matrices:
-                        bisect.insort(dist_matrices[dist_mat[row,col]], (rep * self.align.shape[0]**2) + (self.align.shape[0] * row + col))
+                    if dist_mat[row, col] in dist_matrices[rep]:
+                        bisect.insort(dist_matrices[rep][dist_mat[row,col]], (self.align.shape[0] * row + col))
                     else:
-                        dist_matrices.update({dist_mat[row,col] : [(rep * self.align.shape[0]**2) + (self.align.shape[0] * row + col)]})
+                        dist_matrices[rep].update({dist_mat[row,col] : [(self.align.shape[0] * row + col)]})
 
         with open('{}.json'.format(int(i/self.step_size)), 'w') as dist_json:
             dist_json.write(json.dumps(dist_matrices))
@@ -136,12 +137,25 @@ class Bootscan:
         with multiprocessing.Pool() as p:
             p.map(self.scan, range(0, align.shape[1], self.step_size))
 
+    def binary_search(self, idx_list, target_value):
+        min_index = 0
+        max_index = len(idx_list) - 1
+
+        while max_index >= min_index:
+            mid_index = (max_index + min_index) // 2
+            if idx_list[mid_index] == target_value:
+                return True
+            elif idx_list[mid_index] < target_value:
+                min_index = mid_index + 1
+            else:
+                max_index = mid_index - 1
+        return False
 
     def get_dist (self, dist_mat, rep, idx1, idx2):
-        pos = (rep * self.align.shape[0]**2) + (self.align.shape[0] * idx1 + idx2) if idx1 > idx2 else \
-              (rep * self.align.shape[0]**2) + (self.align.shape[0] * idx2 + idx1)
-        for num, positions in dist_mat.items():
-            if pos in positions:
+        pos = (self.align.shape[0] * idx1 + idx2) if idx1 > idx2 else \
+              (self.align.shape[0] * idx2 + idx1)
+        for num, positions in dist_mat[str(rep)].items():
+            if self.binary_search(positions, pos):
                 return num
         return -1
 

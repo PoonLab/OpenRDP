@@ -8,7 +8,7 @@ import json
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
 
-from .common import jc_distance
+from .common import jc_distance, generate_triplets
 
 
 class Bootscan:
@@ -111,31 +111,51 @@ class Bootscan:
     def scan(self, i):
         window = self.align[:, i:i + self.win_size]
         # Make bootstrap replicates of alignment
+        dists = []
         dist_matrices = {}
+        triplet_support = {}
         np.random.seed(self.random_seed)
         random.seed(self.random_seed)
         for rep in range(self.num_replicates):
             # Shuffle columns with replacement
             rep_window = window[:, np.random.randint(0, window.shape[1], window.shape[1])]
             dist_mat = squareform(pdist(rep_window, jc_distance))
-            dist_matrices.update({rep: {}})
-            for row in range(self.align.shape[0]):
-                for col in range(row):
-                    if dist_mat[row, col] in dist_matrices[rep]:
-                        bisect.insort(dist_matrices[rep][dist_mat[row,col]], (self.align.shape[0] * row + col))
-                    else:
-                        dist_matrices[rep].update({dist_mat[row,col] : [(self.align.shape[0] * row + col)]})
+            dists.append(dist_mat)
+        for trp in generate_triplets(self.align):
+            supports = []
+            for dist_mat in dists:
+                ab_dist = dist_mat[trp[0], trp[1]]
+                bc_dist = dist_mat[trp[1], trp[2]]
+                ac_dist = dist_mat[trp[0], trp[2]]
+                supports.append(np.argmin([ab_dist, bc_dist, ac_dist]))
+            ab_support = (np.sum(np.equal(supports, 0)) / self.num_replicates)
+            bc_support = (np.sum(np.equal(supports, 1)) / self.num_replicates)
+            ac_support = (np.sum(np.equal(supports, 2)) / self.num_replicates)
+            if trp not in triplet_support:
+                triplet_support.update({trp: (ab_support, bc_support, ac_support)})
 
-        with open('{}.json'.format(int(i/self.step_size)), 'w') as dist_json:
-            dist_json.write(json.dumps(dist_matrices))
 
+        return triplet_support
     def do_scanning_phase(self, align):
         """
         Perform scanning phase of the Bootscan/Recscan algorithm
         :param align: a n x m array of aligned sequences
         """
         with multiprocessing.Pool() as p:
-            p.map(self.scan, range(0, align.shape[1], self.step_size))
+            triplet_support = p.map(self.scan, range(0, align.shape[1], self.step_size))
+
+        trp_supports = {}
+        ab_support = []
+        bc_support = []
+        ac_support = []
+        for trp in generate_triplets(self.align):
+            for support_vals in triplet_support:
+                ab_support.append(support_vals[trp][0])
+                bc_support.append(support_vals[trp][1])
+                ac_support.append(support_vals[trp][2])
+            trp_supports.update({trp: np.array([ab_support, bc_support, ac_support])})
+
+        return trp_supports
 
     def binary_search(self, idx_list, target_value):
         min_index = 0
@@ -169,21 +189,7 @@ class Bootscan:
         ab_support = []
         bc_support = []
         ac_support = []
-        for i, j in enumerate(range(0, self.align.shape[1], self.step_size)):
-            supports = []
-            with open('{}.json'.format(i)) as f:
-                dist_matrix = json.loads(f.read())
-            for rep in range(self.num_replicates):
-                ab_dist = self.get_dist(dist_matrix, rep, triplet.idxs[0], triplet.idxs[1])
-                bc_dist = self.get_dist(dist_matrix, rep, triplet.idxs[1], triplet.idxs[2])
-                ac_dist = self.get_dist(dist_matrix, rep, triplet.idxs[0], triplet.idxs[2])
-                supports.append(np.argmin([ab_dist, bc_dist, ac_dist]))
-
-            ab_support.append(np.sum(np.equal(supports, 0)) / self.num_replicates)
-            bc_support.append(np.sum(np.equal(supports, 1)) / self.num_replicates)
-            ac_support.append(np.sum(np.equal(supports, 2)) / self.num_replicates)
-
-        supports = np.array([ab_support, bc_support, ac_support])
+        supports = self.dists[triplet.idxs]
         supports_max = np.argmax(supports, axis=0)
         supports_thresh = supports > self.cutoff
 

@@ -14,6 +14,14 @@ def generate_triplets(align):
     """
     return combinations(range(align.shape[0]), 3)
 
+def generate_combination(align, n):
+    """
+    Generate all possible combinations of sequence triplets
+    :param align: a numpy character array of 'n' sequences
+    :return: indices for every possible combination of sequence triplets
+    """
+    return combinations(range(align.shape[0]), n)
+
 
 def calculate_chi2(c_table, max_pvalue):
     """

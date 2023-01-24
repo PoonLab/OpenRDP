@@ -1,0 +1,5 @@
+dist/
+.idea/
+build/
+openrdp/
+*egg-info/

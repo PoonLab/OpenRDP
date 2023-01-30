@@ -2,6 +2,7 @@ import copy
 import multiprocessing
 import random
 from itertools import combinations
+import os
 
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
@@ -24,6 +25,7 @@ class Bootscan:
             self.cutoff = cutoff
             self.model = model
             self.max_pvalue = max_pvalue
+            self.np = os.cpu_count()
 
         self.align = alignment
         random.seed(self.random_seed)
@@ -48,6 +50,7 @@ class Bootscan:
         self.num_replicates = int(settings['num_replicates'])
         self.random_seed = int(settings['random_seed'])
         self.cutoff = float(settings['cutoff_percentage'])
+        self.np = int(settings['np'])
 
         if settings['scan'] == 'distances':
             self.use_distances = True
@@ -124,7 +127,7 @@ class Bootscan:
         Perform scanning phase of the Bootscan/Recscan algorithm
         :param align: a n x m array of aligned sequences
         """
-        with multiprocessing.Pool() as p:
+        with multiprocessing.Pool(self.np) as p:
             all_dists = p.map(self.scan, range(0, align.shape[1], self.step_size))
 
         return all_dists

@@ -1,6 +1,8 @@
 import configparser
 
 import numpy as np
+import os
+import glob
 
 from .bootscan import Bootscan
 from .chimaera import Chimaera
@@ -158,6 +160,11 @@ class Scanner:
         if self.rdp:
             rdp_res = rdp.merge_breakpoints()
         if self.bootscan:
+            # Remove .h5 file
+            h5_files = glob.glob("*.h5")
+            for file in h5_files:
+                if os.path.exists(file):
+                    os.remove(file)
             bootscan_res = bootscan.merge_breakpoints()
         if self.siscan:
             siscan_res = siscan.merge_breakpoints()

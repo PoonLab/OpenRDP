@@ -3,6 +3,8 @@ import multiprocessing
 import random
 from itertools import combinations
 import os
+import h5py
+import glob
 
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
@@ -32,7 +34,7 @@ class Bootscan:
         np.random.seed(self.random_seed)
         if not quiet:
             print('Starting Scanning Phase of Bootscan/Recscan')
-        self.dists = self.do_scanning_phase(alignment)
+        self.do_scanning_phase(alignment)
         if not quiet:
             print('Finished Scanning Phase of Bootscan/Recscan')
 
@@ -112,25 +114,42 @@ class Bootscan:
     def scan(self, i):
         window = self.align[:, i:i + self.win_size]
         # Make bootstrap replicates of alignment
-        dists = []
+        num_arrays = self.num_replicates
+        array_shape = ((self.align.shape[0] - 1) * (self.align.shape[0]) //2,)
+        dists = np.empty((num_arrays,) + array_shape)
         np.random.seed(self.random_seed)
         random.seed(self.random_seed)
         for rep in range(self.num_replicates):
             # Shuffle columns with replacement
             rep_window = window[:, np.random.randint(0, window.shape[1], window.shape[1])]
-            dist_mat = squareform(pdist(rep_window, jc_distance))
-            dists.append(dist_mat)
-        return dists
+            dist_mat = pdist(rep_window, jc_distance)
+            dists[rep] = dist_mat
+        with h5py.File('dist_mat_{}.h5'.format(i//self.step_size), 'w') as f:
+            f.create_dataset('dist_mat_{}'.format(i//self.step_size), data=dists)
+    def merge_h5py_files(self, src_file, dst_file):
+        with h5py.File(src_file, 'r') as src, h5py.File(dst_file, 'a') as dst:
+            src_items = list(src.items())
+            for name, obj in src_items:
+                dst.create_dataset(name, data=obj[()])
 
     def do_scanning_phase(self, align):
         """
         Perform scanning phase of the Bootscan/Recscan algorithm
         :param align: a n x m array of aligned sequences
         """
-        with multiprocessing.Pool(self.np) as p:
-            all_dists = p.map(self.scan, range(0, align.shape[1], self.step_size))
 
-        return all_dists
+        # Remove previous .h5 files
+        h5_files = glob.glob('*.h5')
+        for file in h5_files:
+            if os.path.exists(file):
+                os.remove(file)
+
+        with multiprocessing.Pool(self.np) as p:
+            p.map(self.scan, range(0, align.shape[1], self.step_size))
+
+        # Merge h5py files
+        for i in range(self.align.shape[1] // self.step_size):
+            self.merge_h5py_files('dist_mat_{}.h5'.format(i), 'dist_mat.h5')
 
     def execute(self, triplet):
         """
@@ -139,21 +158,34 @@ class Bootscan:
         """
 
         # Look at boostrap support for sequence pairs
-        ab_support = []
-        bc_support = []
-        ac_support = []
-        for dists in self.dists:
+        ab_support = [0] * (self.align.shape[1] // self.step_size)
+        bc_support = [0] * (self.align.shape[1] // self.step_size)
+        ac_support = [0] * (self.align.shape[1] // self.step_size)
+
+        f = h5py.File('dist_mat.h5', 'r')
+
+        for i in range(self.align.shape[1] // self.step_size):
             supports = []
-            for dist_mat in dists:
+            matrix = f['dist_mat_{}'.format(i)][:]
+            for rep in range(self.num_replicates):
+                dist_mat = matrix[rep]
                 # Access pairwise distances for each pair
-                ab_dist = dist_mat[triplet.idxs[0], triplet.idxs[1]]
-                bc_dist = dist_mat[triplet.idxs[1], triplet.idxs[2]]
-                ac_dist = dist_mat[triplet.idxs[0], triplet.idxs[2]]
+                ab_dist = dist_mat[int(triplet.idxs[0] * (self.align.shape[0] - 1) -
+                                       (triplet.idxs[0] * (triplet.idxs[0] - 1)) / 2 +
+                                       triplet.idxs[1] - triplet.idxs[0] - 1)]
+                bc_dist = dist_mat[int(triplet.idxs[1] * (self.align.shape[0] - 1) -
+                                       (triplet.idxs[1] * (triplet.idxs[1] - 1)) / 2 +
+                                       triplet.idxs[2] - triplet.idxs[1] - 1)]
+                ac_dist = dist_mat[int(triplet.idxs[0] * (self.align.shape[0] - 1) -
+                                       (triplet.idxs[0] * (triplet.idxs[0] - 1)) / 2 +
+                                       triplet.idxs[2] - triplet.idxs[0] - 1)]
                 supports.append(np.argmin([ab_dist, bc_dist, ac_dist]))
 
-            ab_support.append(np.sum(np.equal(supports, 0)) / self.num_replicates)
-            bc_support.append(np.sum(np.equal(supports, 1)) / self.num_replicates)
-            ac_support.append(np.sum(np.equal(supports, 2)) / self.num_replicates)
+            ab_support[i] = (np.sum(np.equal(supports, 0)) / self.num_replicates)
+            bc_support[i] = (np.sum(np.equal(supports, 1)) / self.num_replicates)
+            ac_support[i] = (np.sum(np.equal(supports, 2)) / self.num_replicates)
+
+        f.close()
 
         supports = np.array([ab_support, bc_support, ac_support])
         supports_max = np.argmax(supports, axis=0)

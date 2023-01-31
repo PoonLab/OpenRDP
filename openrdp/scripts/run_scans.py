@@ -3,6 +3,7 @@ import configparser
 import numpy as np
 import os
 import glob
+import h5py
 
 from .bootscan import Bootscan
 from .chimaera import Chimaera
@@ -128,29 +129,32 @@ class Scanner:
             else:
                 siscan = Siscan(alignment)
 
-        trp_count = 1
         total_num_trps = sum(1 for _ in combinations(range(alignment.shape[0]), 3))
-        for trp in generate_triplets(alignment):
-            triplet = Triplet(alignment, self.seq_names, trp)
-            if not self.quiet:
-                print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
-            trp_count += 1
+        if self.bootscan:
+            bootscan.execute_all(total_combinations=total_num_trps, seq_names=self.seq_names)
+        else:
+            trp_count = 1
+            for trp in generate_triplets(alignment):
+                triplet = Triplet(alignment, self.seq_names, trp)
+                if not self.quiet:
+                    print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
+                trp_count += 1
 
-            # Run MaxChi
-            if self.maxchi:
-                maxchi.execute(triplet)
-            # Run Chimaera
-            if self.chimaera:
-                chimaera.execute(triplet)
-            # Run RDP Method
-            if self.rdp:
-                rdp.execute(triplet)
-            # Run Bootscan
-            if self.bootscan:
-                bootscan.execute(triplet)
-            # Run Siscan
-            if self.siscan:
-                siscan.execute(triplet)
+                # Run MaxChi
+                if self.maxchi:
+                    maxchi.execute(triplet)
+                # Run Chimaera
+                if self.chimaera:
+                    chimaera.execute(triplet)
+                # Run RDP Method
+                if self.rdp:
+                    rdp.execute(triplet)
+                # Run Bootscan
+                if self.bootscan:
+                    bootscan.execute(triplet)
+                # Run Siscan
+                if self.siscan:
+                    siscan.execute(triplet)
 
         # Process results by joining breakpoint locations that overlap
         if self.maxchi:

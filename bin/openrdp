@@ -1,6 +1,9 @@
 #! /usr/bin/env python3
 import argparse
+import openrdp
 
+methods = ['geneconv', 'bootscan', 'maxchi', 'siscan', 'chimaera', 'threeseq',
+           'rdp']
 parser = argparse.ArgumentParser(
     description='An open source implementation of RDP5.\n'
 )
@@ -8,12 +11,11 @@ parser.add_argument('infile',
                     help='File containing sequence alignment (FASTA or CLUSTAL) format')
 parser.add_argument('outfile', help='Path to the output file')
 parser.add_argument('-cfg', help='Path to file that contains parameters')
-parser.add_argument('-m', '--methods', nargs='+',
-                    help="Specify which recombination detection methods to use. "
-                         "Defaults to all methods if not specified.  Use spaces to separate "
-                         "multiple choices (cannot precede any other options).",
-                    choices=['geneconv', 'bootscan', 'maxchi', 'siscan',
-                             'chimaera', 'threeseq', 'rdp'])
+parser.add_argument('-m', nargs='+',
+                    help="Space-delimited list of recombination methods to run. "
+                         f"Permitted values are: {{{' '.join(methods)}}}. "
+                         "All methods are run if not specified.",
+                    choices=methods, metavar="")
 parser.add_argument('-q', '--quiet', help='Hide progress messages',
                     action='store_true')
 args = parser.parse_args()

@@ -1,4 +1,3 @@
-import argparse
 import sys
 from openrdp import run_scans
 from datetime import datetime
@@ -9,7 +8,8 @@ DNA_ALPHABET = ['A', 'T', 'G', 'C', '-', '*']
 def valid_alignment(alignment):
     """
     Check that the input alignment is valid
-    :param alignment: a list of lists containing the sequence headers and the aligned sequences
+    :param alignment: a list of lists containing the sequence headers and the
+                      aligned sequences
     :return True if the alignment is valid, false otherwise
     """
     aln_len = len(alignment[0])
@@ -23,8 +23,10 @@ def valid_alignment(alignment):
 def valid_chars(alignment):
     """
     Check that the alignment only contains valid characters
-    :param alignment: a list of lists containing the sequence headers and the aligned sequences
-    :return: True if the alignment contains only valid characters, False otherwise
+    :param alignment: a list of lists containing the sequence headers and the
+                      aligned sequences
+    :return: True if the alignment contains only valid characters, False
+             otherwise
     """
     for s in alignment:
         if not all(pos in DNA_ALPHABET for pos in s):

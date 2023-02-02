@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 import argparse
-import openrdp
+from openrdp import main
 
 methods = ['geneconv', 'bootscan', 'maxchi', 'siscan', 'chimaera', 'threeseq',
            'rdp']
@@ -25,7 +25,8 @@ infile = args.infile
 outfile = args.outfile
 cfg = args.cfg
 if args.methods is None:
-    openrdp(args.infile, args.outfile)  # all methods True by default
+    main.openrdp(args.infile, args.outfile)  # all methods True by default
 else:
-    openrdp(args.infile, args.outfile, args.cfg, )
+    main.openrdp(args.infile, args.outfile, cfg=args.cfg, methods=args.methods,
+                 quiet=args.quiet)
 

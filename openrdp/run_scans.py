@@ -2,20 +2,19 @@ import configparser
 
 import numpy as np
 
-from .bootscan import Bootscan
-from .chimaera import Chimaera
-from .common import generate_triplets, Triplet
-from .geneconv import GeneConv
-from .maxchi import MaxChi
-from .rdp import RdpMethod
-from .siscan import Siscan
-from .threeseq import ThreeSeq
+from openrdp.bootscan import Bootscan
+from openrdp.chimaera import Chimaera
+from openrdp.common import generate_triplets, Triplet
+from openrdp.geneconv import GeneConv
+from openrdp.maxchi import MaxChi
+from openrdp.rdp import RdpMethod
+from openrdp.siscan import Siscan
+from openrdp.threeseq import ThreeSeq
 from itertools import combinations
 
 
 class Scanner:
-    def __init__(self, names, infile, outfile, cfg, run_geneconv=False, run_three_seq=False, run_rdp=False,
-                 run_siscan=False, run_maxchi=False, run_chimaera=False, run_bootscan=False, quiet=False):
+    def __init__(self, names, infile, outfile, cfg, methods=None, quiet=False):
         self.seq_names = names
         self.infile = infile
         self.cfg_file = cfg

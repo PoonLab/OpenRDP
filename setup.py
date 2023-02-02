@@ -16,6 +16,12 @@ setup(
         'numpy>=1.17.4,<1.20.0',
     ],
     python_requires='>=3.6',
-    package_data={'openrdp': ['tests/*.fasta', 'tests/*.fa', 'tests/*.ini', 'bin/3Seq/*', 'bin/GENECONV/*']},
+    package_data={'openrdp': [
+        'tests/*.fasta',
+        'tests/*.fa',
+        'tests/*.ini',
+        'bin/3Seq/*',
+        'bin/GENECONV/*'
+    ]},
     zip_safe=False
 )

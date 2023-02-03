@@ -1,5 +1,5 @@
 # !/usr/bin/env python3
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name='OpenRDP',
@@ -17,13 +17,12 @@ setup(
     python_requires='>=3.6',
     scripts=['bin/openrdp'],
     options={'build_scripts': {'executable': '/usr/bin/env python3'}},
-    package_data={'openrdp': [
-        'tests/*.fasta',
-        'tests/*.fa',
-        'tests/*.ini',
-        'bin/3Seq/*',
-        'bin/GENECONV/*',
-
-    ]},
+    package_data={
+        'openrdp': [
+            'default_config.ini',
+            'bin/3Seq/*',
+            'bin/GENECONV/*'
+        ]
+    },
     zip_safe=False
 )

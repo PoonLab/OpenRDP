@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
@@ -203,14 +202,6 @@ class MaxChi:
                     self.raw_results.append((rec_name, parents, *aln_pos, p_values[peak]))
 
         return
-
-    @staticmethod
-    def plot_chi2_values(chi_values, p_values):
-        plt.figure()
-        p = -np.log(p_values)
-        plt.plot(chi_values)
-        plt.plot(p)
-        plt.show()
 
     def merge_breakpoints(self):
         """

@@ -13,6 +13,11 @@ from openrdp.siscan import Siscan
 from openrdp.threeseq import ThreeSeq
 
 
+# keywords for recombination detection methods implemented in this package
+all_methods = ['geneconv', 'bootscan', 'maxchi', 'siscan', 'chimaera',
+               'threeseq', 'rdp']
+
+
 class Scanner:
     def __init__(self, names, infile, outfile, cfg, methods=None, quiet=False):
         self.seq_names = names
@@ -25,6 +30,7 @@ class Scanner:
     def run_scans(self, aln):
         """
         Run the selected recombination detection analyses
+        :param aln:  list, sequences imported from FASTA file
         """
         # Parse config file
         if self.cfg_file:
@@ -36,14 +42,18 @@ class Scanner:
         # Remove identical sequences
         aln = list(set(aln))
 
+        # check that all sequences are the same length
+        seqlen = set([len(s) for s in aln])
+        if len(seqlen) > 1:
+            print("ERROR: The input sequences are different lengths!  Input must be aligned.")
+            sys.exit()
+
         # Create an m x n array of sequences
         alignment = np.array(list(map(list, aln)))
-
-        threeseq_res, geneconv_res = None, None
-        bootscan_res, maxchi_res, chimaera_res, rdp_res, siscan_res = None, None, None, None, None
+        results = dict([(method, None) for method in methods])
 
         # Run 3Seq
-        if self.threeseq:
+        if 'threeseq' in self.methods:
             three_seq = ThreeSeq(self.infile)
             if not self.quiet:
                 print("Starting 3Seq Analysis")
@@ -284,9 +294,8 @@ def read_fasta(handle):
     """
     Converts a FASTA formatted file to a tuple containing a list of headers and sequences
     :param handle: file stream for the FASTA file
-    :return: tuple of headers and sequences
+    :return: tuple of headers (list) and sequences (list)
     """
-    result = []
     headers, seqs = [], []
     sequence, h = '', ''
 
@@ -320,6 +329,14 @@ def read_fasta(handle):
 
 
 def openrdp(infile, outfile, cfg=None, methods=None, quiet=False):
+    """
+    Main function
+    :param infile:  str, path to input FASTA file
+    :param outfile:  str, path to write output CSV
+    :param methods:  list, names of methods to run
+    :param quiet:  bool, if True, suppress console messages
+    :return:  FIXME: right now, nothing!
+    """
     # Check that the OS is valid
     platform = sys.platform
     try:
@@ -327,9 +344,11 @@ def openrdp(infile, outfile, cfg=None, methods=None, quiet=False):
     except OSError:
         print("OSError: {} is not supported".format(sys.platform))
 
+    if not (infile.endswith('.fa') or infile.endswith('.fasta')):
+        print(f"Expected '.fa' or '.fasta' suffix for input FASTA {infile}, ignoring")
+
     with open(infile) as in_handle:
-        if infile.endswith('.fa') or infile.endswith('.fasta'):
-            names, aln = read_fasta(in_handle)
+        names, aln = read_fasta(in_handle)
 
     if not valid_alignment(aln) and not valid_chars(aln):
         sys.exit(1)

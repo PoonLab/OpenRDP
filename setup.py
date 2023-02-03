@@ -18,6 +18,7 @@ setup(
     scripts=['bin/openrdp'],
     options={'build_scripts': {'executable': '/usr/bin/env python3'}},
     package_data={'openrdp': [
+        'default_config.ini',
         'tests/*.fasta',
         'tests/*.fa',
         'tests/*.ini',

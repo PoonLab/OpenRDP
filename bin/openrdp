@@ -1,16 +1,16 @@
 #! /usr/bin/env python3
 import argparse
-from openrdp import *
+from openrdp import openrdp, all_methods
 
-methods = ['geneconv', 'bootscan', 'maxchi', 'siscan', 'chimaera', 'threeseq',
-           'rdp']
+
 parser = argparse.ArgumentParser(
     description='An open source implementation of RDP5.\n'
 )
 parser.add_argument('infile',
                     help='File containing sequence alignment (FASTA or CLUSTAL) format')
 parser.add_argument('outfile', help='Path to the output file')
-parser.add_argument('-cfg', help='Path to file that contains parameters')
+parser.add_argument('-cfg', help='Path to file that contains parameters',
+                    default='default_config.ini')
 parser.add_argument('-m', nargs='+',
                     help="Space-delimited list of recombination methods to run. "
                          f"Permitted values are: {{{' '.join(methods)}}}. "
@@ -25,8 +25,7 @@ infile = args.infile
 outfile = args.outfile
 cfg = args.cfg
 if args.methods is None:
-    openrdp(args.infile, args.outfile)  # all methods True by default
-else:
-    openrdp(args.infile, args.outfile, cfg=args.cfg, methods=args.methods,
-                 quiet=args.quiet)
+    args.methods = all_methods  # all methods on by default
 
+openrdp(args.infile, args.outfile, cfg=args.cfg, methods=args.methods,
+        quiet=args.quiet)

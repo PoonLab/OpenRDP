@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 import argparse
-from openrdp import openrdp, all_methods
-
+import openrdp
+import os
 
 parser = argparse.ArgumentParser(
     description='An open source implementation of RDP5.\n'
@@ -9,23 +9,22 @@ parser = argparse.ArgumentParser(
 parser.add_argument('infile',
                     help='File containing sequence alignment (FASTA or CLUSTAL) format')
 parser.add_argument('outfile', help='Path to the output file')
-parser.add_argument('-cfg', help='Path to file that contains parameters',
-                    default='default_config.ini')
-parser.add_argument('-m', nargs='+',
+parser.add_argument('-c', '--cfg',
+                    help='Path to file that contains parameters.  Defaults to '
+                         'default_config.ini.',
+                    default=os.path.join(openrdp.__path__[0],
+                                         'default_config.ini'))
+parser.add_argument('-m', '--methods', nargs='+',
                     help="Space-delimited list of recombination methods to run. "
-                         f"Permitted values are: {{{' '.join(methods)}}}. "
+                         f"Permitted values are: {{{' '.join(openrdp.all_methods)}}}. "
                          "All methods are run if not specified.",
-                    choices=methods, metavar="")
+                    choices=openrdp.all_methods, metavar="")
 parser.add_argument('-q', '--quiet', help='Hide progress messages',
                     action='store_true')
 args = parser.parse_args()
 
-# Retrieve arguments
-infile = args.infile
-outfile = args.outfile
-cfg = args.cfg
 if args.methods is None:
-    args.methods = all_methods  # all methods on by default
+    args.methods = openrdp.all_methods  # run all methods by default
 
-openrdp(args.infile, args.outfile, cfg=args.cfg, methods=args.methods,
-        quiet=args.quiet)
+openrdp.openrdp(args.infile, args.outfile, cfg=args.cfg,
+                methods=tuple(args.methods), quiet=args.quiet)

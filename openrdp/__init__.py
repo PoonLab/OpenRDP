@@ -13,13 +13,21 @@ from openrdp.siscan import Siscan
 from openrdp.threeseq import ThreeSeq
 
 
-# keywords for recombination detection methods implemented in this package
-all_methods = ['geneconv', 'bootscan', 'maxchi', 'siscan', 'chimaera',
-               'threeseq', 'rdp']
-
+# list of all recombination detection methods
+all_methods = ('geneconv', 'bootscan', 'maxchi', 'siscan', 'chimaera',
+               'threeseq', 'rdp')
 
 class Scanner:
-    def __init__(self, names, infile, outfile, cfg, methods=None, quiet=False):
+    def __init__(self, names, infile, outfile, cfg, methods=all_methods,
+                 quiet=False):
+        """
+        :param names:  list, sequence labels
+        :param infile:  str, path to input FASTA
+        :param outfile:  str, path to write output CSV
+        :param cfg:  str, path to configuration file
+        :param methods:  tuple, names of methods to run
+        :param quiet:  bool, if True, suppress console messages
+        """
         self.seq_names = names
         self.infile = infile
         self.cfg_file = cfg
@@ -27,20 +35,29 @@ class Scanner:
         self.quiet = quiet
         self.outfile = outfile
 
+    def print(self, msg):
+        """ Implements self.quiet """
+        if not self.quiet:
+            print(msg)
+
     def run_scans(self, aln):
         """
         Run the selected recombination detection analyses
         :param aln:  list, sequences imported from FASTA file
         """
         # Parse config file
+        config = None
         if self.cfg_file:
             config = configparser.ConfigParser()
             config.read(self.cfg_file)
-        else:
-            config = None
 
-        # Remove identical sequences
-        aln = list(set(aln))
+        aln = list(set(aln))  # Remove identical sequences
+
+        # Check that sequences are of the same length
+        seqlens = [len(s) for s in aln]
+        if len(set(seqlens)) > 1:
+            print(f"ERROR: Sequences in input {self.infile} are not the same length!")
+            sys.exit()
 
         # check that all sequences are the same length
         seqlen = set([len(s) for s in aln])
@@ -50,36 +67,32 @@ class Scanner:
 
         # Create an m x n array of sequences
         alignment = np.array(list(map(list, aln)))
-        results = dict([(method, None) for method in methods])
+
+        # prepare return value
+        results = dict([(method, {}) for method in all_methods])
 
         # Run 3Seq
         if 'threeseq' in self.methods:
             three_seq = ThreeSeq(self.infile)
-            if not self.quiet:
-                print("Starting 3Seq Analysis")
-
+            self.print("Starting 3Seq Analysis")
             threeseq_res = three_seq.execute()
-            if not self.quiet:
-                print("Finished 3Seq Analysis")
+            self.print("Finished 3Seq Analysis")
 
         # Run GENECONV
-        if self.geneconv:
+        if 'geneconv' in self.methods:
             # Parse output file if available
             if config:
                 geneconv = GeneConv(settings=dict(config.items('Geneconv')))
             else:
                 geneconv = GeneConv()
-
-            if not self.quiet:
-                print("Starting GENECONV Analysis")
+            self.print("Starting GENECONV Analysis")
             geneconv_res = geneconv.execute(self.infile)
-
-            if not self.quiet:
-                print("Finished GENECONV Analysis")
+            self.print("Finished GENECONV Analysis")
 
         # Exit early if 3Seq and Geneconv are the only methods selected
-        if not self.maxchi and not self.chimaera and not self.siscan and not self.rdp and not self.bootscan:
-            self.write_output(threeseq_res, geneconv_res, bootscan_res, maxchi_res, chimaera_res, rdp_res, siscan_res)
+        check = {'maxchi', 'chimaera', 'siscan', 'rdp', 'bootscan'}.intersection(self.methods)
+        if len(check) == 0:
+            self.write_output(results)
             return
 
         maxchi, chimaera, rdp, bootscan, siscan = None, None, None, None, None
@@ -165,55 +178,29 @@ class Scanner:
         if self.siscan:
             siscan_res = siscan.merge_breakpoints()
 
-        self.write_output(threeseq_res, geneconv_res, bootscan_res, maxchi_res, chimaera_res, rdp_res, siscan_res)
+        self.write_output(results)
 
         if not self.quiet:
-            self.print_output(threeseq_res, geneconv_res, bootscan_res, maxchi_res, chimaera_res, rdp_res, siscan_res)
+            self.print_output(results)
 
-    def write_output(self, threeseq_res, geneconv_res, bootscan_res, maxchi_res, chimaera_res, rdp_res, siscan_res):
+    def write_output(self, results):
         """
         Write results to a file
-        :param threeseq_res: results of 3Seq analysis
-        :param geneconv_res: results of Geneconv analysis
-        :param bootscan_res: results of Bootscan analysis
-        :param maxchi_res: results of MaxChi analysis
-        :param chimaera_res: results of Chimaera analysis
-        :param rdp_res: results of RDP analysis
-        :param siscan_res: results of Siscan analysis
+        :param results:  dict, results keyed by method name
         """
         with open(self.outfile, 'w+') as outfile:
             outfile.write('Method,StartLocation,EndLocation,Recombinant,Parent1,Parent2,Pvalue\n')
 
-            if self.threeseq:
-                for event in threeseq_res:
-                    outfile.write('3Seq,{},{},{},{},{},{}\n'
-                                  .format(event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
-            if self.geneconv:
-                for event in geneconv_res:
-                    outfile.write('Geneconv,{},{},{},{},{},{}\n'
-                                  .format(event[2][0], event[2][1], event[0], event[1][0], event[1][1], event[3]))
-            if self.bootscan:
-                for event in bootscan_res:
-                    outfile.write('Bootscan,{},{},{},{},{},{}\n'
-                                  .format(event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
-            if self.maxchi:
-                for event in maxchi_res:
-                    outfile.write('MaxChi,{},{},{},{},{},{}\n'
-                                  .format(event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
-            if self.chimaera:
-                for event in chimaera_res:
-                    outfile.write('Chimaera,{},{},{},{},{},{}\n'
-                                  .format(event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
-            if self.rdp:
-                for event in rdp_res:
-                    outfile.write('RDP,{},{},{},{},{},{}\n'
-                                  .format(event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
-            if self.siscan:
-                for event in siscan_res:
-                    outfile.write('Siscan,{},{},{},{},{},{}\n'
-                                  .format(event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
+            for method, events in results.items():
+                for e in events:
+                    if method == 'geneconv':
+                        outfile.write(f'Geneconv,{e[2][0]},{e[2][1]},{e[0]},'
+                                      f'{e[1][0]},{e[1][1]},{e[3]}\n')
+                    else:
+                        outfile.write(f'{method.title()},{e[2]},{e[3]},{e[0]},'
+                                      f'{e[1][0]},{e[1][1]},{e[4]}\n')
 
-    def print_output(self, threeseq_res, geneconv_res, bootscan_res, maxchi_res, chimaera_res, rdp_res, siscan_res):
+    def print_output(self, results):
         """
         Print results to console
         :param threeseq_res: results of 3Seq analysis

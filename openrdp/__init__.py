@@ -140,13 +140,13 @@ class Scanner:
         alignment = np.array(list(map(list, aln)))
 
         # prepare return value
-        results = ScanResults([(method, {}) for method in aliases.keys()])
+        results = ScanResults(dict([(method, {}) for method in aliases.keys()]))
 
         # Run 3Seq
         if 'threeseq' in self.methods:
             three_seq = ThreeSeq(self.infile)
             self.print("Starting 3Seq Analysis")
-            results['threeseq'] = three_seq.execute()
+            results.dict['threeseq'] = three_seq.execute()
             self.print("Finished 3Seq Analysis")
 
         # Run GENECONV
@@ -158,7 +158,7 @@ class Scanner:
                 geneconv = GeneConv()  # default config
 
             self.print("Starting GENECONV Analysis")
-            results['geneconv'] = geneconv.execute(self.infile)
+            results.dict['geneconv'] = geneconv.execute(self.infile)
             self.print("Finished GENECONV Analysis")
 
         # Exit early if 3Seq and Geneconv are the only methods selected
@@ -167,7 +167,7 @@ class Scanner:
             return results
 
         tmethods = []
-        for alias, a in aliases:
+        for alias, a in aliases.items():
             self.print(f"Setting up {alias} analysis...")
             if self.config:
                 settings = dict(self.config.items(a['key']))
@@ -187,7 +187,7 @@ class Scanner:
 
         # Process results by joining breakpoint locations that overlap
         for tmethod in tmethods:
-            results[tmethod.name] = tmethod.merge_breakpoints()
+            results.dict[tmethod.name] = tmethod.merge_breakpoints()
 
         return results
 

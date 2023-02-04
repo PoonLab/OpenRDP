@@ -7,7 +7,7 @@ import sys
 
 class GeneConv:
     def __init__(self, gscale=1, ignore_indels=False, min_length=1, min_poly=2, min_score=2,
-                 max_overlap=1, settings=None,):
+                 max_overlap=1, settings=None, quiet=False):
         """
         Constructs a GeneConv object
         :param gscale: mismatch penalty
@@ -84,7 +84,7 @@ class GeneConv:
         :return: A list of results
         """
         # Clear output files
-        out_files = glob.glob('../bin/GENECONV/*.frags') + glob.glob('../bin/GENECONV/*.sum')
+        out_files = glob.glob('bin/GENECONV/*.frags') + glob.glob('bin/GENECONV/*.sum')
         for f in out_files:
             try:
                 os.remove(f)
@@ -108,7 +108,7 @@ class GeneConv:
             cfg_path = format(os.path.realpath("geneconv.cfg"))
 
         # Path to GENECONV executables
-        bin_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, 'bin')
+        bin_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bin')
         if sys.platform.startswith("win"):
             bin_path = os.path.join(bin_dir, 'GENECONV', 'windows_geneconv.exe')
         elif sys.platform == 'darwin':

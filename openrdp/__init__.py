@@ -1,8 +1,10 @@
 import sys
+import os
 import configparser
 import numpy as np
 from itertools import combinations
 
+from openrdp import __path__ as basepath
 from openrdp.bootscan import Bootscan
 from openrdp.chimaera import Chimaera
 from openrdp.common import generate_triplets, Triplet
@@ -17,20 +19,28 @@ from openrdp.threeseq import ThreeSeq
 all_methods = ('geneconv', 'bootscan', 'maxchi', 'siscan', 'chimaera',
                'threeseq', 'rdp')
 
+
 class Scanner:
-    def __init__(self, names, infile, outfile, cfg, methods=all_methods,
+    def __init__(self, names, infile, outfile, cfg=None, methods=all_methods,
                  quiet=False):
         """
         :param names:  list, sequence labels
         :param infile:  str, path to input FASTA
         :param outfile:  str, path to write output CSV
-        :param cfg:  str, path to configuration file
+        :param cfg:  str, path to configuration file.  Defaults to None, causing
+                     each method to use default settings.
         :param methods:  tuple, names of methods to run
         :param quiet:  bool, if True, suppress console messages
         """
         self.seq_names = names
         self.infile = infile
+
+        self.config = None
         self.cfg_file = cfg
+        if self.cfg_file:
+            self.config = configparser.ConfigParser()
+            self.config.read(self.cfg_file)
+
         self.methods = methods
         self.quiet = quiet
         self.outfile = outfile
@@ -40,17 +50,35 @@ class Scanner:
         if not self.quiet:
             print(msg)
 
+    def get_config(self):
+        """ Return ConfigParser as dict """
+        d = {}
+        for section in self.config.sections():
+            d.update({section: {}})
+            for key, val in self.config[section].items():
+                if val.isnumeric() or val in ['True', 'False']:
+                    val = eval(val)
+                d[section].update({key: val})
+        return d
+
+    def set_config(self, usr):
+        """
+        Modify configuration by passing a dict with same structure
+        :param usr:  dict, should be same structure as return value of get_config()
+        """
+        for section in self.config.sections():
+            if section not in usr:
+                continue
+            for key in self.config[section]:
+                if key not in usr[section]:
+                    continue
+                self.config[section][key] = str(usr[section][key])
+
     def run_scans(self, aln):
         """
         Run the selected recombination detection analyses
         :param aln:  list, sequences imported from FASTA file
         """
-        # Parse config file
-        config = None
-        if self.cfg_file:
-            config = configparser.ConfigParser()
-            config.read(self.cfg_file)
-
         aln = list(set(aln))  # Remove identical sequences
 
         # Check that sequences are of the same length
@@ -75,18 +103,19 @@ class Scanner:
         if 'threeseq' in self.methods:
             three_seq = ThreeSeq(self.infile)
             self.print("Starting 3Seq Analysis")
-            threeseq_res = three_seq.execute()
+            results['threeseq'] = three_seq.execute()
             self.print("Finished 3Seq Analysis")
 
         # Run GENECONV
         if 'geneconv' in self.methods:
             # Parse output file if available
-            if config:
-                geneconv = GeneConv(settings=dict(config.items('Geneconv')))
+            if self.config:
+                geneconv = GeneConv(settings=dict(self.config.items('Geneconv')))
             else:
-                geneconv = GeneConv()
+                geneconv = GeneConv()  # default config
+
             self.print("Starting GENECONV Analysis")
-            geneconv_res = geneconv.execute(self.infile)
+            results['geneconv'] = geneconv.execute(self.infile)
             self.print("Finished GENECONV Analysis")
 
         # Exit early if 3Seq and Geneconv are the only methods selected
@@ -94,8 +123,6 @@ class Scanner:
         if len(check) == 0:
             self.write_output(results)
             return
-
-        maxchi, chimaera, rdp, bootscan, siscan = None, None, None, None, None
 
         # Setup MaxChi
         if self.maxchi:
@@ -324,6 +351,9 @@ def openrdp(infile, outfile, cfg=None, methods=None, quiet=False):
     :param quiet:  bool, if True, suppress console messages
     :return:  FIXME: right now, nothing!
     """
+    if methods is None:
+        methods = all_methods
+
     # Check that the OS is valid
     platform = sys.platform
     try:
@@ -334,6 +364,7 @@ def openrdp(infile, outfile, cfg=None, methods=None, quiet=False):
     if not (infile.endswith('.fa') or infile.endswith('.fasta')):
         print(f"Expected '.fa' or '.fasta' suffix for input FASTA {infile}, ignoring")
 
+    # import labels and sequences from FASTA file
     with open(infile) as in_handle:
         names, aln = read_fasta(in_handle)
 

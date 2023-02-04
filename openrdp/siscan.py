@@ -34,6 +34,7 @@ class Siscan:
 
         self.raw_results = []
         self.results = []
+        self.name = 'siscan'
 
     def set_options_from_config(self, settings):
         """

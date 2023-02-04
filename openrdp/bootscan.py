@@ -36,6 +36,7 @@ class Bootscan:
 
         self.raw_results = []
         self.results = []
+        self.name = 'bootscan'
 
     def set_options_from_config(self, settings):
         """

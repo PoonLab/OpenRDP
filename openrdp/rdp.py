@@ -22,6 +22,7 @@ class RdpMethod:
         self.align = align
         self.raw_results = []
         self.results = []
+        self.name = 'rdp'
 
     def set_options_from_config(self, settings):
         """

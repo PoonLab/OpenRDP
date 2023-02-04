@@ -32,6 +32,7 @@ class MaxChi:
 
         self.raw_results = []
         self.results = []
+        self.name = 'maxchi'
 
     def set_options_from_config(self, settings):
         """

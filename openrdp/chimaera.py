@@ -30,6 +30,7 @@ class Chimaera:
         self.align = align
         self.raw_results = []
         self.results = []
+        self.name = 'chimaera'
 
     def set_options_from_config(self, settings):
         """

@@ -11,6 +11,7 @@ class ThreeSeq:
         self.in_name = os.path.basename(in_path)
         self.raw_results = []
         self.results = []
+        self.name = 'threeseq'
 
     def execute(self):
         """
@@ -30,7 +31,7 @@ class ThreeSeq:
                 pass
 
         # Set paths to 3Seq executables
-        bin_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, 'bin')
+        bin_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bin')
         if sys.platform.startswith("win"):
             bin_path = os.path.join(bin_dir, '3Seq', 'windows_3seq.exe')
             # bin_path = os.path.abspath('../bin/3Seq/windows_3seq.exe')

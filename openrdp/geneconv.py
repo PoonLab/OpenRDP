@@ -31,6 +31,7 @@ class GeneConv:
 
         self.raw_results = []
         self.results = []
+        self.name = 'geneconv'
 
     def set_options_from_config(self, settings):
         """

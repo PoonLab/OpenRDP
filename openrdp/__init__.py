@@ -16,12 +16,55 @@ from openrdp.threeseq import ThreeSeq
 
 
 # list of all recombination detection methods
-all_methods = ('geneconv', 'bootscan', 'maxchi', 'siscan', 'chimaera',
-               'threeseq', 'rdp')
+aliases = {
+    'geneconv': {'key': "Geneconv", 'method': GeneConv},
+    'bootscan': {'key': 'Bootscan', 'method': Bootscan},
+    'maxchi': {'key': 'MaxChi', 'method': MaxChi},
+    'siscan': {'key': 'Siscan', 'method': Siscan},
+    'chimaera': {'key': "Chimaera", 'method': Chimaera},
+    'threeseq': {'key': "3Seq", 'method': ThreeSeq},
+    'rdp': {'key': "RDP", 'method': RdpMethod}
+}
+DNA_ALPHABET = ['A', 'T', 'G', 'C', '-', '*']
+
+
+class ScanResults:
+    """ Object to return from Scanner, derived from dict """
+    def __init__(self, d):
+        self.dict = d
+
+    def write(self, outfile):
+        """
+        Return CSV-formatted string suitable for writing to a file
+        :param outfile:  file to write output
+        """
+        outfile.write('Method,StartLocation,EndLocation,Recombinant,Parent1,Parent2,Pvalue\n')
+        for method, events in self.dict.items():
+            for e in events:
+                if method == 'geneconv':
+                    outfile.write(f'Geneconv,{e[2][0]},{e[2][1]},{e[0]},{e[1][0]},{e[1][1]},{e[3]}\n')
+                else:
+                    outfile.write(f'{method.title()},{e[2]},{e[3]},{e[0]},{e[1][0]},{e[1][1]},{e[4]}\n')
+
+    def __str__(self):
+        """ Print results to console """
+        print('\n{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}'
+              .format('Method', 'StartLocation', 'EndLocation', 'Recombinant',
+                      'Parent1', 'Parent2', 'Pvalue'))
+
+        for method, events in self.dict.items():
+            key = aliases[method]['key']
+            for e in events:
+                if method == 'geneconv':
+                    print(f"{key:<20} {e[2][0]:<20} {e[2][1]:<20} {e[0]:<20} "
+                          f"{e[1][0]:<20} {e[1][1]:<20} {e[3]:<20}")
+                else:
+                    print(f"{key:<20} {e[2]:<20} {e[3]:<20} {e[0]:<20} "
+                          f"{e[1][0]:<20} {e[1][1]:<20} {e[4]:<20}")
 
 
 class Scanner:
-    def __init__(self, names, infile, outfile, cfg=None, methods=all_methods,
+    def __init__(self, names, infile, outfile, cfg=None, methods=None,
                  quiet=False):
         """
         :param names:  list, sequence labels
@@ -97,7 +140,7 @@ class Scanner:
         alignment = np.array(list(map(list, aln)))
 
         # prepare return value
-        results = dict([(method, {}) for method in all_methods])
+        results = ScanResults([(method, {}) for method in aliases.keys()])
 
         # Run 3Seq
         if 'threeseq' in self.methods:
@@ -119,159 +162,34 @@ class Scanner:
             self.print("Finished GENECONV Analysis")
 
         # Exit early if 3Seq and Geneconv are the only methods selected
-        check = {'maxchi', 'chimaera', 'siscan', 'rdp', 'bootscan'}.intersection(self.methods)
+        check = set(aliases.keys()).intersection(self.methods)
         if len(check) == 0:
-            self.write_output(results)
-            return
+            return results
 
-        # Setup MaxChi
-        if self.maxchi:
-            if not self.quiet:
-                print("Setting Up MaxChi Analysis")
-            if config:
-                maxchi = MaxChi(alignment, settings=dict(config.items('MaxChi')))
+        tmethods = []
+        for alias, a in aliases:
+            self.print(f"Setting up {alias} analysis...")
+            if self.config:
+                settings = dict(self.config.items(a['key']))
+                tmethods.append(a['method'](alignment, settings=settings, quiet=self.quiet))
             else:
-                maxchi = MaxChi(alignment)
+                tmethods.append(a['method'](alignment, quiet=self.quiet))
 
-        # Setup Chimaera
-        if self.chimaera:
-            if not self.quiet:
-                print("Setting Up Chimaera Analysis")
-            if config:
-                chimaera = Chimaera(alignment, settings=dict(config.items('Chimaera')))
-            else:
-                chimaera = Chimaera(alignment)
-
-        # Setup RDP
-        if self.rdp:
-            if not self.quiet:
-                print("Setting Up RDP Analysis")
-            if config:
-                rdp = RdpMethod(alignment, settings=dict(config.items('RDP')))
-            else:
-                rdp = RdpMethod(alignment)
-
-        # Setup Bootscan
-        if self.bootscan:
-            if not self.quiet:
-                print("Setting Up Bootscan Analysis")
-            if config:
-                bootscan = Bootscan(alignment, settings=dict(config.items('Bootscan')), quiet=self.quiet)
-            else:
-                bootscan = Bootscan(alignment, quiet=self.quiet)
-
-        # Setup Siscan
-        if self.siscan:
-            if not self.quiet:
-                print("Setting Up Siscan Analysis")
-            if config:
-                siscan = Siscan(alignment, settings=dict(config.items('Siscan')))
-            else:
-                siscan = Siscan(alignment)
-
+        # iterate over all triplets in the alignment
         trp_count = 1
         total_num_trps = sum(1 for _ in combinations(range(alignment.shape[0]), 3))
         for trp in generate_triplets(alignment):
             triplet = Triplet(alignment, self.seq_names, trp)
-            if not self.quiet:
-                print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
+            self.print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
             trp_count += 1
-
-            # Run MaxChi
-            if self.maxchi:
-                maxchi.execute(triplet)
-            # Run Chimaera
-            if self.chimaera:
-                chimaera.execute(triplet)
-            # Run RDP Method
-            if self.rdp:
-                rdp.execute(triplet)
-            # Run Bootscan
-            if self.bootscan:
-                bootscan.execute(triplet)
-            # Run Siscan
-            if self.siscan:
-                siscan.execute(triplet)
+            for tmethod in tmethods:
+                tmethod.execute(triplet)
 
         # Process results by joining breakpoint locations that overlap
-        if self.maxchi:
-            maxchi_res = maxchi.merge_breakpoints()
-        if self.chimaera:
-            chimaera_res = chimaera.merge_breakpoints()
-        if self.rdp:
-            rdp_res = rdp.merge_breakpoints()
-        if self.bootscan:
-            bootscan_res = bootscan.merge_breakpoints()
-        if self.siscan:
-            siscan_res = siscan.merge_breakpoints()
+        for tmethod in tmethods:
+            results[tmethod.name] = tmethod.merge_breakpoints()
 
-        self.write_output(results)
-
-        if not self.quiet:
-            self.print_output(results)
-
-    def write_output(self, results):
-        """
-        Write results to a file
-        :param results:  dict, results keyed by method name
-        """
-        with open(self.outfile, 'w+') as outfile:
-            outfile.write('Method,StartLocation,EndLocation,Recombinant,Parent1,Parent2,Pvalue\n')
-
-            for method, events in results.items():
-                for e in events:
-                    if method == 'geneconv':
-                        outfile.write(f'Geneconv,{e[2][0]},{e[2][1]},{e[0]},'
-                                      f'{e[1][0]},{e[1][1]},{e[3]}\n')
-                    else:
-                        outfile.write(f'{method.title()},{e[2]},{e[3]},{e[0]},'
-                                      f'{e[1][0]},{e[1][1]},{e[4]}\n')
-
-    def print_output(self, results):
-        """
-        Print results to console
-        :param threeseq_res: results of 3Seq analysis
-        :param geneconv_res: results of Geneconv analysis
-        :param bootscan_res: results of Bootscan analysis
-        :param maxchi_res: results of MaxChi analysis
-        :param chimaera_res: results of Chimaera analysis
-        :param rdp_res: results of RDP analysis
-        :param siscan_res: results of Siscan analysis
-        """
-        print('\n{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}'
-              .format('Method', 'StartLocation', 'EndLocation', 'Recombinant', 'Parent1', 'Parent2', 'Pvalue'))
-
-        if self.threeseq:
-            for event in threeseq_res:
-                print('{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}'
-                      .format('3Seq', event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
-        if self.geneconv:
-            for event in geneconv_res:
-                print('{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}'
-                      .format('Geneconv', event[2][0], event[2][1], event[0], event[1][0], event[1][1], event[3]))
-        if self.bootscan:
-            for event in bootscan_res:
-                print('{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}'
-                      .format('Bootscan', event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
-        if self.maxchi:
-            for event in maxchi_res:
-                print('{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}'
-                      .format('MaxChi', event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
-        if self.chimaera:
-            for event in chimaera_res:
-                print('{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}'
-                      .format('Chimaera', event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
-        if self.rdp:
-            for event in rdp_res:
-                print('{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}'
-                      .format('RDP', event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
-        if self.siscan:
-            for event in siscan_res:
-                print('{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}'
-                      .format('Siscan', event[2], event[3], event[0], event[1][0], event[1][1], event[4]))
-
-
-DNA_ALPHABET = ['A', 'T', 'G', 'C', '-', '*']
+        return results
 
 
 def valid_alignment(alignment):
@@ -349,10 +267,10 @@ def openrdp(infile, outfile, cfg=None, methods=None, quiet=False):
     :param outfile:  str, path to write output CSV
     :param methods:  list, names of methods to run
     :param quiet:  bool, if True, suppress console messages
-    :return:  FIXME: right now, nothing!
+    :return:  dict, results from each method
     """
     if methods is None:
-        methods = all_methods
+        methods = list(aliases.keys())
 
     # Check that the OS is valid
     platform = sys.platform
@@ -372,5 +290,5 @@ def openrdp(infile, outfile, cfg=None, methods=None, quiet=False):
         sys.exit(1)
 
     scanner = Scanner(names, infile, outfile, cfg=cfg, methods=methods, quiet=quiet)
-    scanner.run_scans(aln)
-
+    results = scanner.run_scans(aln)
+    return results

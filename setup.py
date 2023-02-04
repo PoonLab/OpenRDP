@@ -12,8 +12,8 @@ setup(
         'Operating System :: OS Independent'
     ],
     install_requires=[
-        'scipy>=1.5.0,<1.6.0',
-        'numpy>=1.17.4,<1.20.0',
+        'scipy>=1.5.0',
+        'numpy>=1.17.4',
     ],
     python_requires='>=3.6',
     package_data={'openrdp': ['tests/*.fasta', 'tests/*.fa', 'tests/*.ini', 'bin/3Seq/*', 'bin/GENECONV/*']},

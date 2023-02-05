@@ -117,7 +117,12 @@ class Bootscan:
             # Shuffle columns with replacement
             rep_window = window[:, np.random.randint(0, window.shape[1], window.shape[1])]
             dist_mat = squareform(pdist(rep_window, jc_distance))
+
+            """
+            To be looked into for optimization
+            """
             dists.append(dist_mat)
+
         return dists
 
     def do_scanning_phase(self, align):
@@ -127,7 +132,6 @@ class Bootscan:
         """
         with multiprocessing.Pool() as p:
             all_dists = p.map(self.scan, range(0, align.shape[1], self.step_size))
-
         return all_dists
 
     def execute(self, triplet):
@@ -140,6 +144,10 @@ class Bootscan:
         ab_support = []
         bc_support = []
         ac_support = []
+
+        """
+        To be looked into for optimization
+        """
         for dists in self.dists:
             supports = []
             for dist_mat in dists:
@@ -186,19 +194,20 @@ class Bootscan:
         # Find p-value for regions
         for recomb_candidate, event in possible_regions:
             n = event[1] - event[0]
-            l = self.align.shape[1]
-
-            # m is the proportion of nts in common between either A or B and C in the recombinant region
-            recomb_region_cand = triplet.sequences[recomb_candidate, event[0]: event[1]]
-            other_seqs = triplet.sequences[trps[:recomb_candidate] + trps[recomb_candidate+1:], event[0]: event[1]]
-            m = np.sum(np.any(recomb_region_cand == other_seqs, axis=0))
-
-            # p is the proportion of nts in common between either A or B and C in the entire sequence
-            recomb_region_cand = triplet.sequences[recomb_candidate, :]
-            other_seqs = triplet.sequences[trps[:recomb_candidate] + trps[recomb_candidate + 1:], :]
-            p = np.sum(np.any(recomb_region_cand == other_seqs, axis=0)) / l
 
             if n > 0:
+                l = self.align.shape[1]
+
+                # m is the proportion of nts in common between either A or B and C in the recombinant region
+                recomb_region_cand = triplet.sequences[recomb_candidate, event[0]: event[1]]
+                other_seqs = triplet.sequences[trps[:recomb_candidate] + trps[recomb_candidate+1:], event[0]: event[1]]
+                m = np.sum(np.any(recomb_region_cand == other_seqs, axis=0))
+
+                # p is the proportion of nts in common between either A or B and C in the entire sequence
+                recomb_region_cand = triplet.sequences[recomb_candidate, :]
+                other_seqs = triplet.sequences[trps[:recomb_candidate] + trps[recomb_candidate + 1:], :]
+                p = np.sum(np.any(recomb_region_cand == other_seqs, axis=0)) / l
+
                 # Calculate p_value
                 val = 0
                 log_n_fact = np.sum(np.log(np.arange(1, n + 1)))  # Convert to log space to prevent integer overflow
@@ -210,12 +219,13 @@ class Bootscan:
                             (log_n_fact - (log_i_fact + log_ni_fact)) + np.log(p ** n) + np.log((1 - p) ** (n - i)))
 
                 # Get potential recombinant and the parents
-                trp_names = copy.copy(triplet.names)
-                for i, name in enumerate(trp_names):
-                    if i == recomb_candidate:
-                        rec_name = trp_names.pop(i)
-                        parents = trp_names
-                        if val != 0.0:
+                if val != 0.0:
+                    trp_names = copy.copy(triplet.names)
+                    for i, name in enumerate(trp_names):
+                        if i == recomb_candidate:
+                            # rec_name = trp_names.pop(i)
+                            rec_name = name
+                            parents = tuple(trp_names[:i] + trp_names[i + 1:])
                             self.raw_results.append((rec_name, parents, *event, val))
 
         return
@@ -241,19 +251,36 @@ class Bootscan:
         # Merge any locations that overlap - eg [1, 5] and [3, 7] would become [1, 7]
         for key in results_dict:
             merged_regions = []
-            for region in results_dict[key]:
-                region = list(region)
-                old_regions = list(results_dict[key])
-                for region2 in old_regions:
-                    start = region[0]
-                    end = region[1]
-                    start2 = region2[0]
-                    end2 = region2[1]
-                    if start <= start2 <= end or start <= end2 <= end:
-                        region[0] = min(start,start2)
-                        region[1] = max(end, end2)
-                        results_dict[key].remove(region2)
-                merged_regions.append(region)
+
+            regions = list(sorted(results_dict[key], reverse = True))
+            while len(regions) != 0:
+                region = regions.pop()
+                merged = list(region)
+                if len(regions) == 0:
+                    merged_regions.append(merged)
+                    break
+                next_region = regions.pop()
+                while merged[1] >= next_region[0]:
+                    merged[1] = max(merged[1], next_region[1])
+                    if len(regions) == 0: break
+                    next_region = regions.pop()
+                merged_regions.append(merged)
+                regions.append(next_region)
+            
+            # for region in results_dict[key]:
+            #     region = list(region)
+            #     old_regions = list(results_dict[key])
+            #     for region2 in old_regions:
+            #         start = region[0]
+            #         end = region[1]
+            #         start2 = region2[0]
+            #         end2 = region2[1]
+            #         if start <= start2 <= end or start <= end2 <= end:
+            #             region[0] = min(start,start2)
+            #             region[1] = max(end, end2)
+            #             results_dict[key].remove(region2)
+            #     merged_regions.append(region)
+
 
             # Output the results
             for region in merged_regions:

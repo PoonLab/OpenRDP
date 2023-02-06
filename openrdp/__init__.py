@@ -48,19 +48,20 @@ class ScanResults:
 
     def __str__(self):
         """ Print results to console """
-        print('\n{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}'
-              .format('Method', 'StartLocation', 'EndLocation', 'Recombinant',
-                      'Parent1', 'Parent2', 'Pvalue'))
+        outstr = '\n{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}\n'.format(
+            'Method', 'StartLocation', 'EndLocation', 'Recombinant',
+            'Parent1', 'Parent2', 'Pvalue')
 
         for method, events in self.dict.items():
             key = aliases[method]['key']
             for e in events:
                 if method == 'geneconv':
-                    print(f"{key:<20} {e[2][0]:<20} {e[2][1]:<20} {e[0]:<20} "
-                          f"{e[1][0]:<20} {e[1][1]:<20} {e[3]:<20}")
+                    outstr += f"{key:<20} {e[2][0]:<20} {e[2][1]:<20} {e[0]:<20} " \
+                              f"{e[1][0]:<20} {e[1][1]:<20} {e[3]:<20}\n"
                 else:
-                    print(f"{key:<20} {e[2]:<20} {e[3]:<20} {e[0]:<20} "
-                          f"{e[1][0]:<20} {e[1][1]:<20} {e[4]:<20}")
+                    outstr += f"{key:<20} {e[2]:<20} {e[3]:<20} {e[0]:<20} " \
+                              f"{e[1][0]:<20} {e[1][1]:<20} {e[4]:<20}\n"
+        return outstr
 
 
 class Scanner:
@@ -168,6 +169,9 @@ class Scanner:
 
         tmethods = []
         for alias, a in aliases.items():
+            if alias in ['threeseq', 'geneconv']:
+                continue
+
             self.print(f"Setting up {alias} analysis...")
             if self.config:
                 settings = dict(self.config.items(a['key']))

@@ -8,7 +8,8 @@ class RdpMethod:
     """
     Executes RDP method
     """
-    def __init__(self, align, win_size=30, reference=None, min_id=0, max_id=100, settings=None):
+    def __init__(self, align, win_size=30, reference=None, min_id=0, max_id=100,
+                 settings=None, quiet=False):
         if settings:
             self.set_options_from_config(settings)
             self.validate_options()

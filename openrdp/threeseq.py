@@ -6,7 +6,7 @@ from tempfile import NamedTemporaryFile
 
 
 class ThreeSeq:
-    def __init__(self, in_path):
+    def __init__(self, in_path, quiet=False):
         self.in_path = os.path.realpath(in_path)  # input FASTA file
         self.in_name = os.path.basename(in_path)
         self.raw_results = []
@@ -35,7 +35,6 @@ class ThreeSeq:
         if not os.path.isfile(bin_path):
             logging.error("No 3Seq executable file exists.")
 
-        # Run 3Seq
         with NamedTemporaryFile(delete=False) as tempf:
             subprocess.check_output([
                 bin_path,
@@ -46,8 +45,9 @@ class ThreeSeq:
             ], shell=False, input=b"Y\n")  # Respond to prompt
 
             # Parse the output of 3Seq
-            tseq_out = tempf.name + '.3s.rec.csv'
-            out_path = os.path.join(os.getcwd(), tseq_out)
+            out_path = tempf.name + '.3s.rec'
+            if not os.path.exists(out_path):
+                out_path += '.csv'
             ts_results = self.parse_output(out_path)
 
         return ts_results
@@ -58,30 +58,28 @@ class ThreeSeq:
         :param out_path: Path to the output file containing information about recombinant sequences
         :return: List of triplets, corrected and uncorrected p-values, and breakpoint locations
         """
-        # Check that the out file exists
-        try:
-            with open(out_path) as out_handle:
-                out_handle.readline()  # skip first line
-                for line in out_handle:
-                    line = line.split(',')
-                    line = [l.strip() for l in line]
-                    rec = line[0]
-                    ps = [line[1], line[2]]
-                    corr_p_value = line[10]  # Dunn-Sidak corrected p-value
+        delimiter = '\t'
+        if out_path.endswith('.csv'):
+            delimiter = ','
 
-                    loc_line = line[12:]    # Breakpoint locations
-                    for loc in loc_line:
-                        parts = loc.split(' & ')
-                        # Take the widest interval 3Seq returns
-                        start_pos = parts[0].split('-')
-                        end_pos = parts[1].split('-')
-                        self.raw_results.append((rec, ps, start_pos[0], end_pos[-1], corr_p_value))
+        with open(out_path) as out_handle:
+            out_handle.readline()  # skip first line
+            for line in out_handle:
+                line = line.split(delimiter)
+                line = [l.strip() for l in line]
+                rec = line[0]
+                ps = [line[1], line[2]]
+                corr_p_value = line[10]  # Dunn-Sidak corrected p-value
 
-        except FileNotFoundError as e:
-            raise
+                loc_line = line[12:]    # Breakpoint locations
+                for loc in loc_line:
+                    parts = loc.split(' & ')
+                    # Take the widest interval 3Seq returns
+                    start_pos = parts[0].split('-')
+                    end_pos = parts[1].split('-')
+                    self.raw_results.append((rec, ps, start_pos[0], end_pos[-1], corr_p_value))
 
         self.results = self.merge_breakpoints()
-
         return self.results
 
     def merge_breakpoints(self):

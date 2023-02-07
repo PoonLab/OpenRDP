@@ -70,7 +70,7 @@ class ThreeSeq:
                 ps = [values[1], values[2]]
                 corr_p_value = values[10]  # Dunn-Sidak corrected p-value
 
-                for loc in values[12:]:  # Breakpoint locations:
+                for loc in values[12:]:  # Breakpoint locations
                     parts = loc.split(' & ')
                     # Take the widest interval 3Seq returns
                     start_pos = parts[0].split('-')

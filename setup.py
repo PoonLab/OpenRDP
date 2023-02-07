@@ -20,7 +20,7 @@ setup(
     options={'build_scripts': {'executable': '/usr/bin/env python3'}},
     package_data={
         'openrdp': [
-            'default_config.ini',
+            'default.ini',
             'bin/3Seq/*',
             'bin/GENECONV/*'
         ]

@@ -2,6 +2,7 @@
 import argparse
 import openrdp
 import os
+import sys
 
 all_methods = tuple(openrdp.aliases.keys())
 
@@ -17,9 +18,8 @@ if __name__ == "__main__":
     parser.add_argument('outfile', help='Path to the output file')
     parser.add_argument('-c', '--cfg', type=str,
                         help='Path to file that contains parameters.  Defaults to '
-                             'default_config.ini.',
-                        default=os.path.join(openrdp.__path__[0],
-                                             'default_config.ini'))
+                             'default.ini.',
+                        default=os.path.join(openrdp.__path__[0], 'default.ini'))
     parser.add_argument('-m', '--methods', nargs='+',
                         help="Space-delimited list of recombination methods to run. "
                              f"Permitted values are: {{{' '.join(all_methods)}}}. "
@@ -29,6 +29,10 @@ if __name__ == "__main__":
                         action='store_true')
     args = parser.parse_args()
 
+    # check that config file exists
+    if not os.path.exists(args.cfg):
+        print(f"ERROR: {args.cfg} does not exist")
+        sys.exit()
     if args.methods is None:
         args.methods = all_methods  # run all methods by default
 

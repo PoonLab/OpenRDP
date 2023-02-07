@@ -6,11 +6,12 @@ from tempfile import NamedTemporaryFile
 
 
 class ThreeSeq:
-    def __init__(self, in_path):
+    def __init__(self, in_path, quiet=False):
         self.in_path = os.path.realpath(in_path)  # input FASTA file
         self.in_name = os.path.basename(in_path)
         self.raw_results = []
         self.results = []
+        self.name = 'threeseq'
         self.binaries = {
             'win32': 'windows_3seq.exe',
             'cygwin': 'windows_3seq.exe',
@@ -29,7 +30,7 @@ class ThreeSeq:
         """
 
         # Set paths to 3Seq executables
-        bin_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, 'bin')
+        bin_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bin')
         bin_path = os.path.join(bin_dir, '3Seq', self.binaries[sys.platform])
         if not os.path.isfile(bin_path):
             logging.error("No 3Seq executable file exists.")
@@ -44,9 +45,9 @@ class ThreeSeq:
             ], shell=False, input=b"Y\n")  # Respond to prompt
 
             # Parse the output of 3Seq
-            out_path = tempf.name + '.3s.rec.csv'
+            out_path = tempf.name + '.3s.rec'
             if not os.path.exists(out_path):
-                out_path = tempf.name + '.3s.rec'
+                out_path += '.csv'
             ts_results = self.parse_output(out_path)
 
         return ts_results
@@ -69,8 +70,7 @@ class ThreeSeq:
                 ps = [values[1], values[2]]
                 corr_p_value = values[10]  # Dunn-Sidak corrected p-value
 
-                loc_line = values[12:]    # Breakpoint locations
-                for loc in loc_line:
+                for loc in values[12:]:  # Breakpoint locations
                     parts = loc.split(' & ')
                     # Take the widest interval 3Seq returns
                     start_pos = parts[0].split('-')

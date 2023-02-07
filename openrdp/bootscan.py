@@ -11,8 +11,9 @@ from .common import jc_distance, generate_triplets, Triplet
 
 
 class Bootscan:
-    def __init__(self, alignment, win_size=200, step_size=20, use_distances=True, num_replicates=100,
-                 random_seed=3, cutoff=0.7, model='JC69', quiet=False, max_pvalue=0.05, settings=None,):
+    def __init__(self, alignment, win_size=200, step_size=20, use_distances=True,
+                 num_replicates=100, random_seed=3, cutoff=0.7, model='JC69',
+                 quiet=False, max_pvalue=0.05, settings=None):
         if settings:
             self.set_options_from_config(settings)
             self.validate_options(alignment)
@@ -40,6 +41,7 @@ class Bootscan:
 
         self.raw_results = []
         self.results = []
+        self.name = 'bootscan'
         self.seq_names = None
         self.total_triplet_combinations = 0
 

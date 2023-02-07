@@ -1,4 +1,3 @@
-#import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
@@ -6,11 +5,11 @@ from scipy.signal import find_peaks
 from .common import calculate_chi2, identify_recombinant
 
 
-class MaxChi:
+class Chimaera:
     def __init__(self, align, max_pvalue=0.05, win_size=200, strip_gaps=True, fixed_win_size=True,
-                 num_var_sites=None, frac_var_sites=None, settings=None):
+                 num_var_sites=None, frac_var_sites=None, settings=None, quiet=False):
         """
-        Constructs a MaxChi Object
+        Constructs a Chimaera Object
         :param win_size: Size of the sliding window
         :param strip_gaps: Determines whether gaps are stripped or kept
         :param fixed_win_size: Determines the type of sliding window (fixed or variable)
@@ -20,23 +19,22 @@ class MaxChi:
         if settings:
             self.set_options_from_config(settings)
             self.validate_options(align)
-
         else:
-            self.align = align
-            self.raw_results = {}
             self.max_pvalue = max_pvalue
-            self.fixed_win_size = win_size
+            self.win_size = win_size
             self.strip_gaps = strip_gaps
-            self.fixed_win = fixed_win_size
+            self.fixed_win_size = fixed_win_size
             self.num_var_sites = num_var_sites
             self.frac_var_sites = frac_var_sites
 
+        self.align = align
         self.raw_results = []
         self.results = []
+        self.name = 'chimaera'
 
     def set_options_from_config(self, settings):
         """
-        Set the parameters of MaxChi from the config file
+        Set the parameters of Chimaera from the config file
         :param settings: a dictionary of settings
         """
         self.win_size = abs(int(settings['win_size']))
@@ -64,59 +62,52 @@ class MaxChi:
             print("Invalid option for 'win_size'.\nUsing default value (200) instead.")
             self.win_size = 200
 
-        if self.num_var_sites < 0:
-            print("Invalid option for 'num_var_sites'.\nUsing default value (70) instead.")
-            self.num_var_sites = 70
+        if not self.fixed_win_size:
+            if self.num_var_sites < 0:
+                print("Invalid option for 'num_var_sites'.\nUsing default value (60) instead.")
+                self.num_var_sites = 60
 
-        if self.frac_var_sites > 1 or self.frac_var_sites < 0:
-            print("Invalid option for 'frac_var_sites'.\nUsing default value (0.1) instead.")
-            self.frac_var_sites = 0.1
+            if self.frac_var_sites > 1 or self.frac_var_sites < 0:
+                print("Invalid option for 'frac_var_sites'.\nUsing default value (0.1) instead.")
+                self.frac_var_sites = 0.1
 
     @staticmethod
-    def get_window_positions(seq1, seq2, k, win_size):
+    def get_window_positions(comp_seq, k, win_size):
         """
         Get the left and right half of the window
-        :param seq1: the first sequence
-        :param seq2: the second sequence
+        :param comp_seq: the compressed recombinant sequence
         :param k: the offset for the window
         :param win_size: the size of the window
         :return: the left and right regions on either side of the partition
         """
         half_win_size = int(win_size // 2)
-        reg1_left = seq1[k: half_win_size + k]
-        reg2_left = seq2[k: half_win_size + k]
-        reg1_right = seq1[k + half_win_size: k + win_size]
-        reg2_right = seq2[k + half_win_size: k + win_size]
+        reg_left = comp_seq[k: half_win_size + k]
+        reg_right = comp_seq[k + half_win_size: k + win_size]
 
-        reg1 = seq1[k: k + win_size]
-        reg2 = seq2[k: k + win_size]
-
-        return reg1_left, reg2_left, reg1_right, reg2_right, reg1, reg2
+        return reg_left, reg_right
 
     @staticmethod
-    def compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left, half_win_size):
+    def compute_contingency_table(reg_left, reg_right, half_win_size):
         """
         Calculate the number of variable sites on either side of the partition
-        :param reg1_right: the right half of the window from the first sequence
-        :param reg2_right: the left half of the window from the second sequence
-        :param reg1_left: the left half of the window from the first sequence
-        :param reg2_left: the left half of the window from the second sequence
+        :param reg_right: the right half of the window
+        :param reg_left: the left half of the window
         :param half_win_size: half the width of the window
         :return: the contingency table
         """
-        # Record the totals for the rows and columns
+
         c_table = [[0, 0, 0],
                    [0, 0, 0],
                    [0, 0, 0]]
 
         # Compute contingency table for each window position
-        r_matches = np.sum((reg1_right == reg2_right))
-        c_table[0][0] = int(r_matches)
-        c_table[0][1] = half_win_size - r_matches
+        count_r_ones = np.count_nonzero(reg_right)
+        c_table[0][0] = count_r_ones
+        c_table[0][1] = abs(half_win_size - count_r_ones)
 
-        l_matches = np.sum((reg1_left == reg2_left))
-        c_table[1][0] = int(l_matches)
-        c_table[1][1] = half_win_size - l_matches
+        count_l_ones = np.count_nonzero(reg_left)
+        c_table[1][0] = count_l_ones
+        c_table[1][1] = abs(half_win_size - count_l_ones)
 
         # Sum the rows and columns
         c_table[0][2] = c_table[0][0] + c_table[0][1]
@@ -127,52 +118,77 @@ class MaxChi:
 
         return c_table
 
+    @staticmethod
+    def compress_triplet_aln(new_aln):
+        """
+        Compress the sequences into a string of 0s and 1s where:
+            "1" represents a match between the "recombinant" (the first sequence in the alignment) and parent A
+            "0" represents a match between the "recombinant" and parent B
+        Since the alignment consists only of informative sites, the "recombinant" must match either parent A or parent B
+        :param new_aln: alignment containing only informative sites
+            The first sequence is the "recombinant", the second is parent A, and the third is parent B
+        :return: a bitstring that represents the alignment
+        """
+        comp_seq = []
+        for i in range(new_aln.shape[1]):
+            if new_aln[0][i] == new_aln[1][i]:
+                comp_seq.append(0)
+            elif new_aln[0][i] == new_aln[2][i]:
+                comp_seq.append(1)
+        return comp_seq
+
     def execute(self, triplet):
         """
-        Executes the MaxChi algorithm
-        :param triplet: a triplet object
+        Executes the Chimaera algorithm
+        :param triplets: a triplet object
         """
-
-        # 1. Sample two sequences
-        pairs = ((0, 1), (1, 2), (2, 0))
-        for i, j in pairs:
-            seq1 = triplet.sequences[i]
-            seq2 = triplet.sequences[j]
+        # Try every possible combination of "parentals" and "recombinant"
+        combos = [(0, 1, 2), (1, 2, 0), (2, 1, 0)]
+        for run in combos:
 
             # Initialize lists to map chi2 and p-values to window positions
-            chi2_values = np.zeros(triplet.sequences.shape[1])
-            p_values = np.ones(triplet.sequences.shape[1])  # Map window position to p-values
+            chi2_values = np.zeros(self.align.shape[1])
+            p_values = np.ones(self.align.shape[1])  # Map window position to p-values
+
+            # Build new alignment with uninformative sites removed
+            # Uninformative sites where neither parental matches recombinant
+            new_aln = triplet.sequences[:, triplet.info_sites]
+
+            # Rearrange the new alignment to try every possible combination of "parentals" and "recombinant"
+            new_aln = np.array([new_aln[run[0]], new_aln[run[1]], new_aln[run[2]]])
+
+            # Compress into a bitstring
+            comp_seq = self.compress_triplet_aln(new_aln)
 
             # Get the size of the first window
             win_size = triplet.get_win_size(0, self.win_size, self.fixed_win_size, self.num_var_sites,
                                             self.frac_var_sites)
 
+            # Move sliding window along compressed sequence, 1 position at a time
             # Slide along the sequences
             half_win_size = int(win_size // 2)
-            for k in range(triplet.poly_sites_align.shape[1] - win_size):
+            for k in range(len(comp_seq) - win_size):
+                reg_left, reg_right = self.get_window_positions(comp_seq, k, win_size)
 
-                reg1_left, reg2_left, reg1_right, reg2_right, reg1, reg2 = self.get_window_positions(seq1, seq2,
-                                                                                                     k, win_size)
+                c_table = self.compute_contingency_table(reg_left, reg_right, half_win_size)
 
-                s = np.sum(reg1 != reg2)
-                r = np.sum(reg1_left != reg2_left)
-
-                c_table = self.compute_contingency_table(reg1_right, reg2_right,
-                                                         reg1_left, reg2_left, half_win_size)
-
+                # Using notation from Maynard Smith (1992)
                 n = self.win_size
                 k2 = half_win_size
+                s = np.sum(reg_left == reg_right)
+                r = np.sum(reg_left != reg_right)
 
-                if (float(k2 * s) * (n - k2) * (n - s)) == 0:
-                    continue
-                else:
+                # Avoid dividing by 0 (both "parental" sequences are identical in the window)
+                if s > 0:
                     cur_val = (float(n) * (k2 * s - n * r) * (k2 * s - n * r)) / (float(k2 * s) * (n - k2) * (n - s))
+                else:
+                    cur_val = -1
 
                 # Compute chi-squared value
                 chi2, p_value = calculate_chi2(c_table, self.max_pvalue)
                 if chi2 is not None and p_value is not None:
                     # Insert p-values and chi2 values so they correspond to positions in the original alignment
-                    chi2_values[triplet.poly_sites[k + half_win_size]] = cur_val  # centred window
+                    chi2_values[triplet.poly_sites[k + half_win_size]] = chi2  # centred window
                     p_values[triplet.poly_sites[k + half_win_size]] = p_value
 
                 win_size = triplet.get_win_size(k, self.win_size, self.fixed_win_size, self.num_var_sites,
@@ -180,9 +196,8 @@ class MaxChi:
 
             # Smooth chi2-values
             chi2_values = gaussian_filter1d(chi2_values, 1.5)
-            # p_values = gaussian_filter1d(p_values, 1.5)
-            # self.plot_chi2_values(chi2_values, p_values)
 
+            # Locate "peaks" in chi2 values as "peaks" represent potential breakpoints
             peaks = find_peaks(chi2_values, distance=self.win_size)
             for k, peak in enumerate(peaks[0]):
                 search_win_size = 1
@@ -193,29 +208,21 @@ class MaxChi:
                     search_win_size += 1
 
                 if chi2_values[peak + search_win_size] > chi2_values[peak - search_win_size]:
-                    aln_pos = (int(peak), int(peak + search_win_size + win_size))
+                    aln_pos = (int(peak), int(peak + search_win_size + self.win_size))
                 else:
-                    aln_pos = (int(peak - search_win_size), int(peak + win_size))
+                    aln_pos = (int(peak - search_win_size), int(peak + self.win_size))
 
+                # Check that breakpoint has not already been detected
                 rec_name, parents = identify_recombinant(triplet, aln_pos)
-                if (rec_name, parents, *aln_pos) not in self.raw_results and p_values[peak] != 1.0 and p_values[
-                    peak] != 0.0:
+                if (rec_name, parents, *aln_pos) not in self.raw_results and p_values[peak] != 1.0 and p_values[peak] != 0.0:
                     self.raw_results.append((rec_name, parents, *aln_pos, p_values[peak]))
 
         return
 
-    @staticmethod
-    def plot_chi2_values(chi_values, p_values):
-        plt.figure()
-        p = -np.log(p_values)
-        plt.plot(chi_values)
-        plt.plot(p)
-        plt.show()
-
     def merge_breakpoints(self):
         """
         Merge overlapping breakpoint locations
-        :return: list of breakpoint locations where overlapping intervals are merged
+        :return: list of breakpoint locations, where overlapping regions are merged
         """
         results_dict = {}
         results = []
@@ -243,7 +250,7 @@ class MaxChi:
                     start2 = region2[0]
                     end2 = region2[1]
                     if start <= start2 <= end or start <= end2 <= end:
-                        region[0] = min(start, start2)
+                        region[0] = min(start,start2)
                         region[1] = max(end, end2)
                         results_dict[key].remove(region2)
                 merged_regions.append(region)

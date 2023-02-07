@@ -3,8 +3,8 @@ import os
 import configparser
 import numpy as np
 from itertools import combinations
+from glob import glob
 
-from openrdp import __path__ as basepath
 from openrdp.bootscan import Bootscan
 from openrdp.chimaera import Chimaera
 from openrdp.common import generate_triplets, Triplet
@@ -38,7 +38,7 @@ class ScanResults:
         Return CSV-formatted string suitable for writing to a file
         :param outfile:  file to write output
         """
-        outfile.write('Method,StartLocation,EndLocation,Recombinant,Parent1,Parent2,Pvalue\n')
+        outfile.write('Method,Start,End,Recombinant,Parent1,Parent2,Pvalue\n')
         for method, events in self.dict.items():
             for e in events:
                 if method == 'geneconv':
@@ -48,19 +48,19 @@ class ScanResults:
 
     def __str__(self):
         """ Print results to console """
-        outstr = '\n{:<20} {:<20} {:<20} {:<20} {:<20} {:<20} {:<20}\n'.format(
-            'Method', 'StartLocation', 'EndLocation', 'Recombinant',
-            'Parent1', 'Parent2', 'Pvalue')
+        outstr = '\n' + '\t'.join([
+            'Method  ', 'Start', 'End', 'Recombinant', 'Parent1', 'Parent2',
+            'Pvalue']) + '\n' + '-'*72 + '\n'
 
         for method, events in self.dict.items():
             key = aliases[method]['key']
             for e in events:
                 if method == 'geneconv':
-                    outstr += f"{key:<20} {e[2][0]:<20} {e[2][1]:<20} {e[0]:<20} " \
-                              f"{e[1][0]:<20} {e[1][1]:<20} {e[3]:<20}\n"
+                    outstr += f"{key:<8}\t{e[2][0]}\t{e[2][1]}\t{e[0]:<11}\t" \
+                              f"{e[1][0]:<7}\t{e[1][1]:<7}\t{float(e[3]):.2E}\n"
                 else:
-                    outstr += f"{key:<20} {e[2]:<20} {e[3]:<20} {e[0]:<20} " \
-                              f"{e[1][0]:<20} {e[1][1]:<20} {e[4]:<20}\n"
+                    outstr += f"{key:<8}\t{e[2]}\t{e[3]}\t{e[0]:<11}\t" \
+                              f"{e[1][0]:<7}\t{e[1][1]:<7}\t{float(e[4]):.2E}\n"
         return outstr
 
 
@@ -82,6 +82,7 @@ class Scanner:
         self.config = None
         self.cfg_file = cfg
         if self.cfg_file:
+            print(f"Loading configuration from {cfg}")
             self.config = configparser.ConfigParser()
             self.config.read(self.cfg_file)
 
@@ -167,32 +168,44 @@ class Scanner:
         if len(check) == 0:
             return results
 
-        tmethods = []
+        tmethods = {}
         for alias, a in aliases.items():
-            if alias in ['threeseq', 'geneconv']:
+            if alias in ['threeseq', 'geneconv'] or alias not in self.methods:
                 continue
 
             self.print(f"Setting up {alias} analysis...")
             if self.config:
                 settings = dict(self.config.items(a['key']))
-                tmethods.append(a['method'](alignment, settings=settings, quiet=self.quiet))
+                tmethod = a['method'](alignment, settings=settings, quiet=self.quiet)
             else:
-                tmethods.append(a['method'](alignment, quiet=self.quiet))
+                tmethod = a['method'](alignment, quiet=self.quiet)
+            tmethods.update({alias: tmethod})
 
         # iterate over all triplets in the alignment
-        trp_count = 1
         total_num_trps = sum(1 for _ in combinations(range(alignment.shape[0]), 3))
+
+        if 'bootscan' in tmethods:
+            bootscan = tmethods['bootscan']
+            bootscan.execute_all(total_combinations=total_num_trps, seq_names=self.seq_names)
+
+        trp_count = 1
         for trp in generate_triplets(alignment):
             triplet = Triplet(alignment, self.seq_names, trp)
             self.print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
             trp_count += 1
-            for tmethod in tmethods:
+            for alias, tmethod in tmethods.items():
+                if alias == 'bootscan':
+                    continue
                 tmethod.execute(triplet)
 
         # Process results by joining breakpoint locations that overlap
-        for tmethod in tmethods:
-            results.dict[tmethod.name] = tmethod.merge_breakpoints()
+        for alias, tmethod in tmethods.items():
+            results.dict[alias] = tmethod.merge_breakpoints()
 
+        # clean up hd5 files - FIXME: better to use tempfile
+        for file in glob("*.h5"):
+            if os.path.exists(file):
+                os.remove(file)
         return results
 
 

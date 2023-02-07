@@ -15,7 +15,7 @@ if __name__ == "__main__":
     parser.add_argument('infile',
                         help='File containing sequence alignment (FASTA or CLUSTAL) format')
     parser.add_argument('outfile', help='Path to the output file')
-    parser.add_argument('-c', '--cfg',
+    parser.add_argument('-c', '--cfg', type=str,
                         help='Path to file that contains parameters.  Defaults to '
                              'default_config.ini.',
                         default=os.path.join(openrdp.__path__[0],

@@ -1,12 +1,13 @@
 import copy
 import multiprocessing
 import random
-from itertools import combinations
+import os
+import h5py
+import glob
 
 import numpy as np
-from scipy.spatial.distance import pdist, squareform
-
-from .common import jc_distance
+from scipy.spatial.distance import pdist
+from .common import jc_distance, generate_triplets, Triplet
 
 
 class Bootscan:
@@ -25,19 +26,24 @@ class Bootscan:
             self.cutoff = cutoff
             self.model = model
             self.max_pvalue = max_pvalue
+            self.np = os.cpu_count()
 
         self.align = alignment
         random.seed(self.random_seed)
         np.random.seed(self.random_seed)
         if not quiet:
             print('Starting Scanning Phase of Bootscan/Recscan')
-        self.dists = self.do_scanning_phase(alignment)
+
+        self.do_scanning_phase(alignment)
+
         if not quiet:
             print('Finished Scanning Phase of Bootscan/Recscan')
 
         self.raw_results = []
         self.results = []
         self.name = 'bootscan'
+        self.seq_names = None
+        self.total_triplet_combinations = 0
 
     def set_options_from_config(self, settings):
         """
@@ -50,6 +56,7 @@ class Bootscan:
         self.num_replicates = int(settings['num_replicates'])
         self.random_seed = int(settings['random_seed'])
         self.cutoff = float(settings['cutoff_percentage'])
+        self.np = int(settings['np'])
 
         if settings['scan'] == 'distances':
             self.use_distances = True
@@ -111,56 +118,86 @@ class Bootscan:
     def scan(self, i):
         window = self.align[:, i:i + self.win_size]
         # Make bootstrap replicates of alignment
-        dists = []
+        num_arrays = self.num_replicates
+        array_shape = ((self.align.shape[0] - 1) * (self.align.shape[0]) //2,)
+        dists = np.empty((num_arrays,) + array_shape, dtype=np.float16)
         np.random.seed(self.random_seed)
         random.seed(self.random_seed)
         for rep in range(self.num_replicates):
             # Shuffle columns with replacement
             rep_window = window[:, np.random.randint(0, window.shape[1], window.shape[1])]
-            dist_mat = squareform(pdist(rep_window, jc_distance))
+            dist_mat = pdist(rep_window, jc_distance)
+            dists[rep] = dist_mat
 
-            """
-            To be looked into for optimization
-            """
-            dists.append(dist_mat)
-
-        return dists
+        with h5py.File('dist_mat_{}.h5'.format(i//self.step_size), 'w') as f:
+            f.create_dataset('dist_mat_{}'.format(i//self.step_size), data=dists)
+    
+    def merge_h5py_files(self, src_file, dst_file):
+        with h5py.File(src_file, 'r') as src, h5py.File(dst_file, 'a') as dst:
+            src_items = list(src.items())
+            for name, obj in src_items:
+                dst.create_dataset(name, data=obj[()])
 
     def do_scanning_phase(self, align):
         """
         Perform scanning phase of the Bootscan/Recscan algorithm
         :param align: a n x m array of aligned sequences
         """
-        with multiprocessing.Pool() as p:
-            all_dists = p.map(self.scan, range(0, align.shape[1], self.step_size))
-        return all_dists
 
-    def execute(self, triplet):
+        # Remove previous .h5 files
+        h5_files = glob.glob('*.h5')
+        for file in h5_files:
+            if os.path.exists(file):
+                os.remove(file)
+
+        with multiprocessing.Pool(self.np) as p:
+            p.map(self.scan, range(0, align.shape[1], self.step_size))
+
+        # Merge hdf5 files
+        for i in range(self.align.shape[1] // self.step_size):
+            self.merge_h5py_files('dist_mat_{}.h5'.format(i), 'dist_mat.h5')
+
+    def execute(self, arg):
         """
         Executes the exploratory version of the BOOTSCAN from RDP5 using the RECSCAN algorithm.
         :param triplet: a triplet object
         """
+        (i, trp) = arg
+        raw_results = []
+        triplet = Triplet(self.align, self.seq_names, trp)
+
+        print("Scanning triplet {} / {}".format(i, self.total_triplet_combinations))
 
         # Look at boostrap support for sequence pairs
-        ab_support = []
-        bc_support = []
-        ac_support = []
+        ab_support = [0] * (self.align.shape[1] // self.step_size)
+        bc_support = [0] * (self.align.shape[1] // self.step_size)
+        ac_support = [0] * (self.align.shape[1] // self.step_size)
 
-        """
-        To be looked into for optimization
-        """
-        for dists in self.dists:
+        f = h5py.File('dist_mat.h5', 'r')
+
+        for i in range(self.align.shape[1] // self.step_size):
             supports = []
-            for dist_mat in dists:
+            matrix = f['dist_mat_{}'.format(i)][:]
+            for rep in range(self.num_replicates):
+                dist_mat = matrix[rep]
                 # Access pairwise distances for each pair
-                ab_dist = dist_mat[triplet.idxs[0], triplet.idxs[1]]
-                bc_dist = dist_mat[triplet.idxs[1], triplet.idxs[2]]
-                ac_dist = dist_mat[triplet.idxs[0], triplet.idxs[2]]
+                ab_dist = dist_mat[int(triplet.idxs[0] * (self.align.shape[0] - 1) -
+                                       (triplet.idxs[0] * (triplet.idxs[0] - 1)) / 2 +
+                                       triplet.idxs[1] - triplet.idxs[0] - 1)]
+                bc_dist = dist_mat[int(triplet.idxs[1] * (self.align.shape[0] - 1) -
+                                       (triplet.idxs[1] * (triplet.idxs[1] - 1)) / 2 +
+                                       triplet.idxs[2] - triplet.idxs[1] - 1)]
+                ac_dist = dist_mat[int(triplet.idxs[0] * (self.align.shape[0] - 1) -
+                                       (triplet.idxs[0] * (triplet.idxs[0] - 1)) / 2 +
+                                       triplet.idxs[2] - triplet.idxs[0] - 1)]
+
                 supports.append(np.argmin([ab_dist, bc_dist, ac_dist]))
 
-            ab_support.append(np.sum(np.equal(supports, 0)) / self.num_replicates)
-            bc_support.append(np.sum(np.equal(supports, 1)) / self.num_replicates)
-            ac_support.append(np.sum(np.equal(supports, 2)) / self.num_replicates)
+            ab_support[i] = (np.sum(np.equal(supports, 0)) / self.num_replicates)
+            bc_support[i] = (np.sum(np.equal(supports, 1)) / self.num_replicates)
+            ac_support[i] = (np.sum(np.equal(supports, 2)) / self.num_replicates)
+
+        f.close()
 
         supports = np.array([ab_support, bc_support, ac_support])
         supports_max = np.argmax(supports, axis=0)
@@ -227,9 +264,17 @@ class Bootscan:
                             # rec_name = trp_names.pop(i)
                             rec_name = name
                             parents = tuple(trp_names[:i] + trp_names[i + 1:])
-                            self.raw_results.append((rec_name, parents, *event, val))
+                            raw_results.append((rec_name, parents, *event, val))
 
-        return
+        return raw_results
+
+    def execute_all(self, total_combinations, seq_names):
+        self.seq_names = seq_names
+        self.total_triplet_combinations = total_combinations
+        with multiprocessing.Pool(self.np) as p:
+            results = p.map(self.execute, enumerate(generate_triplets(self.align)))
+
+        self.raw_results = [l for res in results for l in res] 
 
     def merge_breakpoints(self):
         """

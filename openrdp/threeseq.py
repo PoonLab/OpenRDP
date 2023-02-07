@@ -65,14 +65,12 @@ class ThreeSeq:
         with open(out_path) as out_handle:
             out_handle.readline()  # skip first line
             for line in out_handle:
-                line = line.split(delimiter)
-                line = [l.strip() for l in line]
-                rec = line[0]
-                ps = [line[1], line[2]]
-                corr_p_value = line[10]  # Dunn-Sidak corrected p-value
+                values = [item.strip() for item in line.split(delimiter)]
+                rec = values[0]
+                ps = [values[1], values[2]]
+                corr_p_value = values[10]  # Dunn-Sidak corrected p-value
 
-                loc_line = line[12:]    # Breakpoint locations
-                for loc in loc_line:
+                for loc in values[12:]:  # Breakpoint locations:
                     parts = loc.split(' & ')
                     # Take the widest interval 3Seq returns
                     start_pos = parts[0].split('-')

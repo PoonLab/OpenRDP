@@ -22,89 +22,103 @@ For your convenience, we package these binaries along with their respective lice
 
 1. Clone the OpenRDP repository:
 ```console
-$ git clone https://github.com/PoonLab/OpenRDP
+git clone https://github.com/PoonLab/OpenRDP
 ```
-If you do not have `git` installed, you can [download a release]().
+If you do not have `git` installed, you can [download a release](https://github.com/PoonLab/OpenRDP/releases).
 
-2. Run the following commands to install OpenRDP
-```console
-$ cd OpenRDP
-$ sudo python3 setup.py install
+2. Switch into the package directory (`cd OpenRDP`) and run the installation script using either:
 ```
+sudo python3 setup.py install
+```
+if you have super-user privileges on the computer, or:
+```
+python3 setup.py install --user
+```
+to do a local (single user) install.
 
 ## Usage
 
-
 ### Command-line interface (CLI)
-OpenRDP takes two positional arguments:
 
-* `infile` a nucleotide alignment in `fasta` format
-* `outfile` the location where the output `csv` file will be written
-
-The recombination detection methods are specified as follows: 
-
-* `-threeseq` perform the 3Seq method
-* `-geneconv` perform the Geneconv method 
-* `-maxchi` perform the MaxChi method
-* `-chimaera` perform the Chimaera method
-* `-bootscan` perform the Bootscan/ Recscan method
-* `-siscan` perform the Siscan method
-* `-rdp` perform the RDP method 
-* `-all` run all 7 recombination detetcion methods
-
-To run OpenRDP with non-default parameters, use the `-cfg` option followed by the path to an [INI](https://docs.python.org/3/library/configparser.html#supported-ini-file-structure) configuration file (see `OpenRDP/openrdp/tests/test_cfg.ini` for an example).
-
-#### Example 
-To run an example of OpenRDP from the base of the respository, use the command: 
 ```console
-python3 -m openrdp ./openrdp/tests/test_neisseria.fasta ./test.csv -cfg ./openrdp/tests/test_cfg.ini -all
+art@Wernstrom OpenRDP % openrdp -h
+usage: openrdp [-h] [-o OUTFILE] [-c CFG] [-m  [...]] [-q] infile
+
+An open source implementation of RDP5.
+
+positional arguments:
+  infile                File containing sequence alignment (FASTA or CLUSTAL) format
+
+options:
+  -h, --help            show this help message and exit
+  -o OUTFILE, --outfile OUTFILE
+                        Path to write CSV output
+  -c CFG, --cfg CFG     Path to file that contains parameters. Defaults to
+                        default.ini.
+  -m  [ ...], --methods  [ ...]
+                        Space-delimited list of recombination methods to run.
+                        Permitted values are: {geneconv bootscan maxchi siscan
+                        chimaera threeseq rdp}. All methods are run if not specified.
+  -q, --quiet           Hide progress messages
 ```
-The results of the analysis will be written to a `csv` file called `test.csv`. 
 
-Open RDP will also output its progress, along with a table showing potential breakpoint locations
+
+The simplest command will run all seven recombination detection methods under the default settings, and prints the results to the console:
+```
+openrdp <input FASTA>
+```
+
+You can specify a different [configuration file](https://docs.python.org/3/library/configparser.html#supported-ini-file-structure) using the `-c` flag.  For example:
 ```console
+art@Wernstrom OpenRDP % openrdp -c tests/test_cfg.ini tests/test_neisseria.fasta
+Loading configuration from tests/test_cfg.ini
 Starting 3Seq Analysis
 Finished 3Seq Analysis
 Starting GENECONV Analysis
 Finished GENECONV Analysis
-Setting Up MaxChi Analysis
-Setting Up Chimaera Analysis
-Setting Up RDP Analysis
-Setting Up Bootscan Analysis
+Setting up bootscan analysis...
 Starting Scanning Phase of Bootscan/Recscan
 Finished Scanning Phase of Bootscan/Recscan
-Setting Up Siscan Analysis
+Setting up maxchi analysis...
+Setting up siscan analysis...
+Setting up chimaera analysis...
+Setting up rdp analysis...
+Scanning triplet 1 / 4
+Scanning triplet 0 / 4
+Scanning triplet 2 / 4
+Scanning triplet 3 / 4
 Scanning triplet 1 / 4
 Scanning triplet 2 / 4
 Scanning triplet 3 / 4
 Scanning triplet 4 / 4
 
-Method               StartLocation        EndLocation          Recombinant          Parent1              Parent2              Pvalue              
-3Seq                 202                  787                  X64869               X64860               X64866               5.982096e-10        
-3Seq                 181                  787                  X64866               X64869               X64873               5.294757e-06        
-Geneconv             1                    204                  X64866               X64869               -                    0.00002             
-Geneconv             151                  195                  X64860               X64869               -                    0.00210             
-Geneconv             203                  507                  X64860               X64866               -                    0.00829             
-Geneconv             539                  759                  X64860               X64866               -                    0.15378             
-Geneconv             151                  193                  X64873               -                    -                    0.02202             
-Geneconv             56                   170                  X64860               -                    -                    0.02728             
-Bootscan             760                  765                  X64860               X64866               X64869               0.06513627245570731 
-MaxChi               475                  518                  X64860               X64866               X64869               0.04042768199451279 
-MaxChi               475                  518                  X64860               X64866               X64873               0.04042768199451279 
-MaxChi               439                  482                  X64866               X64869               X64873               0.04042768199451279 
-Chimaera             243                  286                  X64860               X64866               X64869               0.0018132288986577026
-Chimaera             99                   142                  X64860               X64866               X64873               0.01174095674176845 
-Chimaera             176                  219                  X64860               X64869               X64873               0.0019834358538684586
-Chimaera             192                  235                  X64866               X64869               X64873               0.02047438504938101 
-RDP                  6                    504                  X64866               X64869               X64873               0.00011043309358570222
-RDP                  36                   481                  X64873               X64860               X64869               0.0012461747522432057
-Siscan               2                    45                   X64860               X64866               X64869               0.7671955899390717  
-Siscan               2                    45                   X64860               X64866               X64873               0.7589067184454023  
-Siscan               2                    45                   X64860               X64869               X64873               0.7639703544536595  
-Siscan               2                    45                   X64866               X64869               X64873               0.7639703544536595  
+Method          Start   End     Recombinant     Parent1 Parent2 Pvalue
+------------------------------------------------------------------------
+Geneconv        1       204     X64866          X64869  -       2.00E-05
+Geneconv        151     195     X64860          X64869  -       2.10E-03
+Geneconv        203     507     X64860          X64866  -       8.29E-03
+Geneconv        539     759     X64860          X64866  -       1.54E-01
+Geneconv        151     193     X64873          -       -       2.20E-02
+Geneconv        56      170     X64860          -       -       2.73E-02
+Bootscan        760     765     X64873          X64860  X64866  6.51E-02
+MaxChi          439     482     X64860          X64866  X64869  4.04E-02
+MaxChi          475     518     X64860          X64866  X64873  4.04E-02
+MaxChi          475     518     X64860          X64869  X64873  4.04E-02
+Siscan          2       45      X64860          X64866  X64869  7.64E-01
+Siscan          2       45      X64860          X64866  X64873  7.49E-01
+Siscan          2       45      X64860          X64869  X64873  7.64E-01
+Siscan          2       45      X64866          X64869  X64873  7.65E-01
+Chimaera        198     241     X64860          X64866  X64869  2.05E-02
+Chimaera        179     265     X64866          X64869  X64873  4.70E-03
+Chimaera        170     213     X64873          X64860  X64869  1.81E-03
+3Seq            202     787     X64869          X64860  X64866  5.98E-10
+3Seq            181     787     X64866          X64869  X64873  5.29E-06
+RDP             6       504     X64860          X64866  X64869  6.87E-07
+RDP             6       496     X64860          X64866  X64873  3.05E-02
+RDP             6       479     X64860          X64869  X64873  3.40E-02
+RDP             6       18      X64866          X64869  X64873  2.36E+01
 ```
 
-To suppress output console, use the `-quiet` option. 
 
 ### Using OpenRDP as a Python module 
 

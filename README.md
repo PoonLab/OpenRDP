@@ -122,55 +122,45 @@ RDP             6       18      X64866          X64869  X64873  2.36E+01
 
 ### Using OpenRDP as a Python module 
 
-Using the following steps, OpenRDP can be used as a Python module 
+OpenRDP can be used as a Python module - here is an example demonstrating some of the functionality:
 
-```console
-kaitlyn@boo-ubuntu:~/OpenRDP$ ipython
-Python 3.8.10 (default, Jun  2 2021, 10:49:15) 
-Type 'copyright', 'credits' or 'license' for more information
-IPython 7.18.1 -- An enhanced Interactive Python. Type '?' for help.
+```python
+>>> from openrdp import openrdp
+>>> results = openrdp("tests/test_neisseria.fasta", cfg="tests/test_cfg.ini")
+>>> results
+<openrdp.ScanResults object at 0x10dc651e0>
+>>> print(results)
 
-In [1]: from openrdp.main import openrdp
+Method          Start   End     Recombinant     Parent1 Parent2 Pvalue
+------------------------------------------------------------------------
+Geneconv        1       204     X64866          X64869  -       2.00E-05
+Geneconv        151     195     X64860          X64869  -       2.10E-03
+Geneconv        203     507     X64860          X64866  -       8.29E-03
+Geneconv        539     759     X64860          X64866  -       1.54E-01
+Geneconv        151     193     X64873          -       -       2.20E-02
+Geneconv        56      170     X64860          -       -       2.73E-02
+Bootscan        760     765     X64866          X64869  X64873  6.51E-02
+MaxChi          475     518     X64860          X64866  X64869  4.04E-02
+MaxChi          439     482     X64860          X64869  X64873  4.04E-02
+MaxChi          475     518     X64866          X64869  X64873  4.04E-02
+Siscan          2       45      X64860          X64866  X64869  7.66E-01
+Siscan          2       45      X64860          X64866  X64873  7.49E-01
+Siscan          2       45      X64860          X64869  X64873  7.69E-01
+Siscan          2       45      X64866          X64869  X64873  7.67E-01
+Chimaera        99      142     X64860          X64866  X64869  1.17E-02
+Chimaera        176     219     X64860          X64866  X64873  1.98E-03
+Chimaera        240     283     X64866          X64860  X64873  1.81E-02
+Chimaera        192     235     X64869          X64860  X64873  2.05E-02
+3Seq            202     787     X64869          X64860  X64866  5.98E-10
+3Seq            181     787     X64866          X64869  X64873  5.29E-06
+RDP             6       479     X64860          X64866  X64869  2.47E-06
+RDP             6       481     X64860          X64866  X64873  4.49E-03
+RDP             6       504     X64860          X64869  X64873  3.69E-03
+RDP             6       15      X64866          X64869  X64873  3.17E+01
 
-In [2]: openrdp('./openrdp/tests/test_neisseria.fasta', './test.csv', './openrdp/tests/test_cfg.ini')
-Starting 3Seq Analysis
-Finished 3Seq Analysis
-Starting GENECONV Analysis
-Finished GENECONV Analysis
-Setting Up MaxChi Analysis
-Setting Up Chimaera Analysis
-Setting Up RDP Analysis
-Setting Up Bootscan Analysis
-Starting Scanning Phase of Bootscan/Recscan
-Finished Scanning Phase of Bootscan/Recscan
-Setting Up Siscan Analysis
-Scanning triplet 1 / 4
-Scanning triplet 2 / 4
-Scanning triplet 3 / 4
-Scanning triplet 4 / 4
-
-Method               StartLocation        EndLocation          Recombinant          Parent1              Parent2              Pvalue              
-3Seq                 202                  787                  X64869               X64860               X64866               5.982096e-10        
-3Seq                 181                  787                  X64866               X64869               X64873               5.294757e-06        
-Geneconv             1                    204                  X64866               X64869               -                    0.00002             
-Geneconv             151                  195                  X64860               X64869               -                    0.00210             
-Geneconv             203                  507                  X64860               X64866               -                    0.00829             
-Geneconv             539                  759                  X64860               X64866               -                    0.15378             
-Geneconv             151                  193                  X64873               -                    -                    0.02202             
-Geneconv             56                   170                  X64860               -                    -                    0.02728             
-Bootscan             760                  765                  X64873               X64860               X64869               0.06513627245570731 
-MaxChi               439                  482                  X64860               X64866               X64869               0.04042768199451279 
-MaxChi               475                  518                  X64860               X64869               X64873               0.04042768199451279 
-MaxChi               475                  518                  X64866               X64869               X64873               0.04042768199451279 
-Chimaera             176                  219                  X64860               X64866               X64873               0.0019834358538684586
-Chimaera             192                  235                  X64869               X64860               X64866               0.02047438504938101 
-Chimaera             99                   142                  X64869               X64866               X64873               0.01174095674176845 
-Chimaera             243                  286                  X64873               X64860               X64869               0.0018132288986577026
-RDP                  6                    496                  X64860               X64869               X64873               0.000567470376377077
-RDP                  6                    479                  X64866               X64869               X64873               0.0007659780246283629
-Siscan               2                    45                   X64860               X64866               X64869               0.7593011319150192  
-Siscan               2                    45                   X64860               X64866               X64873               0.7646778896282416  
-Siscan               2                    45                   X64860               X64869               X64873               0.7663004734577327  
-Siscan               2                    45                   X64866               X64869               X64873               0.7677102603374792  
+>>> list(results.keys())
+['geneconv', 'bootscan', 'maxchi', 'siscan', 'chimaera', 'threeseq', 'rdp']
+>>> results["geneconv"]
+[{'start': 1, 'end': 204, 'recombinant': 'X64866', 'parent1': 'X64869', 'parent2': '-', 'pvalue': 2e-05}, {'start': 151, 'end': 195, 'recombinant': 'X64860', 'parent1': 'X64869', 'parent2': '-', 'pvalue': 0.0021}, {'start': 203, 'end': 507, 'recombinant': 'X64860', 'parent1': 'X64866', 'parent2': '-', 'pvalue': 0.00829}, {'start': 539, 'end': 759, 'recombinant': 'X64860', 'parent1': 'X64866', 'parent2': '-', 'pvalue': 0.15378}, {'start': 151, 'end': 193, 'recombinant': 'X64873', 'parent1': '-', 'parent2': '-', 'pvalue': 0.02202}, {'start': 56, 'end': 170, 'recombinant': 'X64860', 'parent1': '-', 'parent2': '-', 'pvalue': 0.02728}]
 ```
 

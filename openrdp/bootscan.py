@@ -31,12 +31,13 @@ class Bootscan:
         self.align = alignment
         random.seed(self.random_seed)
         np.random.seed(self.random_seed)
-        if not quiet:
+
+        self.quiet = quiet
+        if not self.quiet:
             print('Starting Scanning Phase of Bootscan/Recscan')
 
         self.do_scanning_phase(alignment)
-
-        if not quiet:
+        if not self.quiet:
             print('Finished Scanning Phase of Bootscan/Recscan')
 
         self.raw_results = []
@@ -166,7 +167,8 @@ class Bootscan:
         raw_results = []
         triplet = Triplet(self.align, self.seq_names, trp)
 
-        print("Scanning triplet {} / {}".format(i, self.total_triplet_combinations))
+        if not self.quiet:
+            print("Scanning triplet {} / {}".format(i, self.total_triplet_combinations))
 
         # Look at boostrap support for sequence pairs
         ab_support = [0] * (self.align.shape[1] // self.step_size)

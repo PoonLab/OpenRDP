@@ -5,6 +5,7 @@ import numpy as np
 from itertools import combinations
 from glob import glob
 
+from openrdp import __path__ as basepath
 from openrdp.bootscan import Bootscan
 from openrdp.chimaera import Chimaera
 from openrdp.common import generate_triplets, Triplet
@@ -63,14 +64,27 @@ class ScanResults:
                               f"{e[1][0]:<7}\t{e[1][1]:<7}\t{float(e[4]):.2E}\n"
         return outstr
 
+    def __getitem__(self, key):
+        events = self.dict.get(key, None)
+        if key == 'geneconv':
+            return [{'start': e[2][0], 'end': e[2][1], 'recombinant': e[0],
+                     'parent1': e[1][0], 'parent2': e[1][1], 'pvalue': float(e[3])}
+                    for e in events]
+        else:
+            return [{'start': e[2], 'end': e[3], 'recombinant': e[0],
+                     'parent1': e[1][0], 'parent2': e[1][1], 'pvalue': float(e[4])}
+                    for e in events]
+
+    def keys(self):
+        return self.dict.keys()
+
 
 class Scanner:
-    def __init__(self, names, infile, outfile, cfg=None, methods=None,
+    def __init__(self, names, infile, cfg=None, methods=None,
                  quiet=False):
         """
         :param names:  list, sequence labels
         :param infile:  str, path to input FASTA
-        :param outfile:  str, path to write output CSV
         :param cfg:  str, path to configuration file.  Defaults to None, causing
                      each method to use default settings.
         :param methods:  tuple, names of methods to run
@@ -78,17 +92,13 @@ class Scanner:
         """
         self.seq_names = names
         self.infile = infile
-
-        self.config = None
-        self.cfg_file = cfg
-        if self.cfg_file:
-            print(f"Loading configuration from {cfg}")
-            self.config = configparser.ConfigParser()
-            self.config.read(self.cfg_file)
-
         self.methods = methods
         self.quiet = quiet
-        self.outfile = outfile
+
+        self.config = configparser.ConfigParser()
+        self.cfg_file = cfg
+        self.print(f"Loading configuration from {self.cfg_file}")
+        self.config.read(self.cfg_file)
 
     def print(self, msg):
         """ Implements self.quiet """
@@ -277,11 +287,10 @@ def read_fasta(handle):
     return headers, seqs
 
 
-def openrdp(infile, outfile, cfg=None, methods=None, quiet=False):
+def openrdp(infile, cfg=None, methods=None, quiet=True):
     """
     Main function
     :param infile:  str, path to input FASTA file
-    :param outfile:  str, path to write output CSV
     :param methods:  list, names of methods to run
     :param quiet:  bool, if True, suppress console messages
     :return:  dict, results from each method
@@ -306,6 +315,10 @@ def openrdp(infile, outfile, cfg=None, methods=None, quiet=False):
     if not valid_alignment(aln) and not valid_chars(aln):
         sys.exit(1)
 
-    scanner = Scanner(names, infile, outfile, cfg=cfg, methods=methods, quiet=quiet)
+    if cfg is None:
+        # load default configuration from package file
+        cfg = os.path.join(basepath[0], 'default.ini')
+
+    scanner = Scanner(names, infile, cfg=cfg, methods=methods, quiet=quiet)
     results = scanner.run_scans(aln)
     return results

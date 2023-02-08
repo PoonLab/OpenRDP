@@ -4,6 +4,7 @@ import configparser
 import numpy as np
 from itertools import combinations
 from glob import glob
+from collections import OrderedDict
 
 from openrdp import __path__ as basepath
 from openrdp.bootscan import Bootscan
@@ -80,25 +81,35 @@ class ScanResults:
 
 
 class Scanner:
-    def __init__(self, names, infile, cfg=None, methods=None,
-                 quiet=False):
+    def __init__(self, cfg=None, methods=None, quiet=False):
         """
-        :param names:  list, sequence labels
-        :param infile:  str, path to input FASTA
         :param cfg:  str, path to configuration file.  Defaults to None, causing
                      each method to use default settings.
-        :param methods:  tuple, names of methods to run
+        :param methods:  tuple, names of methods to setup and run
         :param quiet:  bool, if True, suppress console messages
         """
-        self.seq_names = names
-        self.infile = infile
+        # Check that the OS is valid
+        sp = sys.platform
+        if sp not in ['win32', 'cygwin', 'darwin', 'linux']:
+            print(f"Error: binaries do not support {sp} - please contact "
+                  f"the developers at https://github.com/PoonLab/OpenRDP.")
+            sys.exit()
+
+        if methods is None:
+            methods = list(aliases.keys())
         self.methods = methods
         self.quiet = quiet
 
         self.config = configparser.ConfigParser()
         self.cfg_file = cfg
+        if self.cfg_file is None:
+            # load default configuration from package file
+            self.cfg_file = os.path.join(basepath[0], 'default.ini')
         self.print(f"Loading configuration from {self.cfg_file}")
         self.config.read(self.cfg_file)
+
+        self.seq_names = []
+        self.alignment = None  # np.array
 
     def print(self, msg):
         """ Implements self.quiet """
@@ -129,39 +140,64 @@ class Scanner:
                     continue
                 self.config[section][key] = str(usr[section][key])
 
-    def run_scans(self, aln):
-        """
-        Run the selected recombination detection analyses
-        :param aln:  list, sequences imported from FASTA file
-        """
-        aln = list(set(aln))  # Remove identical sequences
+    def import_data(self, infile):
+        """ import labels and sequences from FASTA file, do some QC """
+        if type(infile) == str and os.path.exists(infile):
+            in_handle = open(infile)
+        else:
+            print(f"Error: {infile} must be a file path (str) or stream (_io.TextIOWrapper)")
+            sys.exit()
 
-        # Check that sequences are of the same length
+        names, aln = self.read_fasta(in_handle)
+
+        # validate alignment
         seqlens = [len(s) for s in aln]
         if len(set(seqlens)) > 1:
-            print(f"ERROR: Sequences in input {self.infile} are not the same length!")
-            sys.exit()
+            print(f"Error: {infile} does not appear to contain a valid alignment!")
+            sys.exit(1)
 
-        # check that all sequences are the same length
-        seqlen = set([len(s) for s in aln])
-        if len(seqlen) > 1:
-            print("ERROR: The input sequences are different lengths!  Input must be aligned.")
-            sys.exit()
+        # Remove identical sequences
+        unique = OrderedDict()  # remembers order that entries were added
+        for label, seq in zip(names, aln):
+            if seq not in unique:
+                # validate sequence
+                charset = set(seq)
+                invalid = charset.difference(DNA_ALPHABET)
+                if invalid:
+                    print(f"Alignment contains invalid characters {''.join(invalid)}.")
+                    print(f"Sequences can only contain {','.join(DNA_ALPHABET)}.")
+                    sys.exit(1)
+                unique.update({seq: []})
+            unique[seq].append(label)
+
+        new_aln = []
+        self.seq_names = []
+        for seq, labels in unique.items():
+            self.seq_names.append(labels[0])
+            if len(labels) > 1:
+                for label in labels[1:]:
+                    self.print(f"{label} is a duplicate of {labels[0]}")
+            new_aln.append(seq)
 
         # Create an m x n array of sequences
-        alignment = np.array(list(map(list, aln)))
+        self.alignment = np.array(list(map(list, new_aln)))
 
+
+    def run_scans(self, infile):
+        """
+        Run the selected recombination detection analyses
+        :param infile:  str, path to input FASTA file
+        """
         # prepare return value
         results = ScanResults(dict([(method, {}) for method in aliases.keys()]))
 
-        # Run 3Seq
+        # Run methods with external binaries
         if 'threeseq' in self.methods:
-            three_seq = ThreeSeq(self.infile)
+            three_seq = ThreeSeq(infile)
             self.print("Starting 3Seq Analysis")
             results.dict['threeseq'] = three_seq.execute()
             self.print("Finished 3Seq Analysis")
 
-        # Run GENECONV
         if 'geneconv' in self.methods:
             # Parse output file if available
             if self.config:
@@ -170,13 +206,16 @@ class Scanner:
                 geneconv = GeneConv()  # default config
 
             self.print("Starting GENECONV Analysis")
-            results.dict['geneconv'] = geneconv.execute(self.infile)
+            results.dict['geneconv'] = geneconv.execute(infile)
             self.print("Finished GENECONV Analysis")
 
         # Exit early if 3Seq and Geneconv are the only methods selected
         check = set(aliases.keys()).intersection(self.methods)
         if len(check) == 0:
             return results
+
+        # Run internal methods
+        self.import_data(infile)  # sets seq_names and alignment
 
         tmethods = {}
         for alias, a in aliases.items():
@@ -186,21 +225,21 @@ class Scanner:
             self.print(f"Setting up {alias} analysis...")
             if self.config:
                 settings = dict(self.config.items(a['key']))
-                tmethod = a['method'](alignment, settings=settings, quiet=self.quiet)
+                tmethod = a['method'](self.alignment, settings=settings, quiet=self.quiet)
             else:
-                tmethod = a['method'](alignment, quiet=self.quiet)
+                tmethod = a['method'](self.alignment, quiet=self.quiet)
             tmethods.update({alias: tmethod})
 
         # iterate over all triplets in the alignment
-        total_num_trps = sum(1 for _ in combinations(range(alignment.shape[0]), 3))
+        total_num_trps = sum(1 for _ in combinations(range(self.alignment.shape[0]), 3))
 
         if 'bootscan' in tmethods:
             bootscan = tmethods['bootscan']
             bootscan.execute_all(total_combinations=total_num_trps, seq_names=self.seq_names)
 
         trp_count = 1
-        for trp in generate_triplets(alignment):
-            triplet = Triplet(alignment, self.seq_names, trp)
+        for trp in generate_triplets(self.alignment):
+            triplet = Triplet(self.alignment, self.seq_names, trp)
             self.print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
             trp_count += 1
             for alias, tmethod in tmethods.items():
@@ -219,103 +258,42 @@ class Scanner:
         return results
 
 
-def valid_alignment(alignment):
-    """
-    Check that the input alignment is valid
-    :param alignment: a list of lists containing the sequence headers and the
-                      aligned sequences
-    :return True if the alignment is valid, false otherwise
-    """
-    aln_len = len(alignment[0])
-    for seq in alignment:
-        if len(seq) != aln_len:
-            print("Improper alignment! Not all alignments are the same length.")
-            return False
-    return True
+    def read_fasta(self, handle):
+        """
+        Converts a FASTA formatted file to a tuple containing a list of headers and sequences
+        :param handle: file stream for the FASTA file
+        :return: tuple of headers (list) and sequences (list)
+        """
+        headers, seqs = [], []
+        sequence, h = '', ''
 
+        # Verifies files have the correct formatting
+        found = False
+        for line in handle:
+            if line.startswith('>'):
+                found = True
+                break
+        if not found:
+            print(f"Error: Input {handle.name} does not appear to be in a FASTA format.")
+            sys.exit(1)
 
-def valid_chars(alignment):
-    """
-    Check that the alignment only contains valid characters
-    :param alignment: a list of lists containing the sequence headers and the
-                      aligned sequences
-    :return: True if the alignment contains only valid characters, False
-             otherwise
-    """
-    for s in alignment:
-        if not all(pos in DNA_ALPHABET for pos in s):
-            print("Alignment contains invalid characters.")
-            return False
-    return True
+        # Reset pointer to beginning of file
+        if hasattr(handle, 'seek'):
+            handle.seek(0)
 
+        for line in handle:
+            if line.startswith('>'):
+                if len(sequence) > 0:
+                    headers.append(h)
+                    seqs.append(sequence)
+                    sequence = ''
+                h = line.strip('>\t\n\r')
+            else:
+                sequence += line.strip('\n\r').upper()
 
-def read_fasta(handle):
-    """
-    Converts a FASTA formatted file to a tuple containing a list of headers and sequences
-    :param handle: file stream for the FASTA file
-    :return: tuple of headers (list) and sequences (list)
-    """
-    headers, seqs = [], []
-    sequence, h = '', ''
+        # Handle the last entry
+        seqs.append(sequence)
+        headers.append(h)
 
-    # Verifies files have the correct formatting
-    for i, line in enumerate(handle):
-        if line.startswith('>'):
-            break
-        else:
-            print("No header")
-            raise NameError
+        return headers, seqs
 
-    # Reset pointer to beginning of file
-    if hasattr(handle, 'seek'):
-        handle.seek(0)
-
-    for line in handle:
-        if line.startswith('>'):
-            if len(sequence) > 0:
-                headers.append(h)
-                seqs.append(sequence)
-                sequence = ''
-            h = line.strip('>\t\n\r')
-        else:
-            sequence += line.strip('\n\r').upper()
-
-    # Handle the last entry
-    seqs.append(sequence)
-    headers.append(h)
-
-    return headers, seqs
-
-
-def openrdp(infile, cfg=None, methods=None, quiet=True):
-    """
-    Main function
-    :param infile:  str, path to input FASTA file
-    :param methods:  list, names of methods to run
-    :param quiet:  bool, if True, suppress console messages
-    :return:  dict, results from each method
-    """
-    if methods is None:
-        methods = list(aliases.keys())
-
-    # Check that the OS is valid
-    platform = sys.platform
-    try:
-        platform.startswith("win") or platform.startswith("linux") or sys.platform == "darwin"
-    except OSError:
-        print("OSError: {} is not supported".format(sys.platform))
-
-    # import labels and sequences from FASTA file
-    with open(infile) as in_handle:
-        names, aln = read_fasta(in_handle)
-
-    if not valid_alignment(aln) and not valid_chars(aln):
-        sys.exit(1)
-
-    if cfg is None:
-        # load default configuration from package file
-        cfg = os.path.join(basepath[0], 'default.ini')
-
-    scanner = Scanner(names, infile, cfg=cfg, methods=methods, quiet=quiet)
-    results = scanner.run_scans(aln)
-    return results

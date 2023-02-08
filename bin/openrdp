@@ -37,8 +37,9 @@ if __name__ == "__main__":
     if args.methods is None:
         args.methods = all_methods  # run all methods by default
 
-    results = openrdp.openrdp(args.infile, cfg=args.cfg, methods=tuple(args.methods),
+    scanner = openrdp.Scanner(cfg=args.cfg, methods=tuple(args.methods),
                               quiet=args.quiet)
+    results = scanner.run_scans(args.infile)
     print(results)  # calls custom __str__
     if args.outfile:
         results.write(args.outfile)

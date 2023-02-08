@@ -305,9 +305,6 @@ def openrdp(infile, cfg=None, methods=None, quiet=True):
     except OSError:
         print("OSError: {} is not supported".format(sys.platform))
 
-    if not (infile.endswith('.fa') or infile.endswith('.fasta')):
-        print(f"Expected '.fa' or '.fasta' suffix for input FASTA {infile}, ignoring")
-
     # import labels and sequences from FASTA file
     with open(infile) as in_handle:
         names, aln = read_fasta(in_handle)

@@ -140,8 +140,12 @@ class Scanner:
                     continue
                 self.config[section][key] = str(usr[section][key])
 
-    def import_data(self, infile):
-        """ import labels and sequences from FASTA file, do some QC """
+    def _import_data(self, infile):
+        """
+        Import labels and sequences from FASTA file and do some quality control.
+        Stores sequences as a character matrix.
+        :param infile:  str or File, input FASTA
+        """
         if type(infile) == str and os.path.exists(infile):
             in_handle = open(infile)
         else:
@@ -182,7 +186,6 @@ class Scanner:
         # Create an m x n array of sequences
         self.alignment = np.array(list(map(list, new_aln)))
 
-
     def run_scans(self, infile):
         """
         Run the selected recombination detection analyses
@@ -215,7 +218,7 @@ class Scanner:
             return results
 
         # Run internal methods
-        self.import_data(infile)  # sets seq_names and alignment
+        self._import_data(infile)  # sets seq_names and alignment
 
         tmethods = {}
         for alias, a in aliases.items():

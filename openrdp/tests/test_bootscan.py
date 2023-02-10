@@ -1,64 +1,74 @@
 import configparser
 import os
 import unittest
-
+import sys
 import numpy as np
+import os
+from pathlib import Path
 
-from openrdp.main import read_fasta
-from openrdp.scripts.bootscan import Bootscan
-from openrdp.scripts.common import Triplet, generate_triplets
+from openrdp.tests.test_common import SHORT_INFILE, LONG_INFILE, HIV_INFILE
+from openrdp.bootscan import Bootscan
+from openrdp.common import Triplet, generate_triplets, read_fasta
 
+path = Path(__file__)
+root_dir = path.parent.absolute()
 
 class TestBootscan(unittest.TestCase):
-
     def setUp(self):
-        # Set up test example
+        # Set up short test fixtures
         config = configparser.ConfigParser()
         short_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_short.ini')
         config.read(short_cfg_path)
-        test_settings = dict(config.items('Bootscan'))
 
-        short_seq_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'short.fasta')
-        with open(short_seq_path) as small_test:
-            names, test_seqs = read_fasta(small_test)
-            self.short_align = np.array(list(map(list, test_seqs)))
-            self.test_short = Bootscan(self.short_align, names, settings=test_settings, quiet=True)
+        test_settings = dict(config.items('Bootscan'))
+        print(test_settings)
+
+        small_test = open(SHORT_INFILE)
+        names, test_seqs = read_fasta(small_test)
+        small_test.close()
+        self.short_align = np.array(list(map(list, test_seqs)))
+        self.test_short = Bootscan(self.short_align, names, settings=test_settings, quiet=True)
 
         self.short_triplets = []
         for trp in generate_triplets(self.short_align):
             self.short_triplets.append(Triplet(self.short_align, names, trp))
 
-        # Set up test example 2
+        # Set up long test fixtures
         config = configparser.ConfigParser()
         long_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_long.ini')
         config.read(long_cfg_path)
-        test_settings = dict(config.items('Bootscan'))
 
-        long_seq_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'long.fasta')
-        with open(long_seq_path) as test:
-            names, test_seqs = read_fasta(test)
-            self.long_align = np.array(list(map(list, test_seqs)))
-            self.test_long = Bootscan(self.long_align, names, settings=test_settings, quiet=True)
+        test_settings = dict(config.items('Bootscan'))
+        long_test = open(LONG_INFILE)
+        names, test_seqs = read_fasta(long_test)
+        self.long_align = np.array(list(map(list, test_seqs)))
+        self.test_long = Bootscan(self.long_align, names, settings=test_settings, quiet=True)
 
         self.long_triplets = []
         for trp in generate_triplets(self.long_align):
-            self.long_triplets.append(Triplet(self.long_align, names, trp))
+            self.long_triplets.append(
+                Triplet(self.long_align, names, trp)
+            )
 
-        # Set up HIV CRF07 test case
+        # Set up HIV test fixtures
         config = configparser.ConfigParser()
         hiv_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'default.ini')
         config.read(hiv_cfg_path)
-        settings = dict(config.items('Bootscan'))
 
-        hiv_seq_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'CRF_07_test.fasta')
-        with open(hiv_seq_path) as hiv_test:
-            names, crf07_seqs = read_fasta(hiv_test)
-            self.hiv_align = np.array(list(map(list, crf07_seqs)))
-            self.test_hiv = Bootscan(self.hiv_align, names, settings=settings, quiet=True)
+        test_settings = dict(config.items('Bootscan'))
+        hiv_test = open(HIV_INFILE)
+        names, test_seqs = read_fasta(hiv_test)
+        hiv_test.close()
+
+        self.hiv_align = np.array(list(map(list, test_seqs)))
+        self.test_hiv = Bootscan(self.hiv_align, names, settings=test_settings, quiet=True)
 
         self.hiv_triplets = []
         for trp in generate_triplets(self.hiv_align):
-            self.hiv_triplets.append(Triplet(self.hiv_align, names, trp))
+            self.hiv_triplets.append(
+                Triplet(self.hiv_align, names, trp)
+            )
+
 
     def test_set_and_validate_options(self):
         self.assertEqual(6, self.test_short.win_size)

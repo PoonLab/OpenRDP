@@ -9,7 +9,7 @@ from collections import OrderedDict
 from openrdp import __path__ as basepath
 from openrdp.bootscan import Bootscan
 from openrdp.chimaera import Chimaera
-from openrdp.common import generate_triplets, Triplet
+from openrdp.common import generate_triplets, Triplet, read_fasta
 from openrdp.geneconv import GeneConv
 from openrdp.maxchi import MaxChi
 from openrdp.rdp import RdpMethod
@@ -27,7 +27,7 @@ aliases = {
     'threeseq': {'key': "3Seq", 'method': ThreeSeq},
     'rdp': {'key': "RDP", 'method': RdpMethod}
 }
-DNA_ALPHABET = ['A', 'T', 'G', 'C', '-', '*']
+DNA_ALPHABET = ['A', 'T', 'G', 'C', '-', 'N']
 
 
 class ScanResults:
@@ -81,7 +81,7 @@ class ScanResults:
 
 
 class Scanner:
-    def __init__(self, cfg=None, methods=None, quiet=False):
+    def __init__(self, cfg=None, methods=None, quiet=True):
         """
         :param cfg:  str, path to configuration file.  Defaults to None, causing
                      each method to use default settings.
@@ -146,13 +146,11 @@ class Scanner:
         Stores sequences as a character matrix.
         :param infile:  str or File, input FASTA
         """
-        if type(infile) == str and os.path.exists(infile):
-            in_handle = open(infile)
-        else:
+        if type(infile) != str or not os.path.exists(infile):
             print(f"Error: {infile} must be a file path (str) or stream (_io.TextIOWrapper)")
-            sys.exit()
 
-        names, aln = self.read_fasta(in_handle)
+        with open(infile) as handle:
+            names, aln = read_fasta(handle)
 
         # validate alignment
         seqlens = [len(s) for s in aln]
@@ -261,42 +259,4 @@ class Scanner:
         return results
 
 
-    def read_fasta(self, handle):
-        """
-        Converts a FASTA formatted file to a tuple containing a list of headers and sequences
-        :param handle: file stream for the FASTA file
-        :return: tuple of headers (list) and sequences (list)
-        """
-        headers, seqs = [], []
-        sequence, h = '', ''
-
-        # Verifies files have the correct formatting
-        found = False
-        for line in handle:
-            if line.startswith('>'):
-                found = True
-                break
-        if not found:
-            print(f"Error: Input {handle.name} does not appear to be in a FASTA format.")
-            sys.exit(1)
-
-        # Reset pointer to beginning of file
-        if hasattr(handle, 'seek'):
-            handle.seek(0)
-
-        for line in handle:
-            if line.startswith('>'):
-                if len(sequence) > 0:
-                    headers.append(h)
-                    seqs.append(sequence)
-                    sequence = ''
-                h = line.strip('>\t\n\r')
-            else:
-                sequence += line.strip('\n\r').upper()
-
-        # Handle the last entry
-        seqs.append(sequence)
-        headers.append(h)
-
-        return headers, seqs
 

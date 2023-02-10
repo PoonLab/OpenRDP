@@ -81,7 +81,7 @@ class ScanResults:
 
 
 class Scanner:
-    def __init__(self, cfg=None, methods=None, quiet=False):
+    def __init__(self, cfg=None, methods=None, quiet=True):
         """
         :param cfg:  str, path to configuration file.  Defaults to None, causing
                      each method to use default settings.
@@ -259,7 +259,6 @@ class Scanner:
             if os.path.exists(file):
                 os.remove(file)
         return results
-
 
     def read_fasta(self, handle):
         """

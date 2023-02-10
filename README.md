@@ -122,13 +122,29 @@ RDP             6       18      X64866          X64869  X64873  2.36E+01
 
 ### Using OpenRDP as a Python module 
 
-OpenRDP can be used as a Python module - here is an example demonstrating some of the functionality:
-
+OpenRDP can be used as a Python module.  In a typical workflow, we would start by creating an instance of the object class `Scanner`:
 ```python
->>> from openrdp import openrdp
->>> results = openrdp("tests/test_neisseria.fasta", cfg="tests/test_cfg.ini")
->>> results
-<openrdp.ScanResults object at 0x10dc651e0>
+>>> from openrdp import Scanner
+>>> scanner = Scanner(cfg="tests/test_cfg.ini")
+```
+If we call `Scanner()` without any arguments, then it will use the default configuration file `default.ini`.
+
+We can retrieve and modify the configuration as a `dict` object:
+```python
+>>> cfg = scanner.get_config()
+>>> cfg
+{'Geneconv': {'indels_as_polymorphisms': False, 'mismatch_penalty': 1, 'min_len': 1, 'min_poly': 2, 'min_score': 2, 'max_num': 1}, 'MaxChi': {'max_pvalue': '0.05', 'win_size': 40, 'strip_gaps': False, 'fixed_win_size': True, 'num_var_sites': 70, 'frac_var_sites': '0.1'}, 'Chimaera': {'max_pvalue': '0.05', 'win_size': 40, 'strip_gaps': False, 'fixed_win_size': True, 'num_var_sites': 70, 'frac_var_sites': '0.1'}, 'RDP': {'max_pvalue': '0.05', 'reference_sequence': 'None', 'window_size': 40, 'min_identity': 0, 'max_identity': 100}, 'Bootscan': {'max_pvalue': '0.1', 'win_size': 20, 'step_size': 5, 'num_replicates': 100, 'random_seed': 3, 'cutoff_percentage': '0.7', 'scan': 'distances', 'np': 2}, 'Siscan': {'max_pvalue': '0.8', 'win_size': 40, 'step_size': 5, 'strip_gaps': True, 'pvalue_perm_num': 1100, 'scan_perm_num': 100, 'random_seed': 3}}
+>>> cfg["Siscan"]["win_size"] = 50
+>>> scanner.set_config(cfg)
+```
+
+Next, we use `Scanner` to process a FASTA file by passing the path string:
+```python
+>>> results = scanner.run_scans("tests/test_neisseria.fasta")
+```
+
+This returns a `ScanResults` object that has a customized `__str__` attribute:
+```python
 >>> print(results)
 
 Method          Start   End     Recombinant     Parent1 Parent2 Pvalue
@@ -139,28 +155,36 @@ Geneconv        203     507     X64860          X64866  -       8.29E-03
 Geneconv        539     759     X64860          X64866  -       1.54E-01
 Geneconv        151     193     X64873          -       -       2.20E-02
 Geneconv        56      170     X64860          -       -       2.73E-02
-Bootscan        760     765     X64866          X64869  X64873  6.51E-02
+Bootscan        760     765     X64866          X64860  X64869  6.51E-02
 MaxChi          475     518     X64860          X64866  X64869  4.04E-02
+MaxChi          475     518     X64860          X64866  X64873  4.04E-02
 MaxChi          439     482     X64860          X64869  X64873  4.04E-02
-MaxChi          475     518     X64866          X64869  X64873  4.04E-02
-Siscan          2       45      X64860          X64866  X64869  7.66E-01
-Siscan          2       45      X64860          X64866  X64873  7.49E-01
-Siscan          2       45      X64860          X64869  X64873  7.69E-01
-Siscan          2       45      X64866          X64869  X64873  7.67E-01
-Chimaera        99      142     X64860          X64866  X64869  1.17E-02
-Chimaera        176     219     X64860          X64866  X64873  1.98E-03
-Chimaera        240     283     X64866          X64860  X64873  1.81E-02
-Chimaera        192     235     X64869          X64860  X64873  2.05E-02
+Siscan          2       55      X64860          X64866  X64869  7.52E-01
+Siscan          2       55      X64860          X64866  X64873  7.67E-01
+Siscan          2       55      X64860          X64869  X64873  7.65E-01
+Siscan          2       55      X64866          X64869  X64873  7.65E-01
+Chimaera        198     241     X64860          X64869  X64873  2.05E-02
+Chimaera        170     213     X64866          X64860  X64873  1.81E-03
+Chimaera        178     221     X64866          X64869  X64873  1.17E-02
 3Seq            202     787     X64869          X64860  X64866  5.98E-10
 3Seq            181     787     X64866          X64869  X64873  5.29E-06
-RDP             6       479     X64860          X64866  X64869  2.47E-06
-RDP             6       481     X64860          X64866  X64873  4.49E-03
-RDP             6       504     X64860          X64869  X64873  3.69E-03
-RDP             6       15      X64866          X64869  X64873  3.17E+01
+RDP             6       15      X64860          X64866  X64869  3.11E+01
+RDP             6       504     X64860          X64869  X64873  5.51E-07
+RDP             36      481     X64866          X64869  X64873  1.89E-05
+```
 
->>> list(results.keys())
-['geneconv', 'bootscan', 'maxchi', 'siscan', 'chimaera', 'threeseq', 'rdp']
+You can also write the results to a file in a CSV format:
+```python
+>>> with open("results.csv", 'w') as outfile:
+...     results.write(outfile)
+... 
+```
+
+`ScanResults` mimics some functionality of a `dict` object, so you can directly access specific results:
+```python
+>>> results.keys()
+dict_keys(['geneconv', 'bootscan', 'maxchi', 'siscan', 'chimaera', 'threeseq', 'rdp'])
 >>> results["geneconv"]
 [{'start': 1, 'end': 204, 'recombinant': 'X64866', 'parent1': 'X64869', 'parent2': '-', 'pvalue': 2e-05}, {'start': 151, 'end': 195, 'recombinant': 'X64860', 'parent1': 'X64869', 'parent2': '-', 'pvalue': 0.0021}, {'start': 203, 'end': 507, 'recombinant': 'X64860', 'parent1': 'X64866', 'parent2': '-', 'pvalue': 0.00829}, {'start': 539, 'end': 759, 'recombinant': 'X64860', 'parent1': 'X64866', 'parent2': '-', 'pvalue': 0.15378}, {'start': 151, 'end': 193, 'recombinant': 'X64873', 'parent1': '-', 'parent2': '-', 'pvalue': 0.02202}, {'start': 56, 'end': 170, 'recombinant': 'X64860', 'parent1': '-', 'parent2': '-', 'pvalue': 0.02728}]
 ```
-
+To directly access the `dict` object, use `ScanResults.dict`.

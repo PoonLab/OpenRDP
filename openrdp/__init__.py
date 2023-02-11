@@ -1,3 +1,4 @@
+import _io
 import sys
 import os
 import configparser
@@ -146,11 +147,17 @@ class Scanner:
         Stores sequences as a character matrix.
         :param infile:  str or File, input FASTA
         """
-        if type(infile) != str or not os.path.exists(infile):
-            print(f"Error: {infile} must be a file path (str) or stream (_io.TextIOWrapper)")
-
-        with open(infile) as handle:
-            names, aln = read_fasta(handle)
+        if type(infile) == str:
+            if not os.path.exists(infile):
+                print(f"Error: No file found at path {infile}")
+                sys.exit(1)
+            with open(infile) as handle:
+                names, aln = read_fasta(handle)
+        elif hasattr(infile, "read"):
+            names, aln = read_fasta(infile)
+        else:
+            print(f"Error: Scanner.run_scans() must be called with a file path or File")
+            sys.exit(1)
 
         # validate alignment
         seqlens = [len(s) for s in aln]

@@ -13,23 +13,20 @@ def read_fasta(handle):
     :param handle: file stream for the FASTA file
     :return: tuple of headers (list) and sequences (list)
     """
+    # Verifies file have the correct formatting
+    if hasattr(handle, "seek"):
+        found = False
+        for line in handle:
+            if line.startswith('>'):
+                found = True
+                break
+        if not found:
+            print(f"Error: Input {handle.name} does not appear to be in a FASTA format.")
+            sys.exit(1)
+        handle.seek(0)  # Reset pointer to beginning of file
+
     headers, seqs = [], []
     sequence, h = '', ''
-
-    # Verifies files have the correct formatting
-    found = False
-    for line in handle:
-        if line.startswith('>'):
-            found = True
-            break
-    if not found:
-        print(f"Error: Input {handle.name} does not appear to be in a FASTA format.")
-        sys.exit(1)
-
-    # Reset pointer to beginning of file
-    if hasattr(handle, 'seek'):
-        handle.seek(0)
-
     for line in handle:
         if line.startswith('>'):
             if len(sequence) > 0:

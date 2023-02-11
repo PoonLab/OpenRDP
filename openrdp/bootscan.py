@@ -161,7 +161,7 @@ class Bootscan:
     def execute(self, arg):
         """
         Executes the exploratory version of the BOOTSCAN from RDP5 using the RECSCAN algorithm.
-        :param triplet: a triplet object
+        :param arg:  tuple, (index, Triplet) entries as generated from enumerate()
         """
         (i, trp) = arg
         raw_results = []

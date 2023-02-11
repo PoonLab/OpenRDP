@@ -4,6 +4,43 @@ import numpy as np
 from scipy.stats import chi2_contingency
 from scipy.stats import pearsonr
 import copy
+import sys
+
+
+def read_fasta(handle):
+    """
+    Converts a FASTA formatted file to a tuple containing a list of headers and sequences
+    :param handle: file stream for the FASTA file
+    :return: tuple of headers (list) and sequences (list)
+    """
+    # Verifies file have the correct formatting
+    if hasattr(handle, "seek"):
+        found = False
+        for line in handle:
+            if line.startswith('>'):
+                found = True
+                break
+        if not found:
+            print(f"Error: Input {handle.name} does not appear to be in a FASTA format.")
+            sys.exit(1)
+        handle.seek(0)  # Reset pointer to beginning of file
+
+    headers, seqs = [], []
+    sequence, h = '', ''
+    for line in handle:
+        if line.startswith('>'):
+            if len(sequence) > 0:
+                headers.append(h)
+                seqs.append(sequence)
+                sequence = ''
+            h = line.strip('>\t\n\r')
+        else:
+            sequence += line.strip('\n\r').upper()
+
+    # Handle the last entry
+    seqs.append(sequence)
+    headers.append(h)
+    return headers, seqs
 
 
 def generate_triplets(align):
@@ -119,7 +156,6 @@ def identify_recombinant(trp, aln_pos):
 
 
 class Triplet:
-
     def __init__(self, alignment, seq_names, trp_idxs):
         self.idxs = trp_idxs
         self.sequences = self.get_triplets(alignment)

@@ -71,7 +71,7 @@ openrdp <input FASTA>
 You can specify a different [configuration file](https://docs.python.org/3/library/configparser.html#supported-ini-file-structure) using the `-c` flag.  For example:
 ```console
 art@Wernstrom OpenRDP % openrdp -c tests/test_cfg.ini tests/test_neisseria.fasta
-Loading configuration from tests/test_cfg.ini
+Loading configuration from openrdp/tests/test_cfg.ini
 Starting 3Seq Analysis
 Finished 3Seq Analysis
 Starting GENECONV Analysis
@@ -127,9 +127,8 @@ OpenRDP can be used as a Python module.  In a typical workflow, we would start b
 >>> from openrdp import Scanner
 >>> scanner = Scanner(cfg="tests/test_cfg.ini")
 ```
-If we call `Scanner()` without any arguments, then it will use the default configuration file `default.ini`.
-
-We can retrieve and modify the configuration as a `dict` object:
+Calling an instance of Scanner with no arguments, *i.e.*, `Scanner()` loads the default package configuration file, `default.ini`.
+We can also extract the configuration and modify specific settings:
 ```python
 >>> cfg = scanner.get_config()
 >>> cfg
@@ -138,53 +137,53 @@ We can retrieve and modify the configuration as a `dict` object:
 >>> scanner.set_config(cfg)
 ```
 
-Next, we use `Scanner` to process a FASTA file by passing the path string:
+The Scanner object has a `run_scans` method that takes the input file path as its only argument:
 ```python
 >>> results = scanner.run_scans("tests/test_neisseria.fasta")
 ```
 
-This returns a `ScanResults` object that has a customized `__str__` attribute:
+Scanner returns an instance of the object class ScanResults, which has a custom `__str__` attribute:
 ```python
 >>> print(results)
-
-Method          Start   End     Recombinant     Parent1 Parent2 Pvalue
+Method  	Start	End	Recombinant	Parent1	Parent2	Pvalue
 ------------------------------------------------------------------------
-Geneconv        1       204     X64866          X64869  -       2.00E-05
-Geneconv        151     195     X64860          X64869  -       2.10E-03
-Geneconv        203     507     X64860          X64866  -       8.29E-03
-Geneconv        539     759     X64860          X64866  -       1.54E-01
-Geneconv        151     193     X64873          -       -       2.20E-02
-Geneconv        56      170     X64860          -       -       2.73E-02
-Bootscan        760     765     X64866          X64860  X64869  6.51E-02
-MaxChi          475     518     X64860          X64866  X64869  4.04E-02
-MaxChi          475     518     X64860          X64866  X64873  4.04E-02
-MaxChi          439     482     X64860          X64869  X64873  4.04E-02
-Siscan          2       55      X64860          X64866  X64869  7.52E-01
-Siscan          2       55      X64860          X64866  X64873  7.67E-01
-Siscan          2       55      X64860          X64869  X64873  7.65E-01
-Siscan          2       55      X64866          X64869  X64873  7.65E-01
-Chimaera        198     241     X64860          X64869  X64873  2.05E-02
-Chimaera        170     213     X64866          X64860  X64873  1.81E-03
-Chimaera        178     221     X64866          X64869  X64873  1.17E-02
-3Seq            202     787     X64869          X64860  X64866  5.98E-10
-3Seq            181     787     X64866          X64869  X64873  5.29E-06
-RDP             6       15      X64860          X64866  X64869  3.11E+01
-RDP             6       504     X64860          X64869  X64873  5.51E-07
-RDP             36      481     X64866          X64869  X64873  1.89E-05
+Geneconv	1	204	X64866     	X64869 	-      	2.00E-05
+Geneconv	151	195	X64860     	X64869 	-      	2.10E-03
+Geneconv	203	507	X64860     	X64866 	-      	8.29E-03
+Geneconv	539	759	X64860     	X64866 	-      	1.54E-01
+Geneconv	151	193	X64873     	-      	-      	2.20E-02
+Geneconv	56	170	X64860     	-      	-      	2.73E-02
+Bootscan	760	765	X64866     	X64860 	X64869 	6.51E-02
+MaxChi  	475	518	X64860     	X64866 	X64869 	4.04E-02
+MaxChi  	475	518	X64860     	X64866 	X64873 	4.04E-02
+MaxChi  	439	482	X64860     	X64869 	X64873 	4.04E-02
+Siscan  	2	55	X64860     	X64866 	X64869 	7.52E-01
+Siscan  	2	55	X64860     	X64866 	X64873 	7.67E-01
+Siscan  	2	55	X64860     	X64869 	X64873 	7.65E-01
+Siscan  	2	55	X64866     	X64869 	X64873 	7.65E-01
+Chimaera	198	241	X64860     	X64869 	X64873 	2.05E-02
+Chimaera	170	213	X64866     	X64860 	X64873 	1.81E-03
+Chimaera	178	221	X64866     	X64869 	X64873 	1.17E-02
+3Seq    	202	787	X64869     	X64860 	X64866 	5.98E-10
+3Seq    	181	787	X64866     	X64869 	X64873 	5.29E-06
+RDP     	6	15	X64860     	X64866 	X64869 	3.11E+01
+RDP     	6	504	X64860     	X64869 	X64873 	5.51E-07
+RDP     	36	481	X64866     	X64869 	X64873 	1.89E-05
 ```
 
-You can also write the results to a file in a CSV format:
+This object also has a method to write CSV-formatted results to a file:
 ```python
 >>> with open("results.csv", 'w') as outfile:
 ...     results.write(outfile)
-... 
+...
 ```
 
-`ScanResults` mimics some functionality of a `dict` object, so you can directly access specific results:
+A `ScanResults` object also behaves like a dictionary for accessing specific results, which are stored as a list of `dict` objects for each detection method:
 ```python
->>> results.keys()
-dict_keys(['geneconv', 'bootscan', 'maxchi', 'siscan', 'chimaera', 'threeseq', 'rdp'])
+>>> list(results.keys())
+['geneconv', 'bootscan', 'maxchi', 'siscan', 'chimaera', 'threeseq', 'rdp']
 >>> results["geneconv"]
 [{'start': 1, 'end': 204, 'recombinant': 'X64866', 'parent1': 'X64869', 'parent2': '-', 'pvalue': 2e-05}, {'start': 151, 'end': 195, 'recombinant': 'X64860', 'parent1': 'X64869', 'parent2': '-', 'pvalue': 0.0021}, {'start': 203, 'end': 507, 'recombinant': 'X64860', 'parent1': 'X64866', 'parent2': '-', 'pvalue': 0.00829}, {'start': 539, 'end': 759, 'recombinant': 'X64860', 'parent1': 'X64866', 'parent2': '-', 'pvalue': 0.15378}, {'start': 151, 'end': 193, 'recombinant': 'X64873', 'parent1': '-', 'parent2': '-', 'pvalue': 0.02202}, {'start': 56, 'end': 170, 'recombinant': 'X64860', 'parent1': '-', 'parent2': '-', 'pvalue': 0.02728}]
 ```
-To directly access the `dict` object, use `ScanResults.dict`.
+The actual dictionary can be accessed from `ScanResults.dict`.
+

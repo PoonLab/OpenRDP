@@ -2,27 +2,30 @@ import os
 import unittest
 import itertools
 
-from openrdp.main import read_fasta
-from ..scripts.common import *
+from openrdp import Scanner
+from openrdp.common import *
+import numpy as np
 
-SHORT_INFILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'short.fasta')
-LONG_INFILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'long.fasta')
-HIV_INFILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'CRF_07_test.fasta')
+basepath = os.path.dirname(os.path.abspath(__file__))
+SHORT_INFILE = os.path.join(basepath, 'short.fasta')
+LONG_INFILE = os.path.join(basepath, 'long.fasta')
+HIV_INFILE = os.path.join(basepath, 'CRF_07_test.fasta')
 
 
 class TestCommon(unittest.TestCase):
     def setUp(self):
-        with open(SHORT_INFILE) as short_handle:
-            _, aln = read_fasta(short_handle)
-        self.short_align = np.array(list(map(list, aln)))
+        self.scanner = Scanner()
+        self.scanner._import_data(SHORT_INFILE)
+        self.short_align = self.scanner.alignment
+        self.short_names = self.scanner.seq_names
 
-        with open(LONG_INFILE) as test_handle:
-            _, aln = read_fasta(test_handle)
-        self.long_align = np.array(list(map(list, aln)))
+        self.scanner._import_data(LONG_INFILE)
+        self.long_align = self.scanner.alignment
+        self.long_names = self.scanner.seq_names
 
-        with open(HIV_INFILE) as in_handle:
-            _, aln = read_fasta(in_handle)
-        self.hiv_align = np.array(list(map(list, aln)))
+        self.scanner._import_data(HIV_INFILE)
+        self.hiv_align = self.scanner.alignment
+        self.hiv_names = self.scanner.seq_names
 
     def test_generate_triplets_short(self):
         exp_trps = [(0, 1, 2), (0, 1, 3), (0, 1, 4), (0, 2, 3), (0, 2, 4),
@@ -143,31 +146,35 @@ class TestCommon(unittest.TestCase):
 
 
 class TestTriplet(unittest.TestCase):
-
     def setUp(self):
-        with open(SHORT_INFILE) as short_handle:
-            h, aln = read_fasta(short_handle)
-        self.short_align = np.array(list(map(list, aln)))
+        self.scanner = Scanner()
+        self.scanner._import_data(SHORT_INFILE)
+        self.short_align = self.scanner.alignment
+        self.short_names = self.scanner.seq_names
+
+        self.scanner._import_data(LONG_INFILE)
+        self.long_align = self.scanner.alignment
+        self.long_names = self.scanner.seq_names
+
+        self.scanner._import_data(HIV_INFILE)
+        self.hiv_align = self.scanner.alignment
+        self.hiv_names = self.scanner.seq_names
 
         self.short_triplets = []
         for trp in generate_triplets(self.short_align):
-            self.short_triplets.append(Triplet(self.short_align, h, trp))
-
-        with open(LONG_INFILE) as test_handle:
-            h, aln = read_fasta(test_handle)
-        self.long_align = np.array(list(map(list, aln)))
+            self.short_triplets.append(
+                Triplet(self.short_align, self.short_names, trp)
+            )
 
         self.long_triplets = []
         for trp in generate_triplets(self.long_align):
-            self.long_triplets.append(Triplet(self.long_align, h, trp))
-
-        with open(HIV_INFILE) as in_handle:
-            h, aln = read_fasta(in_handle)
-        self.hiv_align = np.array(list(map(list, aln)))
+            self.long_triplets.append(
+                Triplet(self.long_align, self.long_names, trp)
+            )
 
         self.hiv_triplets = []
         for trp in generate_triplets(self.hiv_align):
-            self.hiv_triplets.append(Triplet(self.hiv_align, h, trp))
+            self.hiv_triplets.append(Triplet(self.hiv_align, self.hiv_names, trp))
 
     def test_get_triplets(self):
         expected = ['ATGCTGACGACGTAGCAGGTAA', 'AACCTTGGTGCGAAATGCAAGT', 'AGCTGACAGCGATGAGCGAATG']

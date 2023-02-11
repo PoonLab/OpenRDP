@@ -1,51 +1,41 @@
 import os
 import unittest
 
-from openrdp.main import *
-
-SHORT_SEQ_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'short.fasta')
+from openrdp.common import read_fasta
+from openrdp import Scanner
+from io import StringIO
 
 
 class TestMain(unittest.TestCase):
+    def setUp(self):
+        self.scanner = Scanner()
 
     def test_convert_fasta(self):
-        with open(SHORT_SEQ_PATH) as test_handle:
-            exp_names = ['A', 'B', 'C', 'D', 'E']
-            exp_seqs = ['ATGCTGACGACGTAGCAGGTAA',
-                        'AACCTTGGTGCGAAATGCAAGT',
-                        'AGCTGACAGCGATGAGCGAATG',
-                        'ATGCGACTAGCTAGCTAGAGGC',
-                        'ACCGAGCGATATCGATCGATGA']
-            res_names, res_seqs = read_fasta(test_handle)
-            self.assertEqual(exp_names, res_names)
-            self.assertEqual(exp_seqs, res_seqs)
+        test_fasta = ">A\nATGCTGACGACGTAGCAGGTAA\n>B\nAACCTTGGTGCGAAATGCAAGT\n" \
+                     ">C\nAGCTGACAGCGATGAGCGAATG\n>D\nATGCGACTAGCTAGCTAGAGGC\n" \
+                     ">E\nACCGAGCGATATCGATCGATGA\n"
+        exp_names = ['A', 'B', 'C', 'D', 'E']
+        exp_seqs = ['ATGCTGACGACGTAGCAGGTAA',
+                    'AACCTTGGTGCGAAATGCAAGT',
+                    'AGCTGACAGCGATGAGCGAATG',
+                    'ATGCGACTAGCTAGCTAGAGGC',
+                    'ACCGAGCGATATCGATCGATGA']
+        res_names, res_seqs = read_fasta(StringIO(test_fasta))
+        self.assertEqual(exp_names, res_names)
+        self.assertEqual(exp_seqs, res_seqs)
 
     def test_valid_alignment(self):
-        with open(SHORT_SEQ_PATH) as test_handle:
-            names, aln = read_fasta(test_handle)
-            expected = True
-            result = valid_alignment(aln)
-            self.assertEqual(expected, result)
+        aln1 = StringIO(">seq1\nATGCGCGC\n>seq2\nATGCTCGC\n")
+        self.scanner._import_data(aln1)
 
-        aln2 = ['ATGCGCGC',
-                'TGACACAATGC']
-        expected = False
-        result = valid_alignment(aln2)
-        self.assertEqual(expected, result)
+        aln2 = StringIO(">seq3\nATGCGCGC\n>seq4\nTGACACAATGC\n")
+        with self.assertRaises(SystemExit):
+            self.scanner._import_data(aln2)
 
     def test_valid_chars(self):
-        aln = ['ZXCXZATC',
-               'ATGCGGATGGGG',
-               'TGTTCAGA']
-        expected = False
-        result = valid_chars(aln)
-        self.assertEqual(expected, result)
-
-        aln = ['TCGCGACGTCAA',
-               'ATGCGGATGGGG']
-        expected = True
-        result = valid_chars(aln)
-        self.assertEqual(expected, result)
+        aln3 = StringIO('>seq1\nZXCXZATC\n>seq2\nATGCGGATGGGG\n>seq3\nTGTTCAGA\n')
+        with self.assertRaises(SystemExit):
+            self.scanner._import_data(aln3)
 
 
 if __name__ == '__main__':

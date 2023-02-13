@@ -9,14 +9,14 @@ from openrdp.geneconv import GeneConv
 class TestGeneConv(unittest.TestCase):
     def setUp(self):
         # Test with default settings
-        self.settings = {'indels_as_polymorphisms': 'True', 'mismatch_penalty': '1',
+        test_settings = {'indels_as_polymorphisms': 'True', 'mismatch_penalty': '1',
                          'min_len': '1', 'min_poly': '2', 'min_score': '2', 'max_num': '1'}
-        self.gc_default = GeneConv(settings=self.settings)
+        self.gc_default = GeneConv(settings=test_settings)
 
         # Test with modified parameters
-        self.test_settings = {'indels_as_polymorphisms': 'False', 'mismatch_penalty': '1',
+        test_settings = {'indels_as_polymorphisms': 'False', 'mismatch_penalty': '1',
                               'min_len': '1', 'min_poly': '2', 'min_score': '2', 'max_num': '1'}
-        self.gc_test = GeneConv(settings=self.test_settings)
+        self.gc_test = GeneConv(settings=test_settings)
 
     def test_set_and_validate_options(self):
         self.assertEqual(1, self.gc_default.gscale)

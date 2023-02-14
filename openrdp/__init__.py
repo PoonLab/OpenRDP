@@ -244,23 +244,21 @@ class Scanner:
         if 'bootscan' in tmethods:
             bootscan = tmethods['bootscan']
             bootscan.execute_all(total_combinations=total_num_trps, seq_names=self.seq_names)
-
-        trp_count = 1
-        for trp in generate_triplets(self.alignment):
-            triplet = Triplet(self.alignment, self.seq_names, trp)
-            self.print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
-            trp_count += 1
-            for alias, tmethod in tmethods.items():
-                if alias == 'bootscan':
-                    continue
-                tmethod.execute(triplet)
+            if os.path.exists(bootscan.dt_matrix_file):
+                os.remove(bootscan.dt_matrix_file)
+        else:
+            trp_count = 1
+            for trp in generate_triplets(self.alignment):
+                triplet = Triplet(self.alignment, self.seq_names, trp)
+                self.print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
+                trp_count += 1
+                for alias, tmethod in tmethods.items():
+                    if alias == 'bootscan':
+                        continue
+                    tmethod.execute(triplet)
 
         # Process results by joining breakpoint locations that overlap
         for alias, tmethod in tmethods.items():
             results.dict[alias] = tmethod.merge_breakpoints()
 
-        # clean up hd5 files - FIXME: better to use tempfile
-        for file in glob("*.h5"):
-            if os.path.exists(file):
-                os.remove(file)
         return results

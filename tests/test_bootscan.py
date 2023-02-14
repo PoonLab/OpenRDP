@@ -4,6 +4,7 @@ import os
 
 from openrdp.bootscan import Bootscan
 from openrdp.common import Triplet, generate_triplets, read_fasta
+from itertools import combinations
 
 
 basepath = os.path.dirname(os.path.abspath(__file__))
@@ -20,7 +21,8 @@ class TestBootscan(unittest.TestCase):
         with open(SHORT_INFILE) as short_test:
             names, test_seqs = read_fasta(short_test)
         self.short_align = np.array(list(map(list, test_seqs)))
-        self.test_short = Bootscan(self.short_align, names, settings=test_settings, quiet=True)
+        self.test_short = Bootscan(self.short_align, settings=test_settings, quiet=True)
+        self.short_names = names
 
         # Set up long test fixtures
         test_settings = {'max_pvalue': '0.05', 'win_size': '50', 'step_size': '5', 'num_replicates': '100',
@@ -28,8 +30,9 @@ class TestBootscan(unittest.TestCase):
         with open(LONG_INFILE) as long_test:
             names, test_seqs = read_fasta(long_test)
         self.long_align = np.array(list(map(list, test_seqs)))
-        self.test_long = Bootscan(self.long_align, names, settings=test_settings, quiet=True)
-
+        self.test_long = Bootscan(self.long_align, settings=test_settings, quiet=True)
+        self.long_names = names
+        
         # Set up HIV test fixtures
         test_settings = {'max_pvalue': '0.05', 'win_size': '200', 'step_size': '20', 'num_replicates': '100',
                          'random_seed': '3', 'cutoff_percentage': '0.7', 'scan': 'distances', 'np': '2',
@@ -37,7 +40,18 @@ class TestBootscan(unittest.TestCase):
         with open(HIV_INFILE) as hiv_test:
             names, test_seqs = read_fasta(hiv_test)
         self.hiv_align = np.array(list(map(list, test_seqs)))
-        self.test_hiv = Bootscan(self.hiv_align, names, settings=test_settings, quiet=True)
+        self.test_hiv = Bootscan(self.hiv_align, settings=test_settings, quiet=True)
+        self.hiv_names = names
+
+    def tearDown(self):
+        if os.path.exists(self.test_short.dt_matrix_file):
+            os.remove(self.test_short.dt_matrix_file)
+
+        if os.path.exists(self.test_long.dt_matrix_file):
+            os.remove(self.test_long.dt_matrix_file)
+
+        if os.path.exists(self.test_hiv.dt_matrix_file):
+            os.remove(self.test_hiv.dt_matrix_file)
 
     def test_set_and_validate_options(self):
         self.assertEqual(6, self.test_short.win_size)
@@ -59,16 +73,16 @@ class TestBootscan(unittest.TestCase):
         self.assertEqual(0.7, self.test_hiv.cutoff)
 
     def test_execute_short(self):
+        total_num_trps = sum(1 for _ in combinations(range(self.short_align.shape[0]), 3))
         expected = []   # No breakpoints found
-        for arg in enumerate(self.short_align):
-            self.test_short.execute(arg)
+        self.test_short.execute_all(total_combinations=total_num_trps, seq_names=self.short_names)
         result = self.test_short.merge_breakpoints()
         self.assertEqual(expected, result)
 
     def test_execute_long(self):
+        total_num_trps = sum(1 for _ in combinations(range(self.long_align.shape[0]), 3))
         expected = []   # P-value of breakpoints is outside the threshold
-        for arg in enumerate(generate_triplets(self.long_align)):
-            self.test_long.execute(arg)
+        self.test_long.execute_all(total_combinations=total_num_trps, seq_names=self.long_names)
         result = self.test_long.merge_breakpoints()
         self.assertEqual(expected, result)
 
@@ -82,8 +96,8 @@ class TestBootscan(unittest.TestCase):
                     ('B', ('07_BC', 'C'), 8960, 9140, 1.5107519378439202e-05),
                     ('C', ('07_BC', 'B'), 2620, 2900, 0.00022445087998712194)]
 
-        for arg in enumerate(generate_triplets(self.hiv_align)):
-            self.test_hiv.execute(arg)
+        total_num_trps = sum(1 for _ in combinations(range(self.hiv_align.shape[0]), 3))
+        self.test_hiv.execute_all(total_combinations=total_num_trps, seq_names=self.hiv_names)
         result = self.test_hiv.merge_breakpoints()
         self.assertEqual(expected, result)
 

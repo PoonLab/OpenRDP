@@ -8,6 +8,7 @@ import glob
 import numpy as np
 from scipy.spatial.distance import pdist
 from .common import jc_distance, generate_triplets, Triplet
+from tempfile import NamedTemporaryFile
 
 
 class Bootscan:
@@ -36,7 +37,7 @@ class Bootscan:
         if not self.quiet:
             print('Starting Scanning Phase of Bootscan/Recscan')
 
-        self.do_scanning_phase(alignment)
+        self.dt_matrix_file = self.do_scanning_phase(alignment)
         if not self.quiet:
             print('Finished Scanning Phase of Bootscan/Recscan')
 
@@ -130,8 +131,14 @@ class Bootscan:
             dist_mat = pdist(rep_window, jc_distance)
             dists[rep] = dist_mat
 
-        with h5py.File('dist_mat_{}.h5'.format(i//self.step_size), 'w') as f:
+        dt_matrix_file = NamedTemporaryFile('w', prefix="dt_mtrx_", delete=False)
+        
+        with h5py.File(dt_matrix_file.name, 'w') as f:
             f.create_dataset('dist_mat_{}'.format(i//self.step_size), data=dists)
+        
+        dt_matrix_file.close()
+
+        return dt_matrix_file.name
     
     def merge_h5py_files(self, src_file, dst_file):
         with h5py.File(src_file, 'r') as src, h5py.File(dst_file, 'a') as dst:
@@ -145,18 +152,19 @@ class Bootscan:
         :param align: a n x m array of aligned sequences
         """
 
-        # Remove previous .h5 files
-        h5_files = glob.glob('*.h5')
-        for file in h5_files:
-            if os.path.exists(file):
-                os.remove(file)
-
         with multiprocessing.Pool(self.np) as p:
-            p.map(self.scan, range(0, align.shape[1], self.step_size))
+            tempfiles = p.map(self.scan, range(0, align.shape[1], self.step_size))
+
+        merged_dt_matrix_file = NamedTemporaryFile('w', prefix="dt_mtrx_", delete=False)
 
         # Merge hdf5 files
-        for i in range(self.align.shape[1] // self.step_size):
-            self.merge_h5py_files('dist_mat_{}.h5'.format(i), 'dist_mat.h5')
+        for i in tempfiles:
+            self.merge_h5py_files(i, merged_dt_matrix_file.name)
+            os.remove(i)
+
+        merged_dt_matrix_file.close()
+
+        return merged_dt_matrix_file.name
 
     def execute(self, arg):
         """
@@ -175,7 +183,7 @@ class Bootscan:
         bc_support = [0] * (self.align.shape[1] // self.step_size)
         ac_support = [0] * (self.align.shape[1] // self.step_size)
 
-        f = h5py.File('dist_mat.h5', 'r')
+        f = h5py.File(self.dt_matrix_file, 'r')
 
         for i in range(self.align.shape[1] // self.step_size):
             supports = []
@@ -274,7 +282,7 @@ class Bootscan:
         self.seq_names = seq_names
         self.total_triplet_combinations = total_combinations
         with multiprocessing.Pool(self.np) as p:
-            results = p.map(self.execute, enumerate(generate_triplets(self.align)))
+            results = p.map(self.execute, enumerate(generate_triplets(self.align), 1))
 
         self.raw_results = [l for res in results for l in res] 
 

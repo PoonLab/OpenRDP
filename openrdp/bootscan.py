@@ -3,11 +3,10 @@ import multiprocessing
 import random
 import os
 import h5py
-import glob
 
 import numpy as np
 from scipy.spatial.distance import pdist
-from .common import jc_distance, generate_triplets, Triplet
+from .common import jc_distance, TripletGenerator, Triplet
 from tempfile import NamedTemporaryFile
 
 
@@ -166,14 +165,12 @@ class Bootscan:
 
         return merged_dt_matrix_file.name
 
-    def execute(self, arg):
+    def execute(self, triplet):
         """
         Executes the exploratory version of the BOOTSCAN from RDP5 using the RECSCAN algorithm.
         :param arg:  tuple, (index, Triplet) entries as generated from enumerate()
         """
-        (i, trp) = arg
         raw_results = []
-        triplet = Triplet(self.align, self.seq_names, trp)
 
         if not self.quiet:
             print("Scanning triplet {} / {}".format(i, self.total_triplet_combinations))
@@ -282,7 +279,7 @@ class Bootscan:
         self.seq_names = seq_names
         self.total_triplet_combinations = total_combinations
         with multiprocessing.Pool(self.np) as p:
-            results = p.map(self.execute, enumerate(generate_triplets(self.align), 1))
+            results = p.map(self.execute, TripletGenerator(self.align, self.seq_names))
 
         self.raw_results = [l for res in results for l in res] 
 

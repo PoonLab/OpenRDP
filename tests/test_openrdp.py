@@ -33,7 +33,7 @@ class TestMain(unittest.TestCase):
             self.scanner._import_data(aln2)
 
     def test_valid_chars(self):
-        aln3 = StringIO('>seq1\nZXCXZATC\n>seq2\nATGCGGATGGGG\n>seq3\nTGTTCAGA\n')
+        aln3 = StringIO('>seq1\nZXCXZATC\n>seq2\nATCATATC\n>seq3\nTGTTCAGA\n')
         with self.assertRaises(SystemExit):
             self.scanner._import_data(aln3)
 

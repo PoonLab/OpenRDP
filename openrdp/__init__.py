@@ -3,14 +3,13 @@ import sys
 import os
 import configparser
 import numpy as np
-from itertools import combinations
-from glob import glob
 from collections import OrderedDict
+from scipy.special import comb as ncomb
 
 from openrdp import __path__ as basepath
 from openrdp.bootscan import Bootscan
 from openrdp.chimaera import Chimaera
-from openrdp.common import generate_triplets, Triplet, read_fasta
+from openrdp.common import TripletGenerator, Triplet, read_fasta
 from openrdp.geneconv import GeneConv
 from openrdp.maxchi import MaxChi
 from openrdp.rdp import RdpMethod
@@ -239,19 +238,15 @@ class Scanner:
             tmethods.update({alias: tmethod})
 
         # iterate over all triplets in the alignment
-        total_num_trps = sum(1 for _ in combinations(range(self.alignment.shape[0]), 3))
-
+        total_num_trps = ncomb(self.alignment.shape[0], 3)
         if 'bootscan' in tmethods:
             bootscan = tmethods['bootscan']
             bootscan.execute_all(total_combinations=total_num_trps, seq_names=self.seq_names)
             if os.path.exists(bootscan.dt_matrix_file):
                 os.remove(bootscan.dt_matrix_file)
         else:
-            trp_count = 1
-            for trp in generate_triplets(self.alignment):
-                triplet = Triplet(self.alignment, self.seq_names, trp)
+            for trp_count, triplet in enumerate(TripletGenerator(self.alignment, self.seq_names)):
                 self.print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
-                trp_count += 1
                 for alias, tmethod in tmethods.items():
                     if alias == 'bootscan':
                         continue

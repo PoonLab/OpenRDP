@@ -31,24 +31,13 @@ class TestCommon(unittest.TestCase):
         exp_trps = [(0, 1, 2), (0, 1, 3), (0, 1, 4), (0, 2, 3), (0, 2, 4),
                     (0, 3, 4), (1, 2, 3), (1, 2, 4), (1, 3, 4), (2, 3, 4)]
         res_trps = []
-        for trp in generate_triplets(self.short_align):
+        for trp in TripletGenerator(self.short_align, self.short_names):
             res_trps.append(trp)
-        self.assertEqual(exp_trps, res_trps)
-
-    def test_generate_triplets_long(self):
-        exp_trps = [(0, 1, 2), (0, 1, 3), (0, 2, 3), (1, 2, 3)]
-        res_trps = []
-        for trp in generate_triplets(self.long_align):
-            res_trps.append(trp)
-        self.assertEqual(exp_trps, res_trps)
-
-    def test_generate_triplets_hiv(self):
-        exp_trps = [(0, 1, 2)]
-        res_trps = []
-        for trp in generate_triplets(self.hiv_align):
-            res_trps.append(trp)
-
-        self.assertEqual(exp_trps, res_trps)
+        self.assertEqual(10, len(res_trps))
+        seqs = ['ATGCTGACGACGTAGCAGGTAA', 'AACCTTGGTGCGAAATGCAAGT', 'AGCTGACAGCGATGAGCGAATG']
+        seq_array = np.array(list(map(list, seqs)))
+        expect = Triplet(seq_array, ['A', 'B', 'C'])
+        self.assertEqual(expect, res_trps[0])
 
     def test_reduce_to_unique_seqs(self):
         aln = np.array(['ATGCATTGCGA',

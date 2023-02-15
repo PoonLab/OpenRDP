@@ -4,7 +4,7 @@ import unittest
 from io import StringIO
 import numpy as np
 
-from openrdp.common import generate_triplets, Triplet, read_fasta
+from openrdp.common import TripletGenerator, Triplet, read_fasta
 from openrdp.maxchi import MaxChi
 
 
@@ -21,9 +21,7 @@ class TestMaxChi(unittest.TestCase):
             self.short_align = np.array(list(map(list, test_seqs)))
             self.test_short = MaxChi(self.short_align, names, settings=test_settings)
 
-        self.short_triplets = []
-        for trp in generate_triplets(self.short_align):
-            self.short_triplets.append(Triplet(self.short_align, names, trp))
+        self.short_triplets = [trp for trp in TripletGenerator(self.short_align, names)]
 
         # Set up test example 2
         test_settings = {'max_pvalue': '0.05', 'win_size': '40', 'strip_gaps': 'False',
@@ -35,9 +33,7 @@ class TestMaxChi(unittest.TestCase):
             self.long_align = np.array(list(map(list, test_seqs)))
             self.test_long = MaxChi(self.long_align, names, settings=test_settings)
 
-        self.long_triplets = []
-        for trp in generate_triplets(self.long_align):
-            self.long_triplets.append(Triplet(self.long_align, names, trp))
+        self.long_triplets = [trp for trp in TripletGenerator(self.long_align, names)]
 
         # Set up HIV CRF07 test case
         test_settings = {'max_pvalue': '0.05', 'win_size': '100', 'strip_gaps': 'False',
@@ -49,9 +45,7 @@ class TestMaxChi(unittest.TestCase):
             self.hiv_align = np.array(list(map(list, crf07_seqs)))
             self.test_hiv = MaxChi(self.hiv_align, names, settings=test_settings)
 
-        self.hiv_triplets = []
-        for trp in generate_triplets(self.hiv_align):
-            self.hiv_triplets.append(Triplet(self.hiv_align, names, trp))
+        self.hiv_triplets = [trp for trp in TripletGenerator(self.hiv_align, names)]
 
     def test_set_and_validate_options(self):
         self.assertEqual(6, self.test_short.win_size)

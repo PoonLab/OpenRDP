@@ -5,7 +5,7 @@ import unittest
 import numpy as np
 
 from openrdp.chimaera import Chimaera
-from openrdp.common import generate_triplets, Triplet, read_fasta
+from openrdp.common import TripletGenerator, Triplet, read_fasta
 
 
 class TestChimaera(unittest.TestCase):
@@ -20,9 +20,7 @@ class TestChimaera(unittest.TestCase):
             self.short_align = np.array(list(map(list, test_seqs)))
             self.test_short = Chimaera(self.short_align, names, settings=test_settings)
 
-        self.short_triplets = []
-        for trp in generate_triplets(self.short_align):
-            self.short_triplets.append(Triplet(self.short_align, names, trp))
+        self.short_triplets = [trp for trp in TripletGenerator(self.short_align, names)]
 
         # Set up test example 2
         test_settings = {'max_pvalue': '0.05', 'win_size': '40', 'strip_gaps': 'False',
@@ -34,9 +32,7 @@ class TestChimaera(unittest.TestCase):
             self.long_align = np.array(list(map(list, test_seqs)))
             self.test_long = Chimaera(self.long_align, names, settings=test_settings)
 
-        self.long_triplets = []
-        for trp in generate_triplets(self.long_align):
-            self.long_triplets.append(Triplet(self.long_align, names, trp))
+        self.long_triplets = [trp for trp in TripletGenerator(self.long_align, names)]
 
         # Set up HIV CRF07 test case
         test_settings = {'max_pvalue': '0.05', 'win_size': '50', 'strip_gaps': 'False',
@@ -48,9 +44,7 @@ class TestChimaera(unittest.TestCase):
             self.hiv_align = np.array(list(map(list, crf07_seqs)))
             self.test_hiv = Chimaera(self.hiv_align, names, settings=test_settings)
 
-        self.hiv_triplets = []
-        for trp in generate_triplets(self.hiv_align):
-            self.hiv_triplets.append(Triplet(self.hiv_align, names, trp))
+        self.hiv_triplets = [trp for trp in TripletGenerator(self.hiv_align, names)]
 
     def test_set_and_validate_options(self):
         self.assertEqual(5, self.test_short.win_size)

@@ -3,7 +3,7 @@ import numpy as np
 import os
 
 from openrdp.bootscan import Bootscan
-from openrdp.common import Triplet, generate_triplets, read_fasta
+from openrdp.common import TripletGenerator, Triplet, read_fasta
 from itertools import combinations
 
 

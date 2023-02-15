@@ -28,16 +28,22 @@ class TestCommon(unittest.TestCase):
         self.hiv_names = self.scanner.seq_names
 
     def test_generate_triplets_short(self):
-        exp_trps = [(0, 1, 2), (0, 1, 3), (0, 1, 4), (0, 2, 3), (0, 2, 4),
-                    (0, 3, 4), (1, 2, 3), (1, 2, 4), (1, 3, 4), (2, 3, 4)]
         res_trps = []
         for trp in TripletGenerator(self.short_align, self.short_names):
             res_trps.append(trp)
         self.assertEqual(10, len(res_trps))
+
         seqs = ['ATGCTGACGACGTAGCAGGTAA', 'AACCTTGGTGCGAAATGCAAGT', 'AGCTGACAGCGATGAGCGAATG']
         seq_array = np.array(list(map(list, seqs)))
         expect = Triplet(seq_array, ['A', 'B', 'C'])
-        self.assertEqual(expect, res_trps[0])
+        self.assertTrue( (expect.get_triplets() == res_trps[0].get_triplets()).all() )
+        self.assertEqual(expect.get_trp_names(), res_trps[0].get_trp_names())
+
+        seqs = ['AGCTGACAGCGATGAGCGAATG', 'ATGCGACTAGCTAGCTAGAGGC', 'ACCGAGCGATATCGATCGATGA']
+        seq_array = np.array(list(map(list, seqs)))
+        expect = Triplet(seq_array, ['C', 'D', 'E'])
+        self.assertTrue( (expect.get_triplets() == res_trps[9].get_triplets()).all() )
+        self.assertEqual(expect.get_trp_names(), res_trps[9].get_trp_names())
 
     def test_reduce_to_unique_seqs(self):
         aln = np.array(['ATGCATTGCGA',
@@ -149,25 +155,13 @@ class TestTriplet(unittest.TestCase):
         self.hiv_align = self.scanner.alignment
         self.hiv_names = self.scanner.seq_names
 
-        self.short_triplets = []
-        for trp in generate_triplets(self.short_align):
-            self.short_triplets.append(
-                Triplet(self.short_align, self.short_names, trp)
-            )
-
-        self.long_triplets = []
-        for trp in generate_triplets(self.long_align):
-            self.long_triplets.append(
-                Triplet(self.long_align, self.long_names, trp)
-            )
-
-        self.hiv_triplets = []
-        for trp in generate_triplets(self.hiv_align):
-            self.hiv_triplets.append(Triplet(self.hiv_align, self.hiv_names, trp))
+        self.short_triplets = [trp for trp in TripletGenerator(self.short_align, self.short_names)]
+        self.long_triplets = [trp for trp in TripletGenerator(self.long_align, self.long_names)]
+        self.hiv_triplets = [trp for trp in TripletGenerator(self.hiv_align, self.hiv_names)]
 
     def test_get_triplets(self):
         expected = ['ATGCTGACGACGTAGCAGGTAA', 'AACCTTGGTGCGAAATGCAAGT', 'AGCTGACAGCGATGAGCGAATG']
-        result = self.short_triplets[0].get_triplets(self.short_align)
+        result = self.short_triplets[0].get_triplets()
         for i, res in enumerate(result):
             self.assertEqual(expected[i], ''.join(res))
 
@@ -183,7 +177,7 @@ class TestTriplet(unittest.TestCase):
                     ['B', 'D', 'E'],
                     ['C', 'D', 'E']]
         for i, trp in enumerate(self.short_triplets):
-            result = trp.get_trp_names(['A', 'B', 'C', 'D', 'E'])
+            result = trp.get_trp_names()
             self.assertEqual(expected[i], result)
 
     def test_get_sequence_name(self):
@@ -333,7 +327,7 @@ class TestTriplet(unittest.TestCase):
                'TTGCATGCATTTTTTTT',
                'TTTTTTTTTTTTTTTTT']
         align = np.array(list(map(list, aln)))
-        triplet = Triplet(align, ['1', '2', '3'], (0, 1, 2))
+        triplet = Triplet(align, ['1', '2', '3'])
 
         expected = 5
         result = triplet.get_win_size(offset=0, win_size=6, fixed_win_size=False,

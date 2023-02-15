@@ -168,13 +168,14 @@ class TripletGenerator:
         idxs = next(self.combinations)
         seqs = np.take(self.alignment, idxs, axis=0)
         names = [self.seq_names[i] for i in idxs]
-        return Triplet(seqs, names)
+        return Triplet(seqs, names, idxs)
 
 
 class Triplet:
-    def __init__(self, seqs, names):
+    def __init__(self, seqs, names, idxs=None):
         self.sequences = seqs
         self.names = names
+        self.idxs = idxs
         self.poly_sites_align, self.poly_sites = self.remove_monomorphic_sites()
         self.info_sites_align, self.info_sites, self.uninfo_sites = self.remove_uninformative_sites()
 
@@ -185,6 +186,12 @@ class Triplet:
         for i, name in enumerate(self.names):
             if trp_name == name:
                 return self.sequences[i]
+
+    def get_triplets(self):
+        return self.sequences
+
+    def get_trp_names(self):
+        return self.names
 
     def remove_uninformative_sites(self):
         """

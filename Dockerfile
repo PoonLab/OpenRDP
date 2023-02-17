@@ -26,14 +26,14 @@ cd unix.source && \
 gcc -DUNIX -o geneconv -O3 geneconv.c version.c vcalc.c vtcalc.c \
   vsetopts.c vread.c vdump.c vutil.c -lm
  
+# copy
+RUN mkdir /git/OpenRDP
+COPY . /git/OpenRDP/
 
-# download and install
-RUN cd /git && \
-git clone https://github.com/PoonLab/OpenRDP && \
-cd OpenRDP && \
+# install
+RUN cd /git/OpenRDP && \
 cp /git/3seq/3seq openrdp/bin/3Seq/3seq.Unix && \
 cp /scratch/unix.source/geneconv openrdp/bin/GENECONV/geneconv.Unix && \ 
-sed -i 's/\\t/,/' openrdp/scripts/threeseq.py && \
 python3 setup.py install && \
 ln -s /git/OpenRDP/openrdp/tests/test_cfg.ini /app/cfg.ini 
 

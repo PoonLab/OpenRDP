@@ -1,3 +1,14 @@
+# OpenRDP docker container
+# Bradley R. Jones
+#
+# To build:
+# docker build -t openrdp .
+#
+# To run:
+# cat alignment.fasta > docker run -i --rm openrdp > output.csv
+#
+# You may need to use sudo
+
 FROM python:3.8-slim
 
 WORKDIR /app
@@ -14,7 +25,7 @@ RUN mkdir /git ; \
 cd /git && \
 git clone https://gitlab.com/lamhm/3seq && \
 cd 3seq && \
-git checkout d10a4a92ab4e0205c95d76aca84a3db2f989627f && \
+git checkout b854293dec119fd4b56eb17fa1648b478d1233fd && \
 make
 
 # geneconv
@@ -35,10 +46,12 @@ RUN cd /git/OpenRDP && \
 cp /git/3seq/3seq openrdp/bin/3Seq/3seq.Unix && \
 cp /scratch/unix.source/geneconv openrdp/bin/GENECONV/geneconv.Unix && \ 
 python3 setup.py install && \
-ln -s /git/OpenRDP/openrdp/tests/test_cfg.ini /app/cfg.ini 
+ln -s /git/OpenRDP/docker/docker.cfg /app/cfg.ini 
 
 # driver script
-RUN echo 'cat - > /app/in.fa && python3 -m openrdp /app/in.fa /app/out.csv -cfg=/app/cfg.ini -all 1>&2 && cat /app/out.csv' > /app/driver.sh
+# modify docker/docker.cfg to your liking
+# add "-m ..." to restrict methods used
+RUN echo 'cat - > /app/in.fa && openrdp /app/in.fa --outfile=/app/out.csv --cfg=/app/cfg.ini 1>&2 && cat /app/out.csv' > /app/driver.sh
 
 ENTRYPOINT ["bash", "/app/driver.sh"]
 

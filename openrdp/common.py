@@ -4,15 +4,43 @@ import numpy as np
 from scipy.stats import chi2_contingency
 from scipy.stats import pearsonr
 import copy
+import sys
 
 
-def generate_triplets(align):
+def read_fasta(handle):
     """
-    Generate all possible combinations of sequence triplets
-    :param align: a numpy character array of 'n' sequences
-    :return: indices for every possible combination of sequence triplets
+    Converts a FASTA formatted file to a tuple containing a list of headers and sequences
+    :param handle: file stream for the FASTA file
+    :return: tuple of headers (list) and sequences (list)
     """
-    return combinations(range(align.shape[0]), 3)
+    # Verifies file have the correct formatting
+    if hasattr(handle, "seek"):
+        found = False
+        for line in handle:
+            if line.startswith('>'):
+                found = True
+                break
+        if not found:
+            print(f"Error: Input {handle.name} does not appear to be in a FASTA format.")
+            sys.exit(1)
+        handle.seek(0)  # Reset pointer to beginning of file
+
+    headers, seqs = [], []
+    sequence, h = '', ''
+    for line in handle:
+        if line.startswith('>'):
+            if len(sequence) > 0:
+                headers.append(h)
+                seqs.append(sequence)
+                sequence = ''
+            h = line.strip('>\t\n\r')
+        else:
+            sequence += line.strip('\n\r').upper()
+
+    # Handle the last entry
+    seqs.append(sequence)
+    headers.append(h)
+    return headers, seqs
 
 
 def calculate_chi2(c_table, max_pvalue):
@@ -118,20 +146,38 @@ def identify_recombinant(trp, aln_pos):
     return rec_name, p_names
 
 
-class Triplet:
+class TripletGenerator:
+    def __init__(self, alignment, seq_names):
+        """
+        :param alignment:  numpy.array, a character array of 'n' sequences
+        :param seq_names:  list, sequence labels / names
+        """
+        self.alignment = alignment
+        self.seq_names = seq_names
+        self.combinations = combinations(
+            range(self.alignment.shape[0]),  # number of "rows" (sequences)
+            3)  # all combinations of three elements
 
-    def __init__(self, alignment, seq_names, trp_idxs):
-        self.idxs = trp_idxs
-        self.sequences = self.get_triplets(alignment)
-        self.names = self.get_trp_names(seq_names)
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return self.next()
+
+    def next(self):
+        idxs = next(self.combinations)
+        seqs = np.take(self.alignment, idxs, axis=0)
+        names = [self.seq_names[i] for i in idxs]
+        return Triplet(seqs, names, idxs)
+
+
+class Triplet:
+    def __init__(self, seqs, names, idxs=None):
+        self.sequences = seqs
+        self.names = names
+        self.idxs = idxs
         self.poly_sites_align, self.poly_sites = self.remove_monomorphic_sites()
         self.info_sites_align, self.info_sites, self.uninfo_sites = self.remove_uninformative_sites()
-
-    def get_triplets(self, alignment):
-        return np.take(alignment, self.idxs, axis=0)
-
-    def get_trp_names(self, seq_names):
-        return [seq_names[i] for i in self.idxs]
 
     def get_sequence_name(self, trp_idx):
         return self.names[trp_idx]
@@ -140,6 +186,12 @@ class Triplet:
         for i, name in enumerate(self.names):
             if trp_name == name:
                 return self.sequences[i]
+
+    def get_triplets(self):
+        return self.sequences
+
+    def get_trp_names(self):
+        return self.names
 
     def remove_uninformative_sites(self):
         """

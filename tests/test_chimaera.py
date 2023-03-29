@@ -4,19 +4,15 @@ import unittest
 
 import numpy as np
 
-from openrdp.main import read_fasta
-from openrdp.scripts.chimaera import Chimaera
-from openrdp.scripts.common import generate_triplets, Triplet
+from openrdp.chimaera import Chimaera
+from openrdp.common import TripletGenerator, Triplet, read_fasta
 
 
 class TestChimaera(unittest.TestCase):
-
     def setUp(self):
         # Set up test example
-        config = configparser.ConfigParser()
-        short_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_short.ini')
-        config.read(short_cfg_path)
-        test_settings = dict(config.items('Chimaera'))
+        test_settings = {'max_pvalue': '1.0', 'win_size': '5', 'strip_gaps': 'False',
+                         'fixed_win_size': 'True', 'num_var_sites': '5', 'frac_var_sites': '0.1'}
 
         short_seq_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'short.fasta')
         with open(short_seq_path) as small_test:
@@ -24,15 +20,11 @@ class TestChimaera(unittest.TestCase):
             self.short_align = np.array(list(map(list, test_seqs)))
             self.test_short = Chimaera(self.short_align, names, settings=test_settings)
 
-        self.short_triplets = []
-        for trp in generate_triplets(self.short_align):
-            self.short_triplets.append(Triplet(self.short_align, names, trp))
+        self.short_triplets = [trp for trp in TripletGenerator(self.short_align, names)]
 
         # Set up test example 2
-        config = configparser.ConfigParser()
-        long_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_long.ini')
-        config.read(long_cfg_path)
-        test_settings = dict(config.items('Chimaera'))
+        test_settings = {'max_pvalue': '0.05', 'win_size': '40', 'strip_gaps': 'False',
+                         'fixed_win_size': 'True', 'num_var_sites': '70', 'frac_var_sites': '0.1'}
 
         long_seq_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'long.fasta')
         with open(long_seq_path) as test:
@@ -40,25 +32,19 @@ class TestChimaera(unittest.TestCase):
             self.long_align = np.array(list(map(list, test_seqs)))
             self.test_long = Chimaera(self.long_align, names, settings=test_settings)
 
-        self.long_triplets = []
-        for trp in generate_triplets(self.long_align):
-            self.long_triplets.append(Triplet(self.long_align, names, trp))
+        self.long_triplets = [trp for trp in TripletGenerator(self.long_align, names)]
 
         # Set up HIV CRF07 test case
-        config = configparser.ConfigParser()
-        hiv_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'default.ini')
-        config.read(hiv_cfg_path)
-        settings = dict(config.items('Chimaera'))
+        test_settings = {'max_pvalue': '0.05', 'win_size': '50', 'strip_gaps': 'False',
+                         'fixed_win_size': 'True', 'num_var_sites': '60', 'frac_var_sites': '0.1'}
 
         hiv_seq_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'CRF_07_test.fasta')
         with open(hiv_seq_path) as hiv_test:
             names, crf07_seqs = read_fasta(hiv_test)
             self.hiv_align = np.array(list(map(list, crf07_seqs)))
-            self.test_hiv = Chimaera(self.hiv_align, names, settings=settings)
+            self.test_hiv = Chimaera(self.hiv_align, names, settings=test_settings)
 
-        self.hiv_triplets = []
-        for trp in generate_triplets(self.hiv_align):
-            self.hiv_triplets.append(Triplet(self.hiv_align, names, trp))
+        self.hiv_triplets = [trp for trp in TripletGenerator(self.hiv_align, names)]
 
     def test_set_and_validate_options(self):
         self.assertEqual(5, self.test_short.win_size)

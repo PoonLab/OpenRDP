@@ -6,7 +6,7 @@ import h5py
 
 import numpy as np
 from scipy.spatial.distance import pdist
-from .common import jc_distance, TripletGenerator, Triplet
+from openrdp.common import jc_distance, TripletGenerator
 from tempfile import NamedTemporaryFile
 
 
@@ -165,15 +165,16 @@ class Bootscan:
 
         return merged_dt_matrix_file.name
 
-    def execute(self, triplet):
+    def execute(self, arg):
         """
         Executes the exploratory version of the BOOTSCAN from RDP5 using the RECSCAN algorithm.
         :param arg:  tuple, (index, Triplet) entries as generated from enumerate()
         """
+        i, triplet = arg
         raw_results = []
 
         if not self.quiet:
-            print("Scanning triplet {} / {}".format(i, self.total_triplet_combinations))
+            print(f"Scanning triplet {i} / {self.total_triplet_combinations}")
 
         # Look at boostrap support for sequence pairs
         ab_support = [0] * (self.align.shape[1] // self.step_size)
@@ -279,7 +280,7 @@ class Bootscan:
         self.seq_names = seq_names
         self.total_triplet_combinations = total_combinations
         with multiprocessing.Pool(self.np) as p:
-            results = p.map(self.execute, TripletGenerator(self.align, self.seq_names))
+            results = p.map(self.execute, enumerate(TripletGenerator(self.align, self.seq_names)))
 
         self.raw_results = [l for res in results for l in res] 
 

@@ -239,22 +239,21 @@ class Scanner:
 
         # iterate over all triplets in the alignment
         total_num_trps = int(ncomb(self.alignment.shape[0], 3))
+        if 'bootscan' in tmethods:
+            bootscan = tmethods['bootscan']
+            bootscan.execute_all(total_combinations=total_num_trps, seq_names=self.seq_names)
+            if os.path.exists(bootscan.dt_matrix_file):
+                os.remove(bootscan.dt_matrix_file)
+
         for trp_count, triplet in enumerate(TripletGenerator(self.alignment, self.seq_names)):
             self.print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
             for alias, tmethod in tmethods.items():
                 if alias == 'bootscan':
-                    tmethod.execute_all(total_combinations=total_num_trps, seq_names=self.seq_names)
-                else:
-                    tmethod.execute(triplet)
+                    continue
+                tmethod.execute(triplet)
 
         # Process results by joining breakpoint locations that overlap
         for alias, tmethod in tmethods.items():
             results.dict[alias] = tmethod.merge_breakpoints()
-
-        # clean up bootscan temp files
-        if 'bootscan' in tmethods:
-            bootscan = tmethods['bootscan']
-            if os.path.exists(bootscan.dt_matrix_file):
-                os.remove(bootscan.dt_matrix_file)
 
         return results

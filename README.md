@@ -187,3 +187,14 @@ A `ScanResults` object also behaves like a dictionary for accessing specific res
 ```
 The actual dictionary can be accessed from `ScanResults.dict`.
 
+### Docker
+
+If you prefer to use Docker to run OpenRDP, a Dockerfile has been included in this repository.
+
+To build the Docker image, navigate to the location of the Dockerfile and run the following command:
+
+`docker build . -t openrdp`
+
+The following command can then be used to run all seven recombination detection methods under the default settings:
+
+`cat <input FASTA> | docker run -i --rm openrdp > <output CSV file>`

@@ -110,6 +110,8 @@ class Scanner:
 
         self.seq_names = []
         self.alignment = None  # np.array
+        self.ref_names = []
+        self.ref_align = None  # np.array
 
     def print(self, msg):
         """ Implements self.quiet """
@@ -140,11 +142,12 @@ class Scanner:
                     continue
                 self.config[section][key] = str(usr[section][key])
 
-    def _import_data(self, infile):
+    def _import_data(self, infile, is_ref=False):
         """
         Import labels and sequences from FASTA file and do some quality control.
         Stores sequences as a character matrix.
         :param infile:  str or File, input FASTA
+        :param is_ref:  bool, specifies if infile is a query sequence or a reference
         """
         if type(infile) == str:
             if not os.path.exists(infile):
@@ -179,21 +182,32 @@ class Scanner:
             unique[seq].append(label)
 
         new_aln = []
-        self.seq_names = []
+        if is_ref:
+            self.ref_names = []
+        else:
+            self.seq_names = []
         for seq, labels in unique.items():
-            self.seq_names.append(labels[0])
+            if is_ref:
+                self.ref_names.append(labels[0])
+            else:
+                self.seq_names.append(labels[0])
             if len(labels) > 1:
                 for label in labels[1:]:
                     self.print(f"{label} is a duplicate of {labels[0]}")
             new_aln.append(seq)
 
         # Create an m x n array of sequences
-        self.alignment = np.array(list(map(list, new_aln)))
+        alignment = np.array(list(map(list, new_aln)))
+        if is_ref:
+            self.ref_align = alignment
+        else:
+            self.alignment = alignment
 
-    def run_scans(self, infile):
+    def run_scans(self, infile, ref_file):
         """
         Run the selected recombination detection analyses
         :param infile:  str, path to input FASTA file
+        :param ref_file:  str, path to input FASTA reference file
         """
         # prepare return value
         results = ScanResults(dict([(method, {}) for method in aliases.keys()]))
@@ -223,6 +237,8 @@ class Scanner:
 
         # Run internal methods
         self._import_data(infile)  # sets seq_names and alignment
+        if ref_file:
+            self._import_data(ref_file, True)
 
         tmethods = {}
         for alias, a in aliases.items():
@@ -232,21 +248,30 @@ class Scanner:
             self.print(f"Setting up {alias} analysis...")
             if self.config:
                 settings = dict(self.config.items(a['key']))
-                tmethod = a['method'](self.alignment, settings=settings, quiet=self.quiet)
+                tmethod = a['method'](self.alignment, settings=settings, quiet=self.quiet,
+                                      ref_align=self.ref_align if ref_file else None)
             else:
-                tmethod = a['method'](self.alignment, quiet=self.quiet)
+                tmethod = a['method'](self.alignment, quiet=self.quiet,
+                                      ref_align=self.ref_align if ref_file else None)
             tmethods.update({alias: tmethod})
 
         # iterate over all triplets in the alignment
-        total_num_trps = int(ncomb(self.alignment.shape[0], 3))
+        if ref_file:
+            total_num_trps = self.alignment.shape[0] * int(ncomb(self.ref_align.shape[0], 2))
+        else:
+            total_num_trps = int(ncomb(self.alignment.shape[0], 3))
         if 'bootscan' in tmethods:
             bootscan = tmethods['bootscan']
-            bootscan.execute_all(total_combinations=total_num_trps, seq_names=self.seq_names)
+            bootscan.execute_all(total_combinations=total_num_trps, seq_names=self.seq_names,
+                                 ref_names=self.ref_names if ref_file else None)
             if os.path.exists(bootscan.dt_matrix_file):
                 os.remove(bootscan.dt_matrix_file)
 
-        for trp_count, triplet in enumerate(TripletGenerator(self.alignment, self.seq_names)):
-            self.print("Scanning triplet {} / {}".format(trp_count, total_num_trps))
+        triplets = TripletGenerator(self.alignment, self.seq_names,
+                                    ref_align=self.ref_align if ref_file else None,
+                                    ref_names=self.ref_names if ref_file else None)
+        for trp_count, triplet in enumerate(triplets):
+            self.print("Scanning triplet {} / {}".format(trp_count + 1, total_num_trps))
             for alias, tmethod in tmethods.items():
                 if alias == 'bootscan':
                     continue

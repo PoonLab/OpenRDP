@@ -190,15 +190,26 @@ class Bootscan:
             for rep in range(self.num_replicates):
                 dist_mat = matrix[rep]
                 # Access pairwise distances for each pair
-                ab_dist = dist_mat[int(triplet.idxs[0] * (self.align.shape[0] - 1) -
-                                       (triplet.idxs[0] * (triplet.idxs[0] - 1)) / 2 +
-                                       triplet.idxs[1] - triplet.idxs[0] - 1)]
-                bc_dist = dist_mat[int(triplet.idxs[1] * (self.align.shape[0] - 1) -
-                                       (triplet.idxs[1] * (triplet.idxs[1] - 1)) / 2 +
-                                       triplet.idxs[2] - triplet.idxs[1] - 1)]
-                ac_dist = dist_mat[int(triplet.idxs[0] * (self.align.shape[0] - 1) -
-                                       (triplet.idxs[0] * (triplet.idxs[0] - 1)) / 2 +
-                                       triplet.idxs[2] - triplet.idxs[0] - 1)]
+                if isinstance(self.ref_align, np.ndarray):  # triplet.idxs is a 2D tuple if ref file is included
+                    ab_dist = dist_mat[int(triplet.idxs[0][0] * (self.align.shape[0] - 1) -
+                                        (triplet.idxs[0][0] * (triplet.idxs[0][0] - 1)) / 2 +
+                                        triplet.idxs[1][0] - triplet.idxs[0][0] - 1)]
+                    bc_dist = dist_mat[int(triplet.idxs[1][0] * (self.align.shape[0] - 1) -
+                                        (triplet.idxs[1][0] * (triplet.idxs[1][0] - 1)) / 2 +
+                                        triplet.idxs[1][1] - triplet.idxs[1][0] - 1)]
+                    ac_dist = dist_mat[int(triplet.idxs[0][0] * (self.align.shape[0] - 1) -
+                                        (triplet.idxs[0][0] * (triplet.idxs[0][0] - 1)) / 2 +
+                                        triplet.idxs[1][1] - triplet.idxs[0][0] - 1)]
+                else:
+                    ab_dist = dist_mat[int(triplet.idxs[0] * (self.align.shape[0] - 1) -
+                                        (triplet.idxs[0] * (triplet.idxs[0] - 1)) / 2 +
+                                        triplet.idxs[1] - triplet.idxs[0] - 1)]
+                    bc_dist = dist_mat[int(triplet.idxs[1] * (self.align.shape[0] - 1) -
+                                        (triplet.idxs[1] * (triplet.idxs[1] - 1)) / 2 +
+                                        triplet.idxs[2] - triplet.idxs[1] - 1)]
+                    ac_dist = dist_mat[int(triplet.idxs[0] * (self.align.shape[0] - 1) -
+                                        (triplet.idxs[0] * (triplet.idxs[0] - 1)) / 2 +
+                                        triplet.idxs[2] - triplet.idxs[0] - 1)]
 
                 supports.append(np.argmin([ab_dist, bc_dist, ac_dist]))
 

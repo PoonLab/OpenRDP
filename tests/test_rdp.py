@@ -17,7 +17,7 @@ class TestRdpMethod(unittest.TestCase):
         with open(short_seq_path) as small_test:
             names, test_seqs = read_fasta(small_test)
             self.short_align = np.array(list(map(list, test_seqs)))
-            self.test_short = RdpMethod(self.short_align, names, settings=test_settings)
+            self.test_short = RdpMethod(self.short_align, settings=test_settings)
 
         self.short_triplets = [trp for trp in TripletGenerator(self.short_align, names)]
 
@@ -28,7 +28,7 @@ class TestRdpMethod(unittest.TestCase):
         with open(long_seq_path) as test:
             names, test_seqs = read_fasta(test)
             self.long_align = np.array(list(map(list, test_seqs)))
-            self.test_long = RdpMethod(self.long_align, names, settings=test_settings)
+            self.test_long = RdpMethod(self.long_align, settings=test_settings)
 
         self.long_triplets = [trp for trp in TripletGenerator(self.long_align, names)]
 
@@ -40,7 +40,7 @@ class TestRdpMethod(unittest.TestCase):
         with open(hiv_seq_path) as hiv_test:
             names, crf07_seqs = read_fasta(hiv_test)
             self.hiv_align = np.array(list(map(list, crf07_seqs)))
-            self.test_hiv = RdpMethod(self.hiv_align, names, settings=test_settings)
+            self.test_hiv = RdpMethod(self.hiv_align, settings=test_settings)
 
         self.hiv_triplets = [trp for trp in TripletGenerator(self.hiv_align, names)]
 

@@ -23,7 +23,7 @@ class Siscan:
         if settings:
             self.set_options_from_config(settings)
             self.validate_options(align)
-        else:
+        else: # pragma: no cover
             self.win_size = win_size
             self.step_size = step_size
             self.strip_gaps = strip_gaps

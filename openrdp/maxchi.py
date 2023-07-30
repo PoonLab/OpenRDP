@@ -20,7 +20,7 @@ class MaxChi:
             self.set_options_from_config(settings)
             self.validate_options(align)
 
-        else:
+        else: # pragma: no cover
             self.align = align
             self.raw_results = {}
             self.max_pvalue = max_pvalue

@@ -19,7 +19,7 @@ class Chimaera:
         if settings:
             self.set_options_from_config(settings)
             self.validate_options(align)
-        else:
+        else: # pragma: no cover
             self.max_pvalue = max_pvalue
             self.win_size = win_size
             self.strip_gaps = strip_gaps

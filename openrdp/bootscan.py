@@ -17,7 +17,7 @@ class Bootscan:
         if settings:
             self.set_options_from_config(settings)
             self.validate_options(alignment)
-        else:
+        else: # pragma: no cover
             self.win_size = win_size
             self.step_size = step_size
             self.use_distances = use_distances

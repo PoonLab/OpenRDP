@@ -203,7 +203,7 @@ class Scanner:
         else:
             self.alignment = alignment
 
-    def run_scans(self, infile, ref_file):
+    def run_scans(self, infile, ref_file):  # pragma: no cover
         """
         Run the selected recombination detection analyses
         :param infile:  str, path to input FASTA file

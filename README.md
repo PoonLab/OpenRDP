@@ -1,7 +1,9 @@
 # OpenRDP
 
 OpenRDP is an open-source re-implementation of the [RDP](http://web.cbio.uct.ac.za/~darren/rdp.html) recombination detection program.
-RDP is a widely popular program for detecting recombination in genetic sequences - however, it has only been available as Windows binaries.
+RDP is a widely popular program for detecting recombination in genetic sequences - however, it has only been available as Windows binaries
+(These binaries are not compatible with Windows 11).
+
 The developers of RDP, specifically [Darren Martin](http://www.idm.uct.ac.za/Darren_Martin), kindly provided the source code for the most recent version ([RDP5](https://academic.oup.com/ve/article/7/1/veaa087/6020281)) and permission to modify and redistribute this code.
 This program runs a suite of recombination detection methods to filter recombinant nucleotide sequences from a multiple sequence alignment; or to detect recombination breakpoints in a query sequence by comparing it against a reference set.
 

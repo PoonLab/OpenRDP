@@ -15,6 +15,8 @@ if __name__ == "__main__":
     )
     parser.add_argument('infile',
                         help='File containing sequence alignment (FASTA or CLUSTAL) format')
+    parser.add_argument('-r', '--ref',
+                        default=None, help='File containing parental reference sequence.')
     parser.add_argument('-o', '--outfile', type=argparse.FileType('w'),
                         default=None, help='Path to write CSV output')
     parser.add_argument('-c', '--cfg', type=str,
@@ -39,7 +41,7 @@ if __name__ == "__main__":
 
     scanner = openrdp.Scanner(cfg=args.cfg, methods=tuple(args.methods),
                               quiet=args.quiet)
-    results = scanner.run_scans(args.infile)
+    results = scanner.run_scans(args.infile, args.ref)
     print(results)  # calls custom __str__
     if args.outfile:
         results.write(args.outfile)

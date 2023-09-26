@@ -1,4 +1,4 @@
-from itertools import combinations
+from itertools import combinations, product
 
 import numpy as np
 from scipy.stats import chi2_contingency
@@ -147,15 +147,26 @@ def identify_recombinant(trp, aln_pos):
 
 
 class TripletGenerator:
-    def __init__(self, alignment, seq_names):
+    def __init__(self, alignment, seq_names, ref_align=None, ref_names=None):
         """
         :param alignment:  numpy.array, a character array of 'n' sequences
         :param seq_names:  list, sequence labels / names
+        :param ref_align:  numpy.array, a character array of 'n' sequences
+        :param ref_names:  list, reference labels / names
         """
         self.alignment = alignment
         self.seq_names = seq_names
-        self.combinations = combinations(
-            range(self.alignment.shape[0]),  # number of "rows" (sequences)
+        self.ref_align = ref_align
+        self.ref_names = ref_names
+
+        if isinstance(self.ref_align, np.ndarray):
+            self.combinations = product(
+                list(combinations(range(self.alignment.shape[0]), 1)),
+                list(combinations(range(self.ref_align.shape[0]), 2))
+            )  # Example: ((1,), (1, 2))
+        else:
+            self.combinations = combinations(
+                range(self.alignment.shape[0]),  # number of "rows" (sequences)
             3)  # all combinations of three elements
 
     def __iter__(self):
@@ -166,8 +177,18 @@ class TripletGenerator:
 
     def next(self):
         idxs = next(self.combinations)
-        seqs = np.take(self.alignment, idxs, axis=0)
-        names = [self.seq_names[i] for i in idxs]
+
+        if isinstance(self.ref_align, np.ndarray):
+            query_idx = idxs[0]
+            ref_idxs = idxs[1]
+            seqs = np.take(self.alignment, query_idx, axis=0) # one row of query sequences
+            refs = np.take(self.ref_align, ref_idxs, axis=0) # two rows of ref sequences
+            seqs = np.concatenate((seqs, refs))
+            names = [self.seq_names[i] for i in query_idx] + [self.ref_names[i] for i in ref_idxs]
+        else:
+            seqs = np.take(self.alignment, idxs, axis=0)
+            names = [self.seq_names[i] for i in idxs]
+            
         return Triplet(seqs, names, idxs)
 
 

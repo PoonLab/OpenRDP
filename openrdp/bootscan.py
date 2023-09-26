@@ -11,13 +11,13 @@ from tempfile import NamedTemporaryFile
 
 
 class Bootscan:
-    def __init__(self, alignment, win_size=200, step_size=20, use_distances=True,
-                 num_replicates=100, random_seed=3, cutoff=0.7, model='JC69',
-                 quiet=False, max_pvalue=0.05, settings=None):
+    def __init__(self, alignment, ref_align=None, win_size=200, step_size=20,
+                 use_distances=True, num_replicates=100, random_seed=3,
+                 cutoff=0.7, model='JC69', quiet=False, max_pvalue=0.05, settings=None):
         if settings:
             self.set_options_from_config(settings)
             self.validate_options(alignment)
-        else:
+        else: # pragma: no cover
             self.win_size = win_size
             self.step_size = step_size
             self.use_distances = use_distances
@@ -29,6 +29,7 @@ class Bootscan:
             self.np = os.cpu_count()
 
         self.align = alignment
+        self.ref_align = ref_align
         random.seed(self.random_seed)
         np.random.seed(self.random_seed)
 
@@ -174,7 +175,7 @@ class Bootscan:
         raw_results = []
 
         if not self.quiet:
-            print(f"Scanning triplet {i} / {self.total_triplet_combinations}")
+            print(f"Scanning triplet {i + 1} / {self.total_triplet_combinations}")
 
         # Look at boostrap support for sequence pairs
         ab_support = [0] * (self.align.shape[1] // self.step_size)
@@ -189,15 +190,26 @@ class Bootscan:
             for rep in range(self.num_replicates):
                 dist_mat = matrix[rep]
                 # Access pairwise distances for each pair
-                ab_dist = dist_mat[int(triplet.idxs[0] * (self.align.shape[0] - 1) -
-                                       (triplet.idxs[0] * (triplet.idxs[0] - 1)) / 2 +
-                                       triplet.idxs[1] - triplet.idxs[0] - 1)]
-                bc_dist = dist_mat[int(triplet.idxs[1] * (self.align.shape[0] - 1) -
-                                       (triplet.idxs[1] * (triplet.idxs[1] - 1)) / 2 +
-                                       triplet.idxs[2] - triplet.idxs[1] - 1)]
-                ac_dist = dist_mat[int(triplet.idxs[0] * (self.align.shape[0] - 1) -
-                                       (triplet.idxs[0] * (triplet.idxs[0] - 1)) / 2 +
-                                       triplet.idxs[2] - triplet.idxs[0] - 1)]
+                if isinstance(self.ref_align, np.ndarray):  # triplet.idxs is a 2D tuple if ref file is included
+                    ab_dist = dist_mat[int(triplet.idxs[0][0] * (self.align.shape[0] - 1) -
+                                        (triplet.idxs[0][0] * (triplet.idxs[0][0] - 1)) / 2 +
+                                        triplet.idxs[1][0] - triplet.idxs[0][0] - 1)]
+                    bc_dist = dist_mat[int(triplet.idxs[1][0] * (self.align.shape[0] - 1) -
+                                        (triplet.idxs[1][0] * (triplet.idxs[1][0] - 1)) / 2 +
+                                        triplet.idxs[1][1] - triplet.idxs[1][0] - 1)]
+                    ac_dist = dist_mat[int(triplet.idxs[0][0] * (self.align.shape[0] - 1) -
+                                        (triplet.idxs[0][0] * (triplet.idxs[0][0] - 1)) / 2 +
+                                        triplet.idxs[1][1] - triplet.idxs[0][0] - 1)]
+                else:
+                    ab_dist = dist_mat[int(triplet.idxs[0] * (self.align.shape[0] - 1) -
+                                        (triplet.idxs[0] * (triplet.idxs[0] - 1)) / 2 +
+                                        triplet.idxs[1] - triplet.idxs[0] - 1)]
+                    bc_dist = dist_mat[int(triplet.idxs[1] * (self.align.shape[0] - 1) -
+                                        (triplet.idxs[1] * (triplet.idxs[1] - 1)) / 2 +
+                                        triplet.idxs[2] - triplet.idxs[1] - 1)]
+                    ac_dist = dist_mat[int(triplet.idxs[0] * (self.align.shape[0] - 1) -
+                                        (triplet.idxs[0] * (triplet.idxs[0] - 1)) / 2 +
+                                        triplet.idxs[2] - triplet.idxs[0] - 1)]
 
                 supports.append(np.argmin([ab_dist, bc_dist, ac_dist]))
 
@@ -276,11 +288,13 @@ class Bootscan:
 
         return raw_results
 
-    def execute_all(self, total_combinations, seq_names):
+    def execute_all(self, total_combinations, seq_names, ref_names=None):
         self.seq_names = seq_names
         self.total_triplet_combinations = total_combinations
         with multiprocessing.Pool(self.np) as p:
-            results = p.map(self.execute, enumerate(TripletGenerator(self.align, self.seq_names)))
+            results = p.map(self.execute, enumerate(TripletGenerator(self.align, self.seq_names,
+                                                                     ref_align=self.ref_align,
+                                                                     ref_names=ref_names)))
 
         self.raw_results = [l for res in results for l in res] 
 
@@ -321,19 +335,21 @@ class Bootscan:
                 merged_regions.append(merged)
                 regions.append(next_region)
             
-            # for region in results_dict[key]:
-            #     region = list(region)
-            #     old_regions = list(results_dict[key])
-            #     for region2 in old_regions:
-            #         start = region[0]
-            #         end = region[1]
-            #         start2 = region2[0]
-            #         end2 = region2[1]
-            #         if start <= start2 <= end or start <= end2 <= end:
-            #             region[0] = min(start,start2)
-            #             region[1] = max(end, end2)
-            #             results_dict[key].remove(region2)
-            #     merged_regions.append(region)
+            '''
+            for region in results_dict[key]:
+                region = list(region)
+                old_regions = list(results_dict[key])
+                for region2 in old_regions:
+                    start = region[0]
+                    end = region[1]
+                    start2 = region2[0]
+                    end2 = region2[1]
+                    if start <= start2 <= end or start <= end2 <= end:
+                        region[0] = min(start,start2)
+                        region[1] = max(end, end2)
+                        results_dict[key].remove(region2)
+                merged_regions.append(region)
+            '''
 
 
             # Output the results

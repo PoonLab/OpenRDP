@@ -9,7 +9,7 @@ from .common import identify_recombinant
 
 class Siscan:
     def __init__(self, align, win_size=200, step_size=20, strip_gaps=True, pvalue_perm_num=1100,
-                 scan_perm_num=100, random_seed=3, max_pvalue=0.05, settings=None, quiet=False):
+                 scan_perm_num=100, random_seed=3, max_pvalue=0.05, settings=None, ref_align=None, quiet=False):
         """
         Constructs a Siscan object
         :param win_size: the size of the sliding window
@@ -23,7 +23,7 @@ class Siscan:
         if settings:
             self.set_options_from_config(settings)
             self.validate_options(align)
-        else:
+        else: # pragma: no cover
             self.win_size = win_size
             self.step_size = step_size
             self.strip_gaps = strip_gaps

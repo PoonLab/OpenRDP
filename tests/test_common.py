@@ -11,6 +11,9 @@ SHORT_INFILE = os.path.join(basepath, 'short.fasta')
 LONG_INFILE = os.path.join(basepath, 'long.fasta')
 HIV_INFILE = os.path.join(basepath, 'CRF_07_test.fasta')
 
+SHORT_REFFILE = os.path.join(basepath, 'short_ref.fasta')
+LONG_REFFILE = os.path.join(basepath, 'long_ref.fasta')
+HIV_REFFILE = os.path.join(basepath, 'CRF_07_ref.fasta')
 
 class TestCommon(unittest.TestCase):
     def setUp(self):
@@ -19,13 +22,25 @@ class TestCommon(unittest.TestCase):
         self.short_align = self.scanner.alignment
         self.short_names = self.scanner.seq_names
 
+        self.scanner._import_data(SHORT_REFFILE, True)
+        self.short_align_r = self.scanner.alignment
+        self.short_names_r = self.scanner.seq_names
+
         self.scanner._import_data(LONG_INFILE)
         self.long_align = self.scanner.alignment
         self.long_names = self.scanner.seq_names
 
+        self.scanner._import_data(LONG_REFFILE, True)
+        self.long_align_r = self.scanner.alignment
+        self.long_names_r = self.scanner.seq_names
+
         self.scanner._import_data(HIV_INFILE)
         self.hiv_align = self.scanner.alignment
         self.hiv_names = self.scanner.seq_names
+
+        self.scanner._import_data(HIV_REFFILE, True)
+        self.hiv_align_r = self.scanner.alignment
+        self.hiv_names_r = self.scanner.seq_names
 
     def test_generate_triplets_short(self):
         res_trps = []
@@ -44,6 +59,12 @@ class TestCommon(unittest.TestCase):
         expect = Triplet(seq_array, ['C', 'D', 'E'])
         self.assertTrue( (expect.get_triplets() == res_trps[9].get_triplets()).all() )
         self.assertEqual(expect.get_trp_names(), res_trps[9].get_trp_names())
+        
+        res_trps = []
+        for trp in TripletGenerator(self.short_align, self.short_names,
+                                    self.short_align_r, self.short_names_r):
+            res_trps.append(trp)
+        self.assertEqual(50, len(res_trps))
 
     def test_reduce_to_unique_seqs(self):
         aln = np.array(['ATGCATTGCGA',
@@ -147,21 +168,45 @@ class TestTriplet(unittest.TestCase):
         self.short_align = self.scanner.alignment
         self.short_names = self.scanner.seq_names
 
+        self.scanner._import_data(SHORT_REFFILE, True)
+        self.short_align_r = self.scanner.ref_align
+        self.short_names_r = self.scanner.ref_names
+
         self.scanner._import_data(LONG_INFILE)
         self.long_align = self.scanner.alignment
         self.long_names = self.scanner.seq_names
+
+        self.scanner._import_data(LONG_REFFILE, True)
+        self.long_align_r = self.scanner.ref_align
+        self.long_names_r = self.scanner.ref_names
 
         self.scanner._import_data(HIV_INFILE)
         self.hiv_align = self.scanner.alignment
         self.hiv_names = self.scanner.seq_names
 
+        self.scanner._import_data(HIV_REFFILE, True)
+        self.hiv_align_r = self.scanner.ref_align
+        self.hiv_names_r = self.scanner.ref_names
+
         self.short_triplets = [trp for trp in TripletGenerator(self.short_align, self.short_names)]
         self.long_triplets = [trp for trp in TripletGenerator(self.long_align, self.long_names)]
         self.hiv_triplets = [trp for trp in TripletGenerator(self.hiv_align, self.hiv_names)]
 
+        self.short_triplets_r = [trp for trp in TripletGenerator(self.short_align, self.short_names,
+                                                               self.short_align_r, self.short_names_r)]
+        self.long_triplets_r = [trp for trp in TripletGenerator(self.long_align, self.long_names,
+                                                               self.long_align_r, self.long_names_r)]
+        self.hiv_triplets_r = [trp for trp in TripletGenerator(self.hiv_align, self.hiv_names,
+                                                               self.hiv_align_r, self.hiv_names_r)]
+
     def test_get_triplets(self):
         expected = ['ATGCTGACGACGTAGCAGGTAA', 'AACCTTGGTGCGAAATGCAAGT', 'AGCTGACAGCGATGAGCGAATG']
         result = self.short_triplets[0].get_triplets()
+        for i, res in enumerate(result):
+            self.assertEqual(expected[i], ''.join(res))
+
+        expected = ['ATGCTGACGACGTAGCAGGTAA', 'GGCGCAATCCTTGCAGAGCGTG', 'TTTTAGATCAGACCGGAGCCCT']
+        result = self.short_triplets_r[0].get_triplets()
         for i, res in enumerate(result):
             self.assertEqual(expected[i], ''.join(res))
 
@@ -180,9 +225,33 @@ class TestTriplet(unittest.TestCase):
             result = trp.get_trp_names()
             self.assertEqual(expected[i], result)
 
+        expected = [['A', 'R', 'J'],
+                    ['A', 'R', 'K'],
+                    ['A', 'J', 'K'],
+                    ['B', 'R', 'J'],
+                    ['B', 'R', 'K'],
+                    ['B', 'J', 'K'],
+                    ['C', 'R', 'J'],
+                    ['C', 'R', 'K'],
+                    ['C', 'J', 'K'],
+                    ['D', 'R', 'J'],
+                    ['D', 'R', 'K'],
+                    ['D', 'J', 'K'],
+                    ['E', 'R', 'J'],
+                    ['E', 'R', 'K'],
+                    ['E', 'J', 'K']]
+        
+        for i, trp in enumerate(self.short_triplets_r):
+            result = trp.get_trp_names()
+            self.assertEqual(expected[i], result)
+
     def test_get_sequence_name(self):
         expected = 'C'
         result = self.short_triplets[0].get_sequence_name(2)
+        self.assertEqual(expected, result)
+
+        expected = 'J'
+        result = self.short_triplets_r[0].get_sequence_name(2)
         self.assertEqual(expected, result)
 
     def test_remove_monomorphic_sites_short(self):
@@ -195,6 +264,18 @@ class TestTriplet(unittest.TestCase):
         trp = self.short_triplets[0]
         res_aln, res_poly_sites = trp.remove_monomorphic_sites()
 
+        for pos in range(res_aln.shape[0]):
+            self.assertEqual(exp_aln[pos], ''.join(res_aln[pos]))
+        self.assertEqual(exp_poly_sites, res_poly_sites)
+        self.assertEqual(len(exp_aln), len(res_aln))
+
+        exp_aln = ['ATGCTGCGACGTAGCGTAA',
+                   'GGCGCATCCTTGCAGCGTG',
+                   'TTTTAGTCAGACCGGCCCT']
+        exp_poly_sites = [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 18, 19, 20, 21]
+
+        trp = self.short_triplets_r[0]
+        res_aln, res_poly_sites = trp.remove_monomorphic_sites()
         for pos in range(res_aln.shape[0]):
             self.assertEqual(exp_aln[pos], ''.join(res_aln[pos]))
         self.assertEqual(exp_poly_sites, res_poly_sites)
@@ -223,6 +304,73 @@ class TestTriplet(unittest.TestCase):
         self.assertEqual(exp_poly_sites, res_poly_sites)
         self.assertEqual(len(exp_aln), len(res_aln))
 
+        exp_aln = ['AAAAACATCACGCCACACGCTGTGCGTTTGAAGTCGCCGACGCGATCAAGGCGCGGCCGCAACCTATCTGGAACCGTCCGCCAGCCAAATCGGGCACAAAGAAAGCAT'
+                   'CAAAGACACGGCGCGCGTCTTGGGCAGAATGTACGATGCCATCGAATATCGCGGCTTCGCTCAGGAAACTGTCGAGAATGGCAAATAGCGGGCGTACCGTGTTCAACG'
+                   'GCTGACCAACGAGTTCCATCCCACACAATGCTTGCCGACGCACTGCTATGCGCGAACACAGCAAACCTTTGACAAACCGCGTTTGCCTACGCGGCGACGCGCGTTACA'
+                   'ACATGGGCAATTCCTGCTGATTTTAGGGGCAAAATTGGGGATGGACGTGCGTATGGCGCACCTCAAAGCCTGTGGCGTCTGAAGGCATTATCGCCGCCGCACACGCCG'
+                   'CCCCAAAGAAACCGGTGCAAAAATTACCCTGACCGAAACGCGCATGAAGCCGTCAAAGTGTGGTTTCATTCATACTGACGTATGGGTCAGCATGGGCGAGCCGAAAGA'
+                   'AGTCTGGCAGGAACGCATCGATTTGCGAAAGATTACCGCGTTACGCCCGAACTGATGGCGGCATCGGAATCCGCAAGTCAAATTCATGCACTGCCTGCCCGCTTCCAC'
+                   'AACGCGAAACAAAGTCGGCGATGGTTTAGAAACCTTGGGCTGAACGGTGTGAATTACAGAAGAAGTATCGAAAGTCCGCCGGCATCGTGTTCATCAGGG',
+                   'TATTGGTCATCCCTTAGGCTACGGAAGCACGGCTCTAGCCTGGCCATGGTCGGTGACTCGGTCCGTGATCTGTGGCGAACTTAATTCCCAACCCTACTGACAACAATC'
+                   'AGTATTGTAATACTAAAAAAGCTCCTGTGGAGGACGCCAATTCGGAGCGTAGGCTACAAGGTTCGTAATTCCGATTTACAGATAAGGTTCCGTCAAGCCTATCGGAGA'
+                   'AATAGCCGACCGTGGAAGGGCCAGGTGACGATGACTCTTATAGCTTCAATTGAAGTGGACTAGATCAATCTTGATGGCACGACGCAGCAAACGTACCGTTAACGGCGC'
+                   'CACATCTCGACCGCGGGGCTAACACATTCATTGCGCTTCATGCACCCGCGTGTACGTTAACCTACCTATTCTGTAAGACTGCTCCACCGGAGTGGAACTACCCAGATT'
+                   'TATGTTTTACGAATACATTGTTAATGGTGCCATCAGCTCCGATCAGTTAATCCGTGATAGGGGCAATGGATTGACGTGAAACAGGATGGAGAGATGACCTAGTGGGTT'
+                   'CCGCTTGACCCTTGTCGATGCAGAAAAAGCACTGCAATCAATCGTCTTAACCCAGAGTTTTGCAAGATCTACCTGTAATCTAGGTATCTATACACACGTTCGTACACG'
+                   'TAGGGGGTGGGGGGAGCAACATCTCTACCTGATAAAACCGATAGTTAGTCGGGTAAATGAATCTATCTGGTTCGCATATTTCTGCAAGACTCATGTATA',
+                   'TGTGTCTGGGTGAGACCCACAAATACCAGACCTGAGCCGGATCATAATAAAAATAGGGCTTTTTAAGACATATGTATAACTTGGGTGAGTGATACTAAGGTGGCTCAC'
+                   'ATTGACCACCTGATGGAGCATGCCATAGTGGTGGTTGTTACCTCCTGGAATCTCTGAGAGCTCGCTGCACTGCCGGACCATAGTCTCGACAAGGAGGGGAGCGAATCA'
+                   'ACAATGTTCTTCTCCCTGTAGTCTCGGGGCCCATGCTGGTGTCAGCACCTTTACTGCGGGGGGTCACGCTCTTGGGCACATGTACTTAGTTATACTCGGTGAGAACTC'
+                   'ACTGGTTGCCAGAGTCTGCATGGTTCTTCCCCATTCTGCGACGTGATGATAACGGCTAGTGGGTACTTGTAACCGTTGGGTGTATCGGGCTTATCGGACTAAAGCTCA'
+                   'CCAATCGCGCCAGCGTACAGCCGGAAGGGCATCGTTCTTCAAATTAACACCGACATTAATGTCACTGTGTCCGCTCACGAAATATTGACATGCGTCTTTAGGGGCATA'
+                   'TGCTATACGAACGACACGTAGCATTAACAAGGGATTGAGATCCTGATAACGGTATTTGAACTCTATCTAATAAGTCCGTAGCATATCCACCCCAACGACACTAGAGTC'
+                   'CCCTTACCATCAATGCGGGCTCGAGAGCAAATAAGTCCTATCCGCAGGTGCTAGTTTACTGTCAAGTAATGCCCTGAGACCCGGTTGATGGGTCGCACT']
+        exp_poly_sites = [0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
+                          28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52,
+                          53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76,
+                          77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100,
+                          101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120,
+                          121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140,
+                          141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160,
+                          161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180,
+                          181, 182, 183, 184, 186, 187, 188, 189, 190, 192, 193, 194, 195, 197, 198, 199, 200, 202, 203, 204,
+                          205, 206, 207, 208, 209, 210, 211, 212, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 226,
+                          227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 246,
+                          247, 248, 249, 250, 252, 253, 254, 255, 256, 257, 258, 259, 260, 261, 262, 263, 264, 265, 266, 267,
+                          268, 269, 270, 272, 273, 274, 275, 276, 277, 278, 279, 280, 281, 282, 283, 284, 285, 286, 287, 288,
+                          292, 293, 294, 295, 296, 297, 298, 299, 300, 301, 304, 305, 306, 307, 308, 309, 310, 311, 312, 313, 
+                          314, 315, 316, 317, 318, 319, 320, 321, 322, 324, 325, 326, 327, 328, 329, 330, 331, 332, 333, 334,
+                          335, 336, 337, 338, 339, 340, 341, 342, 343, 344, 345, 346, 347, 348, 349, 350, 351, 352, 353, 354,
+                          356, 357, 358, 359, 360, 361, 362, 363, 364, 365, 366, 367, 368, 369, 370, 371, 372, 373, 374, 375,
+                          376, 377, 378, 379, 380, 381, 382, 383, 384, 385, 386, 387, 388, 389, 390, 391, 392, 393, 394, 395,
+                          397, 398, 399, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416,
+                          417, 418, 420, 421, 422, 423, 424, 425, 426, 427, 428, 429, 430, 431, 432, 433, 434, 435, 436, 437,
+                          438, 439, 440, 441, 442, 443, 444, 445, 446, 447, 448, 449, 450, 451, 452, 453, 455, 456, 457, 458,
+                          459, 460, 461, 462, 463, 464, 465, 466, 467, 468, 469, 470, 471, 472, 473, 474, 475, 476, 477, 478,
+                          479, 480, 481, 482, 483, 484, 485, 486, 487, 488, 490, 491, 492, 493, 494, 495, 496, 497, 498, 499,
+                          500, 501, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511, 513, 514, 515, 517, 518, 519, 520, 521,
+                          522, 523, 524, 525, 526, 527, 528, 529, 530, 531, 532, 533, 534, 535, 536, 537, 538, 539, 540, 541,
+                          542, 543, 544, 545, 546, 547, 548, 549, 550, 551, 552, 553, 554, 555, 556, 557, 558, 559, 560, 561,
+                          562, 563, 564, 565, 566, 567, 568, 569, 570, 571, 572, 573, 574, 575, 576, 577, 578, 579, 580, 581,
+                          582, 583, 584, 585, 586, 587, 588, 589, 591, 592, 593, 594, 595, 596, 597, 598, 599, 600, 601, 602,
+                          603, 604, 605, 606, 607, 608, 609, 610, 611, 612, 613, 614, 615, 616, 617, 618, 619, 620, 621, 622,
+                          623, 624, 625, 626, 627, 628, 629, 630, 631, 634, 635, 636, 637, 638, 639, 640, 641, 642, 643, 644,
+                          645, 646, 647, 648, 649, 650, 651, 652, 653, 654, 655, 656, 657, 658, 659, 660, 661, 662, 663, 664,
+                          665, 666, 667, 669, 670, 671, 672, 673, 674, 675, 676, 677, 678, 680, 681, 682, 683, 684, 685, 687,
+                          688, 689, 690, 691, 692, 693, 694, 695, 696, 697, 698, 700, 701, 702, 704, 705, 706, 707, 709, 710,
+                          711, 712, 713, 714, 715, 716, 718, 719, 720, 721, 722, 723, 724, 725, 726, 727, 728, 729, 730, 731,
+                          732, 734, 735, 737, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 750, 751, 753, 754,
+                          755, 756, 757, 758, 759, 760, 761, 762, 764, 765, 766, 767, 768, 769, 770, 771, 772, 773, 774, 775,
+                          776, 777, 779, 780, 781, 782, 783, 784, 786]
+
+        trp = self.long_triplets_r[0]
+        res_aln, res_poly_sites = trp.remove_monomorphic_sites()
+
+        for pos in range(res_aln.shape[0]):
+            self.assertEqual(exp_aln[pos], ''.join(res_aln[pos]))
+        self.assertEqual(exp_poly_sites, res_poly_sites)
+        self.assertEqual(len(exp_aln), len(res_aln))
+
     def test_remove_uninformative_sites(self):
         # Small example
         exp_aln = ['GCTGCGTAGGGT',
@@ -232,6 +380,19 @@ class TestTriplet(unittest.TestCase):
         exp_uninfor_sites = [0, 1, 5, 6, 7, 9, 15, 16, 20, 21]
 
         trp = self.short_triplets[0]
+        res_aln, res_infor_sites, res_uninfor_sites = trp.remove_uninformative_sites()
+        for i, seq in enumerate(res_aln):
+            self.assertEqual(exp_aln[i], ''.join(seq))
+        self.assertEqual(exp_uninfor_sites, res_uninfor_sites)
+        self.assertEqual(exp_infor_sites, res_infor_sites)
+
+        exp_aln = ['TGCGAAGCG',
+                   'GATCCCAGC',
+                   'TGTCACGGC']
+        exp_infor_sites = [1, 5, 7, 8, 9, 13, 14, 15, 18]
+        exp_uninfor_sites = [0, 2, 3, 4, 6, 10, 11, 12, 16, 17, 19, 20, 21]
+
+        trp = self.short_triplets_r[0]
         res_aln, res_infor_sites, res_uninfor_sites = trp.remove_uninformative_sites()
         for i, seq in enumerate(res_aln):
             self.assertEqual(exp_aln[i], ''.join(seq))
@@ -293,6 +454,69 @@ class TestTriplet(unittest.TestCase):
                              782, 784, 785, 786]
 
         trp = self.long_triplets[1]
+        res_aln, res_infor_sites, res_uninfor_sites = trp.remove_uninformative_sites()
+
+        for i, seq in enumerate(res_aln):
+            self.assertEqual(exp_aln[i], ''.join(seq))
+        self.assertEqual(exp_uninfor_sites, res_uninfor_sites)
+        self.assertEqual(exp_infor_sites, res_infor_sites)
+
+        exp_aln = ['AACATCCGCACTGCGTGACCCCCGCTCAGGGCCAACGTCGCCTCGGCAAAAGACAGAGGCCGCGCGGGGAATGAGCCATCAATTCGCGCAGAACGAAGAATGAA'
+                   'ATATGGGCACTTTCAGGGCTGACCAACGAGACCACAATGCCGACCAGATATGCGGAAGGCAAACTGCCAACGCGTAGTCGCGGTCATGGATTCCGCTTTGGGGA'
+                   'AAATGGTACTGCGTTGGCACCTAGCCTTGCGCTGATTATGCCCGCAACCCCGCCAAGCGGGCAAAATACGAAAACGCACTAAAGCGTCATCTCGACAGGGTCGC'
+                   'GGAATCGGGACGTCGTTGCTGAAGATTCGCGTACCCACGAGCGGCAGGCTCGCGCAAACATGCACGCCTCCCGCTCCACCGACCAACCATGGATTTACAGGCTA'
+                   'TGTGGAAGTAAGAAATAGTCGCGCGTCGTAGG',
+                   'TGGTCCCGAGTGGAACCGCAGCTGGATGGGACGTTATGACTTAACCCAAACATAATTATATAAAACTCGTGGAGCAATTCGAGGTGTAGTGTATAATTTATATA'
+                   'AGGTTCGTACTTCGAAAGATAGCCGACCGTGCCATGAGACTCTTTATACAATTGATCGGCGATCTTCGATCACGCAATCGGTAGGCACTACCCCGGGACATTCT'
+                   'TGCGTTGCCGCGTGAGTAACCTTATTCGTCGCTGCCGGATGGATACCATTAGTGTTTATAATTTAGCATAGACTCCGTTCTGAGCGCTGGTGCTGACGGATGAA'
+                   'CTGCGCGCCTGTATGGAAATAAGACTGATCAACGCTACAGTTTTGCAGCTACTATCTATATCTATCACAGTTCGTCGACGGGCGGGGAATCTACTACCTCCGAA'
+                   'GTCGGGGGTATGCTCTTGCTGTTTACCGTTTA',
+                   'TAGTCATTCACTAAACGGACCGCTCATATTAGCTTCGTCGCCACGGTCGGCGACTGTATATACAAGGGCAGGAACCCAATGGGTTTCGCTCAGTGGAGTTGGAT'
+                   'GTGGTGATTACGCCGGGACAAGGGGTACAGAATTTGGTAGCCTCCTGGCGATTAGTACCTAGAACTGGGTGGACCGGGACCGAGCCACGGCTATCGGTTGTTCA'
+                   'AGAGGTGCGTGGGGATGCCGAGAATCTTGTAGGCCCTAATCCATACCCTCATTGTTTCTAACAATGTTCAGCAAGCCTTCTATCAACTGTCTTGACCCTGGGAA'
+                   'CGGAGACGGTCTTTATTGAAAGAAAATCGAGAAGTCCTAGTCTGCAATACAGTGCCTGTTGGCTTGCTACCTGGATGTGGTAACGACATGGGTCGTCAACCGTT'
+                   'GGCTAAGTGGTAAAAATACTTCGCGCATGTGG']
+        
+        exp_infor_sites = [0, 4, 5, 6, 7, 11, 13, 14, 17, 18, 21, 24, 25, 26, 27, 29, 31, 32, 36, 38, 39, 41, 43, 44, 45, 48, 49, 50,
+                           55, 57, 58, 59, 62, 64, 68, 70, 73, 79, 80, 82, 83, 88, 92, 93, 94, 96, 99, 102, 104, 105, 106, 107, 109,
+                           111, 114, 115, 116, 120, 121, 122, 124, 125, 126, 127, 129, 132, 133, 134, 137, 138, 139, 140, 141, 143,
+                           145, 149, 150, 151, 152, 153, 155, 156, 157, 159, 160, 163, 165, 169, 170, 173, 175, 176, 177, 179, 184,
+                           185, 186, 187, 188, 189, 191, 192, 195, 196, 197, 199, 200, 201, 202, 204, 206, 207, 210, 212, 215, 217,
+                           218, 219, 221, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 242, 245, 246,
+                           247, 250, 252, 253, 258, 259, 260, 261, 262, 263, 264, 266, 267, 270, 271, 273, 274, 275, 276, 277, 278,
+                           280, 282, 286, 289, 290, 291, 292, 293, 294, 295, 298, 300, 303, 304, 305, 306, 309, 310, 311, 312, 319,
+                           320, 322, 323, 324, 325, 330, 331, 333, 337, 339, 343, 344, 346, 347, 350, 351, 352, 354, 355, 357, 358,
+                           359, 362, 364, 367, 368, 369, 370, 372, 373, 374, 375, 376, 378, 379, 383, 386, 387, 389, 390, 391, 392,
+                           393, 395, 398, 400, 401, 402, 403, 404, 405, 409, 410, 411, 412, 413, 415, 416, 419, 420, 422, 423, 424,
+                           430, 431, 432, 433, 434, 436, 437, 438, 440, 442, 443, 444, 446, 449, 450, 452, 453, 454, 455, 456, 457,
+                           458, 460, 465, 466, 467, 469, 470, 471, 474, 475, 478, 482, 484, 485, 487, 488, 489, 490, 491, 492, 493,
+                           494, 501, 504, 506, 508, 509, 510, 512, 516, 517, 519, 522, 523, 524, 526, 528, 530, 532, 533, 534, 537,
+                           539, 540, 541, 542, 543, 545, 552, 553, 555, 560, 564, 566, 567, 570, 573, 574, 575, 577, 578, 581, 582,
+                           583, 586, 587, 588, 589, 590, 591, 592, 593, 595, 596, 597, 598, 601, 602, 603, 604, 605, 607, 608, 610,
+                           612, 614, 616, 618, 619, 622, 623, 624, 625, 626, 627, 631, 632, 633, 636, 637, 639, 640, 643, 645, 646,
+                           647, 648, 651, 652, 653, 654, 655, 656, 657, 659, 660, 661, 662, 664, 665, 666, 667, 669, 670, 672, 675,
+                           677, 679, 681, 682, 683, 686, 687, 689, 690, 693, 696, 699, 700, 701, 702, 703, 704, 705, 706, 707, 708,
+                           710, 719, 720, 721, 722, 724, 729, 730, 731, 732, 733, 734, 735, 736, 737, 739, 741, 742, 746, 747, 750,
+                           752, 755, 758, 759, 761, 763, 765, 766, 768, 772, 775, 777, 778, 780, 782, 784, 786]
+
+        exp_uninfor_sites = [1, 2, 3, 8, 9, 10, 12, 15, 16, 19, 20, 22, 23, 28, 30, 33, 34, 35, 37, 40, 42, 46, 47, 51, 52, 53, 54,
+                             56, 60, 61, 63, 65, 66, 67, 69, 71, 72, 74, 75, 76, 77, 78, 81, 84, 85, 86, 87, 89, 90, 91, 95, 97, 98,
+                             100, 101, 103, 108, 110, 112, 113, 117, 118, 119, 123, 128, 130, 131, 135, 136, 142, 144, 146, 147, 148,
+                             154, 158, 161, 162, 164, 166, 167, 168, 171, 172, 174, 178, 180, 181, 182, 183, 190, 193, 194, 198, 203,
+                             205, 208, 209, 211, 213, 214, 216, 220, 222, 238, 239, 240, 241, 243, 244, 248, 249, 251, 254, 255, 256,
+                             257, 265, 268, 269, 272, 279, 281, 283, 284, 285, 287, 288, 296, 297, 299, 301, 302, 307, 308, 313, 314,
+                             315, 316, 317, 318, 321, 326, 327, 328, 329, 332, 334, 335, 336, 338, 340, 341, 342, 345, 348, 349, 353,
+                             356, 360, 361, 363, 365, 366, 371, 377, 380, 381, 382, 384, 385, 388, 394, 396, 397, 399, 406, 407, 408,
+                             414, 417, 418, 421, 425, 426, 427, 428, 429, 435, 439, 441, 445, 447, 448, 451, 459, 461, 462, 463, 464,
+                             468, 472, 473, 476, 477, 479, 480, 481, 483, 486, 495, 496, 497, 498, 499, 500, 502, 503, 505, 507, 511,
+                             513, 514, 515, 518, 520, 521, 525, 527, 529, 531, 535, 536, 538, 544, 546, 547, 548, 549, 550, 551, 554,
+                             556, 557, 558, 559, 561, 562, 563, 565, 568, 569, 571, 572, 576, 579, 580, 584, 585, 594, 599, 600, 606,
+                             609, 611, 613, 615, 617, 620, 621, 628, 629, 630, 634, 635, 638, 641, 642, 644, 649, 650, 658, 663, 668,
+                             671, 673, 674, 676, 678, 680, 684, 685, 688, 691, 692, 694, 695, 697, 698, 709, 711, 712, 713, 714, 715,
+                             716, 717, 718, 723, 725, 726, 727, 728, 738, 740, 743, 744, 745, 748, 749, 751, 753, 754, 756, 757, 760,
+                             762, 764, 767, 769, 770, 771, 773, 774, 776, 779, 781, 783, 785]
+
+        trp = self.long_triplets_r[1]
         res_aln, res_infor_sites, res_uninfor_sites = trp.remove_uninformative_sites()
 
         for i, seq in enumerate(res_aln):

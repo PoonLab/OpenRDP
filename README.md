@@ -121,6 +121,76 @@ RDP             6       479     X64860          X64869  X64873  3.40E-02
 RDP             6       18      X64866          X64869  X64873  2.36E+01
 ```
 
+You can also provide a parental reference sequence using the `-r` flag. For example:
+```console
+(venv) sandeep@Jesry:~/OpenRDP$ openrdp -c tests/test_cfg.ini tests/short.fasta -r tests/short_ref.fasta
+Loading configuration from tests/test_cfg.ini
+Starting 3Seq Analysis
+Finished 3Seq Analysis
+Starting GENECONV Analysis
+Finished GENECONV Analysis
+Setting up bootscan analysis...
+Starting Scanning Phase of Bootscan/Recscan
+Finished Scanning Phase of Bootscan/Recscan
+Setting up maxchi analysis...
+Invalid option for 'win_size'.
+Using default value (200) instead.
+Setting up siscan analysis...
+Invalid option for 'win_size'.
+Using default value (200) instead.
+Setting up chimaera analysis...
+Invalid option for 'win_size'.
+Using default value (200) instead.
+Setting up rdp analysis...
+Scanning triplet 1 / 15
+Scanning triplet 3 / 15
+Scanning triplet 2 / 15
+Scanning triplet 4 / 15
+Scanning triplet 5 / 15
+Scanning triplet 7 / 15
+Scanning triplet 6 / 15
+Scanning triplet 8 / 15
+Scanning triplet 9 / 15
+Scanning triplet 10 / 15
+Scanning triplet 11 / 15
+Scanning triplet 13 / 15
+Scanning triplet 12 / 15
+Scanning triplet 14 / 15
+Scanning triplet 15 / 15
+Scanning triplet 1 / 15
+Scanning triplet 2 / 15
+Scanning triplet 3 / 15
+Scanning triplet 4 / 15
+Scanning triplet 5 / 15
+Scanning triplet 6 / 15
+Scanning triplet 7 / 15
+Scanning triplet 8 / 15
+Scanning triplet 9 / 15
+Scanning triplet 10 / 15
+Scanning triplet 11 / 15
+Scanning triplet 12 / 15
+Scanning triplet 13 / 15
+Scanning triplet 14 / 15
+Scanning triplet 15 / 15
+
+Method          Start   End     Recombinant     Parent1 Parent2 Pvalue
+------------------------------------------------------------------------
+Siscan          2       205     A               J       R       7.84E-01
+Siscan          2       205     A               K       R       7.56E-01
+Siscan          2       205     A               J       K       7.77E-01
+Siscan          2       205     B               J       R       7.77E-01
+Siscan          3       205     B               K       R       7.34E-01
+Siscan          2       205     B               J       K       7.57E-01
+Siscan          2       205     C               J       R       7.77E-01
+Siscan          2       205     C               K       R       7.08E-01
+Siscan          2       205     C               J       K       7.62E-01
+Siscan          2       205     D               J       R       7.84E-01
+Siscan          2       205     D               K       R       7.58E-01
+Siscan          3       205     D               J       K       7.57E-01
+Siscan          2       205     E               J       R       7.67E-01
+Siscan          2       205     E               K       R       7.08E-01
+Siscan          2       205     E               J       K       7.60E-01
+```
 
 ### Using OpenRDP as a Python module 
 

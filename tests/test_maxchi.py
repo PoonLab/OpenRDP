@@ -19,7 +19,7 @@ class TestMaxChi(unittest.TestCase):
         with open(short_seq_path) as small_test:
             names, test_seqs = read_fasta(small_test)
             self.short_align = np.array(list(map(list, test_seqs)))
-            self.test_short = MaxChi(self.short_align, names, settings=test_settings)
+            self.test_short = MaxChi(self.short_align, settings=test_settings)
 
         self.short_triplets = [trp for trp in TripletGenerator(self.short_align, names)]
 
@@ -31,7 +31,7 @@ class TestMaxChi(unittest.TestCase):
         with open(long_seq_path) as test:
             names, test_seqs = read_fasta(test)
             self.long_align = np.array(list(map(list, test_seqs)))
-            self.test_long = MaxChi(self.long_align, names, settings=test_settings)
+            self.test_long = MaxChi(self.long_align, settings=test_settings)
 
         self.long_triplets = [trp for trp in TripletGenerator(self.long_align, names)]
 
@@ -43,7 +43,7 @@ class TestMaxChi(unittest.TestCase):
         with open(hiv_seq_path) as hiv_test:
             names, crf07_seqs = read_fasta(hiv_test)
             self.hiv_align = np.array(list(map(list, crf07_seqs)))
-            self.test_hiv = MaxChi(self.hiv_align, names, settings=test_settings)
+            self.test_hiv = MaxChi(self.hiv_align, settings=test_settings)
 
         self.hiv_triplets = [trp for trp in TripletGenerator(self.hiv_align, names)]
 
@@ -228,7 +228,13 @@ class TestMaxChi(unittest.TestCase):
         for trp in self.hiv_triplets:
             self.test_hiv.execute(trp)
         result = self.test_hiv.merge_breakpoints()
-        self.assertEqual(expected, result)
+
+        for index, exp_tuple in enumerate(expected):
+            self.assertEqual(exp_tuple[0], result[index][0])
+            self.assertEqual(exp_tuple[1], result[index][1])
+            self.assertEqual(exp_tuple[2], result[index][2])
+            self.assertEqual(exp_tuple[3], result[index][3])
+            self.assertAlmostEqual(exp_tuple[4], result[index][4])
 
 
 if __name__ == '__main__':

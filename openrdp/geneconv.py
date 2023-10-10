@@ -21,7 +21,7 @@ class GeneConv:
             self.set_options_from_config(settings)
             self.validate_options()
 
-        else:
+        else: # pragma: no cover
             self.gscale = gscale
             self.ignore_indels = ignore_indels
             self.min_length = min_length

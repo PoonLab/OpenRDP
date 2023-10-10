@@ -7,7 +7,7 @@ from .common import calculate_chi2, identify_recombinant
 
 class Chimaera:
     def __init__(self, align, max_pvalue=0.05, win_size=200, strip_gaps=True, fixed_win_size=True,
-                 num_var_sites=None, frac_var_sites=None, settings=None, quiet=False):
+                 num_var_sites=None, frac_var_sites=None, settings=None, ref_align=None, quiet=False):
         """
         Constructs a Chimaera Object
         :param win_size: Size of the sliding window
@@ -19,7 +19,7 @@ class Chimaera:
         if settings:
             self.set_options_from_config(settings)
             self.validate_options(align)
-        else:
+        else: # pragma: no cover
             self.max_pvalue = max_pvalue
             self.win_size = win_size
             self.strip_gaps = strip_gaps

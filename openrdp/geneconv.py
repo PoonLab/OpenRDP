@@ -158,11 +158,11 @@ class GeneConv:
         # Check that the out file exists
         try:
             with open(out_path) as out_handle:
-
                 for line in out_handle:
                     if not line.startswith('#'):
                         line = line.strip()
                         line = line.split()
+                        line[2:] = [item for item in line[2:] if all(char.isalnum() or char == '.' for char in item)]
                         seqs = line[1].split(';')  # Sequences, potential recombinant is first
                         rec_name = seqs[0]
                         if len(seqs) == 2:

@@ -36,18 +36,21 @@ class ThreeSeq:
             logging.error("No 3Seq executable file exists.")
 
         with NamedTemporaryFile(delete=False) as tempf:
-            subprocess.check_output([
+            cmd = [
                 bin_path,
                 "-full", self.in_path,  # process entire sequences
                 "-ptable myPvalueTable",
                 "-d",  # distinct sequences only
                 "-id", tempf.name  # write outputs to temporary file
-            ], shell=False, input=b"Y\n")  # Respond to prompt
+            ]
+            subprocess.check_output(cmd, shell=False, input=b"Y\n")  # Respond to prompt
 
             # Parse the output of 3Seq
             out_path = tempf.name + '.3s.rec'
-            if not os.path.exists(out_path):
-                out_path += '.csv'
+            if not os.path.exists(out_path) and not os.path.exists(out_path+'.csv'):
+                # No recombinant triplets were written to this output file
+                return []
+
             ts_results = self.parse_output(out_path)
 
         return ts_results

@@ -39,7 +39,7 @@ class ThreeSeq:
             cmd = [
                 bin_path,
                 "-full", self.in_path,  # process entire sequences
-                "-ptable myPvalueTable",
+                "-ptable myPvalueTable",  # included with 3Seq
                 "-d",  # distinct sequences only
                 "-id", tempf.name  # write outputs to temporary file
             ]
@@ -47,10 +47,11 @@ class ThreeSeq:
 
             # Parse the output of 3Seq
             out_path = tempf.name + '.3s.rec'
-            if not os.path.exists(out_path) and not os.path.exists(out_path+'.csv'):
-                # No recombinant triplets were written to this output file
-                return []
-
+            if not os.path.exists(out_path):
+                out_path += '.csv'
+                if not os.path.exists(out_path):
+                    # No recombinant triplets were written to this output file
+                    return []
             ts_results = self.parse_output(out_path)
 
         return ts_results

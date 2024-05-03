@@ -260,27 +260,31 @@ class Scanner:
             total_num_trps = self.alignment.shape[0] * int(ncomb(self.ref_align.shape[0], 2))
         else:
             total_num_trps = int(ncomb(self.alignment.shape[0], 3))
-        if 'bootscan' in tmethods:
-            bootscan = tmethods['bootscan']
-            bootscan.execute_all(total_combinations=total_num_trps, seq_names=self.seq_names,
-                                 ref_names=self.ref_names if ref_file else None)
-            if os.path.exists(bootscan.dt_matrix_file):
-                os.remove(bootscan.dt_matrix_file)
+
 
         triplets = TripletGenerator(self.alignment, self.seq_names,
                                     ref_align=self.ref_align if ref_file else None,
                                     ref_names=self.ref_names if ref_file else None)
 
-
         # attempt at parallel processing
         from mpi4py import MPI
         try:
-            nprocs = MPI.COMM_WORLD.Get_size()
-            my_rank = MPI.COMM_WORLD.Get_rank()
+            comm = MPI.COMM_WORLD
+            nprocs = comm.Get_size()
+            my_rank = comm.Get_rank()
 
         except ModuleNotFoundError:
             sys.stderr.write('Running in serial mode')
             nprocs = 1
+            my_rank = 0
+
+        if my_rank == 0: # stops bootscan from running over and over in every process
+            if 'bootscan' in tmethods:
+                bootscan = tmethods['bootscan']
+                bootscan.execute_all(total_combinations=total_num_trps, seq_names=self.seq_names,
+                                    ref_names=self.ref_names if ref_file else None)
+                if os.path.exists(bootscan.dt_matrix_file):
+                    os.remove(bootscan.dt_matrix_file)
 
         if nprocs == 1:
             for trp_count, triplet in enumerate(triplets):
@@ -289,6 +293,11 @@ class Scanner:
                     if alias == 'bootscan':
                         continue
                     tmethod.execute(triplet)
+            
+            for alias, tmethod in tmethods.items():
+                    results.dict[alias] = tmethod.merge_breakpoints()
+            return results
+
         
         elif nprocs > 1:
             for trp_count, triplet in enumerate(triplets):
@@ -298,9 +307,22 @@ class Scanner:
                         if alias == 'bootscan':
                             continue
                         tmethod.execute(triplet)
+            
+            rank_result = {}
+            # Process results by joining breakpoint locations that overlap
+            # do this per process, then join them all up into a single results dict
+            for alias, tmethod in tmethods.items():
+                    rank_result[alias] = tmethod.merge_breakpoints()
 
-        # Process results by joining breakpoint locations that overlap
-        for alias, tmethod in tmethods.items():
-            results.dict[alias] = tmethod.merge_breakpoints()
+            comm.Barrier()
+            total_ranks = comm.gather(rank_result, root=0)
 
-        return results
+            if my_rank == 0:
+                for process in total_ranks:
+                    for alias in process:
+                        # it is initally an empty dictionary that we turn into a [] anyways
+                        if not results.dict[alias]: 
+                            results.dict[alias] = []
+                        results.dict[alias] += process[alias]
+
+                return results

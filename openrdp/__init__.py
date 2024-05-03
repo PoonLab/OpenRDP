@@ -270,12 +270,34 @@ class Scanner:
         triplets = TripletGenerator(self.alignment, self.seq_names,
                                     ref_align=self.ref_align if ref_file else None,
                                     ref_names=self.ref_names if ref_file else None)
-        for trp_count, triplet in enumerate(triplets):
-            self.print("Scanning triplet {} / {}".format(trp_count + 1, total_num_trps))
-            for alias, tmethod in tmethods.items():
-                if alias == 'bootscan':
-                    continue
-                tmethod.execute(triplet)
+
+
+        # attempt at parallel processing
+        from mpi4py import MPI
+        try:
+            nprocs = MPI.COMM_WORLD.Get_size()
+            my_rank = MPI.COMM_WORLD.Get_rank()
+
+        except ModuleNotFoundError:
+            sys.stderr.write('Running in serial mode')
+            nprocs = 1
+
+        if nprocs == 1:
+            for trp_count, triplet in enumerate(triplets):
+                self.print("Scanning triplet {} / {}".format(trp_count + 1, total_num_trps))
+                for alias, tmethod in tmethods.items():
+                    if alias == 'bootscan':
+                        continue
+                    tmethod.execute(triplet)
+        
+        elif nprocs > 1:
+            for trp_count, triplet in enumerate(triplets):
+                if trp_count % nprocs == my_rank:
+                    self.print("Scanning triplet {} / {}".format(trp_count + 1, total_num_trps))
+                    for alias, tmethod in tmethods.items():
+                        if alias == 'bootscan':
+                            continue
+                        tmethod.execute(triplet)
 
         # Process results by joining breakpoint locations that overlap
         for alias, tmethod in tmethods.items():

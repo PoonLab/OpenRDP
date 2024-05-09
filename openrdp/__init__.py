@@ -278,28 +278,41 @@ class Scanner:
             nprocs = 1
             my_rank = 0
 
-        if my_rank == 0: # stops bootscan from running over and over in every process
-            if 'bootscan' in tmethods:
-                bootscan = tmethods['bootscan']
-                bootscan.execute_all(total_combinations=total_num_trps, seq_names=self.seq_names,
-                                    ref_names=self.ref_names if ref_file else None)
-                if os.path.exists(bootscan.dt_matrix_file):
-                    os.remove(bootscan.dt_matrix_file)
+        # if my_rank == 0: # stops bootscan from running over and over in every process
+        #     if 'bootscan' in tmethods:
+        #         bootscan = tmethods['bootscan']
+        #         print('tnt: ', total_num_trps)
+        #         print('seq_name: ', self.seq_names)
+        #         print('ref: ', self.ref_names)
+        #         print('triplets: ', [i for i in triplets])
+        #         bootscan.execute_all(total_combinations=total_num_trps, seq_names=self.seq_names,
+        #                             ref_names=self.ref_names if ref_file else None)
+        #         if os.path.exists(bootscan.dt_matrix_file):
+        #             os.remove(bootscan.dt_matrix_file)
 
         if nprocs == 1:
+            res = [] # just for bootscan
             for trp_count, triplet in enumerate(triplets):
                 self.print("Scanning triplet {} / {}".format(trp_count + 1, total_num_trps))
                 for alias, tmethod in tmethods.items():
                     if alias == 'bootscan':
-                        continue
-                    tmethod.execute(triplet)
+                        res.append(tmethod.execute((trp_count, triplet)))
+                    else:
+                        tmethod.execute(triplet)
             
+                # should probably make setters and getters
+                tmethods['bootscan'].raw_results = [l for j in res for l in j]
+
+            if os.path.exists(tmethods['bootscan'].dt_matrix_file):
+                os.remove(tmethods['bootscan'].dt_matrix_file)
+
             for alias, tmethod in tmethods.items():
                     results.dict[alias] = tmethod.merge_breakpoints()
             return results
 
-        
+
         elif nprocs > 1:
+            print(tmethods)
             for trp_count, triplet in enumerate(triplets):
                 if trp_count % nprocs == my_rank:
                     self.print("Scanning triplet {} / {}".format(trp_count + 1, total_num_trps))

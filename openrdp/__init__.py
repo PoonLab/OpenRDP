@@ -291,9 +291,11 @@ class Scanner:
         if nprocs == 1:
             if self.config:
                 settings = dict(self.config.items(aliases['bootscan']['key']))
-                boot = aliases['bootscan']['method'](self.alignment, settings = settings, quiet=self.quiet, ref_align=self.ref_align if ref_file else None)
+                boot = aliases['bootscan']['method'](self.alignment, settings = settings,
+                                                     quiet=self.quiet, ref_align=self.ref_align if ref_file else None)
             else:
-                boot = aliases['bootscan']['method'](self.alignment, quiet=self.quiet, ref_align=self.ref_align if ref_file else None)
+                boot = aliases['bootscan']['method'](self.alignment, quiet=self.quiet,
+                                                     ref_align=self.ref_align if ref_file else None)
             
             temp = []
             for i in range(0, self.alignment.shape[1], boot.step_size):
@@ -301,17 +303,17 @@ class Scanner:
             boot.dt_matrix_file = boot.collate_scanning_phase(temp) 
             tmethods.update({'bootscan': boot})
             
-            boot_raw = [] # just for bootscan
+            temp = [] # just for bootscan
             for trp_count, triplet in enumerate(triplets):
                 self.print("Scanning triplet {} / {}".format(trp_count + 1, total_num_trps))
                 for alias, tmethod in tmethods.items():
                     if alias == 'bootscan':
-                        boot_raw.append(tmethod.execute((trp_count, triplet)))
+                        temp.append(tmethod.execute((trp_count, triplet)))
                     else:
                         tmethod.execute(triplet)
 
             # should probably make setters and getters
-            tmethods['bootscan'].raw_results = [l for j in boot_raw for l in j]
+            tmethods['bootscan'].raw_results = [l for j in temp for l in j]
 
             if os.path.exists(tmethods['bootscan'].dt_matrix_file):
                 os.remove(tmethods['bootscan'].dt_matrix_file)
@@ -323,13 +325,17 @@ class Scanner:
 
         elif nprocs > 1:
 
+            # set up the class
             if self.config:
                 settings = dict(self.config.items(aliases['bootscan']['key']))
                 # bootscan object
-                boot = aliases['bootscan']['method'](self.alignment, settings = settings, quiet=self.quiet, ref_align=self.ref_align if ref_file else None)
+                boot = aliases['bootscan']['method'](self.alignment, settings = settings,
+                                                     quiet=self.quiet, ref_align=self.ref_align if ref_file else None)
             else:
-                boot = aliases['bootscan']['method'](self.alignment, quiet=self.quiet, ref_align=self.ref_align if ref_file else None)
+                boot = aliases['bootscan']['method'](self.alignment, quiet=self.quiet,
+                                                     ref_align=self.ref_align if ref_file else None)
 
+            # manually iterate what multiprocess would've done to scan
             temp = []
             which_process = 0 # since stepsize isn't always 1, use this for mpi
             for i in range(0, self.alignment.shape[1], boot.step_size):
@@ -339,6 +345,7 @@ class Scanner:
             comm.Barrier()
             total_ranks = comm.gather(temp, root=0)
 
+            # generate the dt_matrix_file by collecting the files and then regiving them out
             if my_rank == 0:
                 boot_scan = []
                 for i in total_ranks:
@@ -352,18 +359,18 @@ class Scanner:
             boot.dt_matrix_file = boot_scan 
             tmethods.update({'bootscan': boot})
 
-            boot_raw = []
+            temp = [] # hold all results from execute
             for trp_count, triplet in enumerate(triplets):
                 if trp_count % nprocs == my_rank:
                     self.print("Scanning triplet {} / {}".format(trp_count + 1, total_num_trps))
                     for alias, tmethod in tmethods.items():
                         if alias == 'bootscan':
-                            boot_raw.append(tmethod.execute((trp_count, triplet)))
+                            temp.append(tmethod.execute((trp_count, triplet)))
                         else:
                             tmethod.execute(triplet)
 
             # manual execute_all()
-            tmethods['bootscan'].raw_results = [l for j in boot_raw for l in j]
+            tmethods['bootscan'].raw_results = [l for j in temp for l in j]
 
             if os.path.exists(tmethods['bootscan'].dt_matrix_file):
                 os.remove(tmethods['bootscan'].dt_matrix_file)
@@ -372,6 +379,7 @@ class Scanner:
             # Process results by joining breakpoint locations that overlap
             # do this per process, then join them all up into a single results dict
             for alias, tmethod in tmethods.items():
+                    # not sure if this is faster here
                     rank_result[alias] = tmethod.merge_breakpoints()
 
             comm.Barrier()

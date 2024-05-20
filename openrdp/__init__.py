@@ -226,11 +226,14 @@ class Scanner:
         for alias, a in aliases.items():
             
             # handle bootsacn with mpi, not here
-            if alias in ['threeseq', 'geneconv', 'bootscan'] or alias not in self.methods:
+            if alias in ['threeseq', 'geneconv'] or alias not in self.methods:
                 continue
 
             self.print(f"Setting up {alias} analysis...")
             
+            if alias in 'bootscan':
+                bootset = dict(self.config.items(a['key']))
+
             if self.config:
                 settings = dict(self.config.items(a['key']))
                 # if alias ==  'bootscan':
@@ -243,7 +246,7 @@ class Scanner:
                 tmethod = a['method'](self.alignment, quiet=self.quiet,
                                     ref_align=self.ref_align if ref_file else None)
             tmethods.update({alias: tmethod})
-        print(tmethods)
+
         # iterate over all triplets in the alignment
         if ref_file:
             total_num_trps = self.alignment.shape[0] * int(ncomb(self.ref_align.shape[0], 2))
@@ -290,19 +293,18 @@ class Scanner:
 
         if nprocs == 1:
             if self.config:
-                settings = dict(self.config.items(aliases['bootscan']['key']))
-                boot = aliases['bootscan']['method'](self.alignment, settings = settings,
+                boot = aliases['bootscan']['method'](self.alignment, settings = bootset,
                                                      quiet=self.quiet, ref_align=self.ref_align if ref_file else None)
             else:
                 boot = aliases['bootscan']['method'](self.alignment, quiet=self.quiet,
                                                      ref_align=self.ref_align if ref_file else None)
-            
+
             temp = []
             for i in range(0, self.alignment.shape[1], boot.step_size):
                 temp.append(boot.scan(i))
             boot.dt_matrix_file = boot.collate_scanning_phase(temp) 
             tmethods.update({'bootscan': boot})
-            
+
             temp = [] # just for bootscan
             for trp_count, triplet in enumerate(triplets):
                 self.print("Scanning triplet {} / {}".format(trp_count + 1, total_num_trps))
@@ -324,15 +326,8 @@ class Scanner:
 
 
         elif nprocs > 1:
-
-            # set up the class
-            if self.config:
-                settings = dict(self.config.items(aliases['bootscan']['key']))
-                # bootscan object
-                boot = aliases['bootscan']['method'](self.alignment, settings = settings,
-                                                     quiet=self.quiet, ref_align=self.ref_align if ref_file else None)
-            else:
-                boot = aliases['bootscan']['method'](self.alignment, quiet=self.quiet,
+            self.quiet = True
+            boot = aliases['bootscan']['method'](self.alignment, settings=bootset, quiet=self.quiet,
                                                      ref_align=self.ref_align if ref_file else None)
 
             # manually iterate what multiprocess would've done to scan

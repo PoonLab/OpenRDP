@@ -232,7 +232,10 @@ class Scanner:
             self.print(f"Setting up {alias} analysis...")
             
             if alias in 'bootscan':
-                bootset = dict(self.config.items(a['key']))
+                if self.config:
+                    bootset = dict(self.config.items(a['key']))
+                else:
+                    bootset = None
 
             if self.config:
                 settings = dict(self.config.items(a['key']))
@@ -292,13 +295,12 @@ class Scanner:
                 self.print("Finished GENECONV Analysis")
 
         if nprocs == 1:
-            if self.config:
+            if bootset:
                 boot = aliases['bootscan']['method'](self.alignment, settings = bootset,
-                                                     quiet=self.quiet, ref_align=self.ref_align if ref_file else None)
+                                                    quiet=self.quiet, ref_align=self.ref_align if ref_file else None)
             else:
-                boot = aliases['bootscan']['method'](self.alignment, quiet=self.quiet,
-                                                     ref_align=self.ref_align if ref_file else None)
-
+                boot = aliases['bootscan']['method'](self.alignment,
+                                                    quiet=self.quiet, ref_align=self.ref_align if ref_file else None)
             temp = []
             for i in range(0, self.alignment.shape[1], boot.step_size):
                 temp.append(boot.scan(i))
@@ -327,8 +329,12 @@ class Scanner:
 
         elif nprocs > 1:
             self.quiet = True
-            boot = aliases['bootscan']['method'](self.alignment, settings=bootset, quiet=self.quiet,
-                                                     ref_align=self.ref_align if ref_file else None)
+            if bootset:
+                boot = aliases['bootscan']['method'](self.alignment, settings = bootset,
+                                                    quiet=self.quiet, ref_align=self.ref_align if ref_file else None)
+            else:
+                boot = aliases['bootscan']['method'](self.alignment,
+                                                    quiet=self.quiet, ref_align=self.ref_align if ref_file else None)
 
             # manually iterate what multiprocess would've done to scan
             temp = []

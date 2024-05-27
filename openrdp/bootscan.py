@@ -12,7 +12,7 @@ from tempfile import NamedTemporaryFile
 class Bootscan:
     def __init__(self, alignment, ref_align=None, win_size=200, step_size=20,
                  use_distances=True, num_replicates=100, random_seed=3,
-                 cutoff=0.7, model='JC69', quiet=False, max_pvalue=0.05, settings=None):
+                 cutoff=0.7, model='JC69', verbose=False, max_pvalue=0.05, settings=None):
         if settings:
             self.set_options_from_config(settings)
             self.validate_options(alignment)
@@ -32,13 +32,7 @@ class Bootscan:
         random.seed(self.random_seed)
         np.random.seed(self.random_seed)
 
-        self.quiet = quiet
-        # if not self.quiet:
-        #     print('Starting Scanning Phase of Bootscan/Recscan')
-
-        # self.dt_matrix_file = self.do_scanning_phase(alignment)
-        # if not self.quiet:
-        #     print('Finished Scanning Phase of Bootscan/Recscan')
+        self.verbose = verbose
 
         self.raw_results = []
         self.results = []
@@ -169,7 +163,7 @@ class Bootscan:
         i, triplet = arg
         raw_results = []
 
-        if not self.quiet:
+        if self.verbose:
             print(f"Scanning triplet {i + 1} / {self.total_triplet_combinations}")
 
         # Look at boostrap support for sequence pairs

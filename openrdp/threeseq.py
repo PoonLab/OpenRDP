@@ -6,7 +6,7 @@ from tempfile import NamedTemporaryFile
 
 
 class ThreeSeq:
-    def __init__(self, in_path, quiet=False):
+    def __init__(self, in_path, verbose=False):
         self.in_path = os.path.realpath(in_path)  # input FASTA file
         self.in_name = os.path.basename(in_path)
         self.raw_results = []

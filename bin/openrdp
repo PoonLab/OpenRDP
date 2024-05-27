@@ -28,7 +28,7 @@ if __name__ == "__main__":
                              f"Permitted values are: {{{' '.join(all_methods)}}}. "
                              "All methods are run if not specified.",
                         choices=all_methods, metavar="")
-    parser.add_argument('-q', '--quiet', help='Hide progress messages',
+    parser.add_argument('-v', '--verbose', help='Show progress messages',
                         action='store_true')
     args = parser.parse_args()
 
@@ -40,8 +40,10 @@ if __name__ == "__main__":
         args.methods = all_methods  # run all methods by default
 
     scanner = openrdp.Scanner(cfg=args.cfg, methods=tuple(args.methods),
-                              quiet=args.quiet)
+                              verbose=args.verbose)
     results = scanner.run_scans(args.infile, args.ref)
-    print(results)  # calls custom __str__
+
+    if results: # in mpi, only root should have results
+        print(results)  # calls custom __str__
     if args.outfile:
         results.write(args.outfile)

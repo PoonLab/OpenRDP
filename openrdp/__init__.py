@@ -81,12 +81,12 @@ class ScanResults:
 
 
 class Scanner:
-    def __init__(self, cfg=None, methods=None, quiet=True):
+    def __init__(self, cfg=None, methods=None, verbose=False):
         """
         :param cfg:  str, path to configuration file.  Defaults to None, causing
                      each method to use default settings.
         :param methods:  tuple, names of methods to setup and run
-        :param quiet:  bool, if True, suppress console messages
+        :param verbose:  bool, if True, type console messages
         """
         # Check that the OS is valid
         sp = sys.platform
@@ -98,7 +98,7 @@ class Scanner:
         if methods is None:
             methods = list(aliases.keys())
         self.methods = methods
-        self.quiet = quiet
+        self.verbose = verbose
 
         self.config = configparser.ConfigParser()
         self.cfg_file = cfg
@@ -115,7 +115,7 @@ class Scanner:
 
     def print(self, msg):
         """ Implements self.quiet """
-        if not self.quiet:
+        if self.verbose:
             print(msg)
 
     def get_config(self):
@@ -239,14 +239,10 @@ class Scanner:
 
             if self.config:
                 settings = dict(self.config.items(a['key']))
-                # if alias ==  'bootscan':
-                #     # i have no idea why i have to do this
-                #     boot = [a['method'], self.alignment, settings, self.quiet, self.ref_align if ref_file else None]
-                #     continue
-                tmethod = a['method'](self.alignment, settings=settings, quiet=self.quiet,
+                tmethod = a['method'](self.alignment, settings=settings, verbose=self.verbose,
                                     ref_align=self.ref_align if ref_file else None)
             else:
-                tmethod = a['method'](self.alignment, quiet=self.quiet,
+                tmethod = a['method'](self.alignment, verbose=self.verbose,
                                     ref_align=self.ref_align if ref_file else None)
             tmethods.update({alias: tmethod})
 
@@ -297,10 +293,10 @@ class Scanner:
         if nprocs == 1:
             if bootset:
                 boot = aliases['bootscan']['method'](self.alignment, settings = bootset,
-                                                    quiet=self.quiet, ref_align=self.ref_align if ref_file else None)
+                                                    verbose=self.verbose, ref_align=self.ref_align if ref_file else None)
             else:
                 boot = aliases['bootscan']['method'](self.alignment,
-                                                    quiet=self.quiet, ref_align=self.ref_align if ref_file else None)
+                                                    verbose=self.verbose, ref_align=self.ref_align if ref_file else None)
             temp = []
             for i in range(0, self.alignment.shape[1], boot.step_size):
                 temp.append(boot.scan(i))
@@ -328,13 +324,12 @@ class Scanner:
 
 
         elif nprocs > 1:
-            self.quiet = True
             if bootset:
                 boot = aliases['bootscan']['method'](self.alignment, settings = bootset,
-                                                    quiet=self.quiet, ref_align=self.ref_align if ref_file else None)
+                                                    verbose=self.verbose, ref_align=self.ref_align if ref_file else None)
             else:
                 boot = aliases['bootscan']['method'](self.alignment,
-                                                    quiet=self.quiet, ref_align=self.ref_align if ref_file else None)
+                                                    verbose=self.verbose, ref_align=self.ref_align if ref_file else None)
 
             # manually iterate what multiprocess would've done to scan
             temp = []
@@ -363,7 +358,8 @@ class Scanner:
             temp = [] # hold all results from execute
             for trp_count, triplet in enumerate(triplets):
                 if trp_count % nprocs == my_rank:
-                    self.print("Scanning triplet {} / {}".format(trp_count + 1, total_num_trps))
+                    if self.verbose:
+                        self.print("Scanning triplet {} / {}".format(trp_count + 1, total_num_trps))
                     for alias, tmethod in tmethods.items():
                         if alias == 'bootscan':
                             temp.append(tmethod.execute((trp_count, triplet)))
@@ -372,9 +368,6 @@ class Scanner:
 
             # manual execute_all()
             tmethods['bootscan'].raw_results = [l for j in temp for l in j]
-
-            if os.path.exists(tmethods['bootscan'].dt_matrix_file):
-                os.remove(tmethods['bootscan'].dt_matrix_file)
 
             rank_result = {}
             # Process results by joining breakpoint locations that overlap
@@ -386,7 +379,10 @@ class Scanner:
             comm.Barrier()
             total_ranks = comm.gather(rank_result, root=0)
 
+
             if my_rank == 0:
+                if os.path.exists(tmethods['bootscan'].dt_matrix_file): 
+                    os.remove(tmethods['bootscan'].dt_matrix_file)
                 for process in total_ranks:
                     for alias in process:
                         # it is initally an empty dictionary that we turn into a [] anyways

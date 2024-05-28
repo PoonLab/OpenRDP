@@ -338,6 +338,7 @@ class Scanner:
                 if which_process % nprocs == my_rank: 
                     temp.append(boot.scan(i))
                 which_process += 1
+
             comm.Barrier()
             total_ranks = comm.gather(temp, root=0)
 
@@ -390,4 +391,5 @@ class Scanner:
                             results.dict[alias] = []
                         results.dict[alias] += process[alias]
 
-                return results
+            results = comm.bcast(results, root=0) # just for unittesting
+            return results

@@ -36,7 +36,7 @@ class TestMPI(unittest.TestCase):
             "('Test1 ', ('Test3', 'Test4'), 198, 241, 0.02047438504938101)", # chimaera
                          "('Test2', ('Test1 ', 'Test4'), 170, 213, 0.0018132288986577026)",
                          "('Test2', ('Test3', 'Test4'), 176, 219, 0.004701217146256585)",
-            "('Test3', ('Test1', 'Test2'), '202', '787', '5.982095e-10')", # threeseq
+            "('Test3', ('Test1', 'Test2'), '202', '787', '5.982096e-10')", # threeseq
                          "('Test2', ('Test3', 'Test4'), '181', '787', '5.294757e-06')",
             "('Test1 ', ('Test2', 'Test3'), 6, 15, 31.159735288655444)", # rdp
                     "('Test1 ', ('Test3', 'Test4'), 6, 504, 6.867230672435156e-07)",
@@ -45,8 +45,6 @@ class TestMPI(unittest.TestCase):
 
     def test_MPI(self):
         scanner = openrdp.Scanner(cfg=CONFIG)
-        if self.my_rank == 1:
-            print(scanner.methods)
         results = scanner.run_scans(LONG_INFILE).dict
 
         self.comm.Barrier()

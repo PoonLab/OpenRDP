@@ -380,9 +380,12 @@ class Scanner:
             # Process results by joining breakpoint locations that overlap
             # do this per process, then join them all up into a single results dict
             for alias, tmethod in tmethods.items():
-                    # not sure if this is faster here
+                if not isinstance(tmethod.raw_results, list):
+                    tmethod.raw_results = list(tmethod.raw_results)
+                if alias in 'bootscan':
                     rank_result[alias] = tmethod.merge_breakpoints()
-
+                else:
+                    rank_result[alias] = merge_breakpoints(tmethod.raw_results, tmethod.max_pvalues)
             comm.Barrier()
             total_ranks = comm.gather(rank_result, root=0)
 

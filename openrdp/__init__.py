@@ -391,5 +391,6 @@ class Scanner:
                             results.dict[alias] = []
                         results.dict[alias] += process[alias]
 
-            results = comm.bcast(results, root=0) # just for unittesting
-            return results
+            # results = comm.bcast(results, root=0) # just for unittesting
+            # return results
+                return results

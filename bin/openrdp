@@ -45,5 +45,5 @@ if __name__ == "__main__":
 
     if results: # in mpi, only root should have results
         print(results)  # calls custom __str__
-    if args.outfile:
+    if args.outfile and results:
         results.write(args.outfile)

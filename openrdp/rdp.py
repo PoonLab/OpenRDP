@@ -9,7 +9,7 @@ class RdpMethod:
     Executes RDP method
     """
     def __init__(self, align, win_size=30, reference=None, min_id=0, max_id=100,
-                 settings=None, ref_align=None, verbose=False):
+                 settings=None, ref_align=None, verbose=False, max_pavlues = 100):
         if settings:
             self.set_options_from_config(settings)
             self.validate_options()
@@ -20,6 +20,8 @@ class RdpMethod:
             self.min_id = min_id
             self.max_id = max_id
 
+        # TODO check for valid p-val since no innate max_pvalue, output has given values greater than 31 before
+        self.max_pvalues = max_pavlues
         self.align = align
         self.raw_results = []
         self.results = []
@@ -182,50 +184,3 @@ class RdpMethod:
                     self.raw_results.append((rec_name, parents, *coord, corr_p_value))
 
             return
-
-    def merge_breakpoints(self):
-        """
-        Merge overlapping breakpoint locations
-        :return: list of breakpoint locations where overlapping intervals are merged
-        """
-        self.raw_results = sorted(self.raw_results)
-
-        results_dict = {}
-        results = []
-
-        # Gather all regions with the same recombinant
-        for i, bp in enumerate(self.raw_results):
-            rec_name = self.raw_results[i][0]
-            parents = tuple(sorted(self.raw_results[i][1]))
-            key = (rec_name, parents)
-            if key not in results_dict:
-                results_dict[key] = []
-            results_dict[key].append(self.raw_results[i][2:])
-
-        # Merge any locations that overlap - eg [1, 5] and [3, 7] would become [1, 7]
-        for key in results_dict:
-            merged_regions = []
-            for region in results_dict[key]:
-                region = list(region)
-                old_regions = list(results_dict[key])
-                for region2 in old_regions:
-                    start = region[0]
-                    end = region[1]
-                    start2 = region2[0]
-                    end2 = region2[1]
-                    if start <= start2 <= end or start <= end2 <= end:
-                        region[0] = min(start,start2)
-                        region[1] = max(end, end2)
-                        results_dict[key].remove(region2)
-                merged_regions.append(region)
-
-            # Output the results
-            for region in merged_regions:
-                rec_name = key[0]
-                parents = key[1]
-                start = region[0]
-                end = region[1]
-                p_value = region[2]
-                results.append((rec_name, parents, start, end, p_value))
-
-        return results

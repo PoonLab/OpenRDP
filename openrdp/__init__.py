@@ -15,6 +15,7 @@ from openrdp.maxchi import MaxChi
 from openrdp.rdp import RdpMethod
 from openrdp.siscan import Siscan
 from openrdp.threeseq import ThreeSeq
+from openrdp.common import merge_breakpoints
 
 
 # list of all recombination detection methods
@@ -319,7 +320,12 @@ class Scanner:
                 os.remove(tmethods['bootscan'].dt_matrix_file)
 
             for alias, tmethod in tmethods.items():
+                if not isinstance(tmethod.raw_results, list):
+                    tmethod.raw_results = list(tmethod.raw_results)
+                if alias in 'bootscan':
                     results.dict[alias] = tmethod.merge_breakpoints()
+                else:
+                    results.dict[alias] = merge_breakpoints(tmethod.raw_results, tmethod.max_pvalues)
             return results
 
 

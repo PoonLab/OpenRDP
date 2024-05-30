@@ -20,7 +20,7 @@ class Chimaera:
             self.set_options_from_config(settings)
             self.validate_options(align)
         else: # pragma: no cover
-            self.max_pvalue = max_pvalue
+            self.max_pvalues = max_pvalue
             self.win_size = win_size
             self.strip_gaps = strip_gaps
             self.fixed_win_size = fixed_win_size
@@ -38,7 +38,7 @@ class Chimaera:
         :param settings: a dictionary of settings
         """
         self.win_size = abs(int(settings['win_size']))
-        self.max_pvalue = abs(float(settings['max_pvalue']))
+        self.max_pvalues = abs(float(settings['max_pvalue']))
 
         if settings['strip_gaps'] == 'False':
             self.strip_gaps = False
@@ -185,7 +185,7 @@ class Chimaera:
                     cur_val = -1
 
                 # Compute chi-squared value
-                chi2, p_value = calculate_chi2(c_table, self.max_pvalue)
+                chi2, p_value = calculate_chi2(c_table, self.max_pvalues)
                 if chi2 is not None and p_value is not None:
                     # Insert p-values and chi2 values so they correspond to positions in the original alignment
                     chi2_values[triplet.poly_sites[k + half_win_size]] = chi2  # centred window
@@ -218,50 +218,3 @@ class Chimaera:
                     self.raw_results.append((rec_name, parents, *aln_pos, p_values[peak]))
 
         return
-
-    def merge_breakpoints(self):
-        """
-        Merge overlapping breakpoint locations
-        :return: list of breakpoint locations, where overlapping regions are merged
-        """
-        results_dict = {}
-        results = []
-
-        self.raw_results = sorted(self.raw_results)
-
-        # Gather all regions with the same recombinant
-        for i, bp in enumerate(self.raw_results):
-            rec_name = self.raw_results[i][0]
-            parents = tuple(sorted(self.raw_results[i][1]))
-            key = (rec_name, parents)
-            if key not in results_dict:
-                results_dict[key] = []
-            results_dict[key].append(self.raw_results[i][2:])
-
-        # Merge any locations that overlap - eg [1, 5] and [3, 7] would become [1, 7]
-        for key in results_dict:
-            merged_regions = []
-            for region in results_dict[key]:
-                region = list(region)
-                old_regions = list(results_dict[key])
-                for region2 in old_regions:
-                    start = region[0]
-                    end = region[1]
-                    start2 = region2[0]
-                    end2 = region2[1]
-                    if start <= start2 <= end or start <= end2 <= end:
-                        region[0] = min(start,start2)
-                        region[1] = max(end, end2)
-                        results_dict[key].remove(region2)
-                merged_regions.append(region)
-
-            # Output the results
-            for region in merged_regions:
-                rec_name = key[0]
-                parents = key[1]
-                start = region[0]
-                end = region[1]
-                p_value = region[2]
-                results.append((rec_name, parents, start, end, p_value))
-
-        return results

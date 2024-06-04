@@ -118,7 +118,7 @@ class Bootscan:
         return putative_regions
 
     def scan(self, i):
-        if self.ref_align is not None:
+        if isinstance(self.ref_align, np.ndarray):
             window = np.concatenate((self.align[:, i:i + self.win_size], self.ref_align[:, i:i + self.win_size]), axis=0)
             array_shape = ((self.align.shape[0] + self.ref_align.shape[0] - 1) * (self.align.shape[0] + self.ref_align.shape[0]) //2,)
         else:

@@ -118,10 +118,14 @@ class Bootscan:
         return putative_regions
 
     def scan(self, i):
-        window = self.align[:, i:i + self.win_size]
+        if self.ref_align is not None:
+            window = np.concatenate((self.align[:, i:i + self.win_size], self.ref_align[:, i:i + self.win_size]), axis=0)
+            array_shape = ((self.align.shape[0] + self.ref_align.shape[0] - 1) * (self.align.shape[0] + self.ref_align.shape[0]) //2,)
+        else:
+            window = self.align[:, i:i + self.win_size]
+            array_shape = ((self.align.shape[0] - 1) * (self.align.shape[0]) //2,)
         # Make bootstrap replicates of alignment
         num_arrays = self.num_replicates
-        array_shape = ((self.align.shape[0] - 1) * (self.align.shape[0]) //2,)
         dists = np.empty((num_arrays,) + array_shape, dtype=np.float16)
         np.random.seed(self.random_seed)
         random.seed(self.random_seed)
@@ -191,15 +195,16 @@ class Bootscan:
                 dist_mat = matrix[rep]
                 # Access pairwise distances for each pair
                 if isinstance(self.ref_align, np.ndarray):  # triplet.idxs is a 2D tuple if ref file is included
-                    ab_dist = dist_mat[int(triplet.idxs[0][0] * (self.align.shape[0] - 1) -
+                    num_sequences = self.align.shape[0] + self.ref_align.shape[0]
+                    ab_dist = dist_mat[int(triplet.idxs[0][0] * (num_sequences - 1) -
                                         (triplet.idxs[0][0] * (triplet.idxs[0][0] - 1)) / 2 +
-                                        triplet.idxs[1][0] - triplet.idxs[0][0] - 1)]
-                    bc_dist = dist_mat[int(triplet.idxs[1][0] * (self.align.shape[0] - 1) -
-                                        (triplet.idxs[1][0] * (triplet.idxs[1][0] - 1)) / 2 +
-                                        triplet.idxs[1][1] - triplet.idxs[1][0] - 1)]
-                    ac_dist = dist_mat[int(triplet.idxs[0][0] * (self.align.shape[0] - 1) -
+                                        (triplet.idxs[1][0] + self.align.shape[0]) - triplet.idxs[0][0] - 1)]
+                    bc_dist = dist_mat[int((triplet.idxs[1][0] + self.align.shape[0]) * (num_sequences - 1) -
+                                        ((triplet.idxs[1][0] + self.align.shape[0]) * (triplet.idxs[1][0] + self.align.shape[0]- 1)) / 2 +
+                                        (triplet.idxs[1][1] + self.align.shape[0]) - (triplet.idxs[1][0] + self.align.shape[0]) - 1)]
+                    ac_dist = dist_mat[int(triplet.idxs[0][0] * (num_sequences - 1) -
                                         (triplet.idxs[0][0] * (triplet.idxs[0][0] - 1)) / 2 +
-                                        triplet.idxs[1][1] - triplet.idxs[0][0] - 1)]
+                                        (triplet.idxs[1][1] + self.align.shape[0]) - triplet.idxs[0][0] - 1)]
                 else:
                     ab_dist = dist_mat[int(triplet.idxs[0] * (self.align.shape[0] - 1) -
                                         (triplet.idxs[0] * (triplet.idxs[0] - 1)) / 2 +

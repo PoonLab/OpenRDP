@@ -5,7 +5,7 @@ import os
 import h5py
 
 import numpy as np
-from scipy.spatial.distance import pdist
+from scipy.spatial.distance import pdist, cdist
 from openrdp.common import jc_distance, TripletGenerator
 from tempfile import NamedTemporaryFile
 
@@ -118,11 +118,12 @@ class Bootscan:
         return putative_regions
 
     def scan(self, i):
+        query_window = self.align[:, i:i + self.win_size]
+
         if isinstance(self.ref_align, np.ndarray):
-            window = np.concatenate((self.align[:, i:i + self.win_size], self.ref_align[:, i:i + self.win_size]), axis=0)
-            array_shape = ((self.align.shape[0] + self.ref_align.shape[0] - 1) * (self.align.shape[0] + self.ref_align.shape[0]) //2,)
+            ref_window = self.ref_align[:, i:i + self.win_size]
+            array_shape = ((self.align.shape[0] * self.ref_align.shape[0]),)
         else:
-            window = self.align[:, i:i + self.win_size]
             array_shape = ((self.align.shape[0] - 1) * (self.align.shape[0]) //2,)
         # Make bootstrap replicates of alignment
         num_arrays = self.num_replicates
@@ -130,9 +131,17 @@ class Bootscan:
         np.random.seed(self.random_seed)
         random.seed(self.random_seed)
         for rep in range(self.num_replicates):
+            rand_indices = np.random.randint(0, query_window.shape[1], query_window.shape[1])
+
             # Shuffle columns with replacement
-            rep_window = window[:, np.random.randint(0, window.shape[1], window.shape[1])]
-            dist_mat = pdist(rep_window, jc_distance)
+            rep_window = query_window[:, rand_indices]
+
+            if isinstance(self.ref_align, np.ndarray):
+                ref_rep_window = ref_window[:, rand_indices]
+                dist_mat = cdist(rep_window, ref_rep_window, jc_distance).flatten()
+            else:
+                dist_mat = pdist(rep_window, jc_distance)
+
             dists[rep] = dist_mat
 
         dt_matrix_file = NamedTemporaryFile('w', prefix="dt_mtrx_", delete=False)
@@ -195,16 +204,9 @@ class Bootscan:
                 dist_mat = matrix[rep]
                 # Access pairwise distances for each pair
                 if isinstance(self.ref_align, np.ndarray):  # triplet.idxs is a 2D tuple if ref file is included
-                    num_sequences = self.align.shape[0] + self.ref_align.shape[0]
-                    ab_dist = dist_mat[int(triplet.idxs[0][0] * (num_sequences - 1) -
-                                        (triplet.idxs[0][0] * (triplet.idxs[0][0] - 1)) / 2 +
-                                        (triplet.idxs[1][0] + self.align.shape[0]) - triplet.idxs[0][0] - 1)]
-                    bc_dist = dist_mat[int((triplet.idxs[1][0] + self.align.shape[0]) * (num_sequences - 1) -
-                                        ((triplet.idxs[1][0] + self.align.shape[0]) * (triplet.idxs[1][0] + self.align.shape[0]- 1)) / 2 +
-                                        (triplet.idxs[1][1] + self.align.shape[0]) - (triplet.idxs[1][0] + self.align.shape[0]) - 1)]
-                    ac_dist = dist_mat[int(triplet.idxs[0][0] * (num_sequences - 1) -
-                                        (triplet.idxs[0][0] * (triplet.idxs[0][0] - 1)) / 2 +
-                                        (triplet.idxs[1][1] + self.align.shape[0]) - triplet.idxs[0][0] - 1)]
+                    ab_dist = dist_mat[int(triplet.idxs[0][0] * self.ref_align.shape[0] + triplet.idxs[1][0])]
+                    ac_dist = dist_mat[int(triplet.idxs[0][0] * self.ref_align.shape[0] + triplet.idxs[1][1])]
+                    supports.append(np.argmin([ab_dist, ac_dist]))
                 else:
                     ab_dist = dist_mat[int(triplet.idxs[0] * (self.align.shape[0] - 1) -
                                         (triplet.idxs[0] * (triplet.idxs[0] - 1)) / 2 +
@@ -216,15 +218,23 @@ class Bootscan:
                                         (triplet.idxs[0] * (triplet.idxs[0] - 1)) / 2 +
                                         triplet.idxs[2] - triplet.idxs[0] - 1)]
 
-                supports.append(np.argmin([ab_dist, bc_dist, ac_dist]))
+                    supports.append(np.argmin([ab_dist, bc_dist, ac_dist]))
 
-            ab_support[i] = (np.sum(np.equal(supports, 0)) / self.num_replicates)
-            bc_support[i] = (np.sum(np.equal(supports, 1)) / self.num_replicates)
-            ac_support[i] = (np.sum(np.equal(supports, 2)) / self.num_replicates)
+            if isinstance(self.ref_align, np.ndarray):
+                ab_support[i] = (np.sum(np.equal(supports, 0)) / self.num_replicates)
+                ac_support[i] = (np.sum(np.equal(supports, 1)) / self.num_replicates)
+            else:
+                ab_support[i] = (np.sum(np.equal(supports, 0)) / self.num_replicates)
+                bc_support[i] = (np.sum(np.equal(supports, 1)) / self.num_replicates)
+                ac_support[i] = (np.sum(np.equal(supports, 2)) / self.num_replicates)
 
         f.close()
 
-        supports = np.array([ab_support, bc_support, ac_support])
+        if isinstance(self.ref_align, np.ndarray):
+            supports = np.array([ab_support, ac_support])
+        else:
+            supports = np.array([ab_support, bc_support, ac_support])
+
         supports_max = np.argmax(supports, axis=0)
         supports_thresh = supports > self.cutoff
 
@@ -243,9 +253,14 @@ class Bootscan:
         # Identify areas where the bootstrap support alternates between two different sequence pairs
         transition_window_locations = [0] + transition_window_locations + [supports.shape[1] - 1]
         possible_regions = []
-        groupings = ((0, 2), (0, 1), (1, 2))
+
+        if isinstance(self.ref_align, np.ndarray):
+            groupings = ((0, 2), (0, 1))
+        else:
+            groupings = ((0, 2), (0, 1), (1, 2))
+
         trps = (0, 1, 2)
-        for rec_pot in range(3):
+        for rec_pot in range(len(groupings)):
             for i in range(len(transition_window_locations) - 1):
                 begin = transition_window_locations[i]
                 end = transition_window_locations[i + 1]

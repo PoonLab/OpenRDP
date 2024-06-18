@@ -30,11 +30,11 @@ If you do not have `git` installed, you can [download a release](https://github.
 
 2. Switch into the package directory (`cd OpenRDP`) and run the installation script using either:
 ```
-sudo python3 setup.py install
+python3 -m pip install --user . 
 ```
-if you have super-user privileges on the computer, or:
+or if you want to make `openrdp` available system-wide and you have super-user privileges on the computer:
 ```
-python3 setup.py install --user
+sudo python3 -m pip install .
 ```
 to do a local (single user) install.
 
@@ -259,3 +259,14 @@ A `ScanResults` object also behaves like a dictionary for accessing specific res
 ```
 The actual dictionary can be accessed from `ScanResults.dict`.
 
+### Docker
+
+If you prefer to use Docker to run OpenRDP, a Dockerfile has been included in this repository.
+
+To build the Docker image, navigate to the location of the Dockerfile and run the following command:
+
+`docker build . -t openrdp`
+
+The following command can then be used to run all seven recombination detection methods under the default settings:
+
+`cat <input FASTA> | docker run -i --rm openrdp > <output CSV file>`

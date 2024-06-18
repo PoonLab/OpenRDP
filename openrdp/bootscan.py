@@ -1,19 +1,18 @@
 import copy
-import multiprocessing
 import random
 import os
 import h5py
 
 import numpy as np
 from scipy.spatial.distance import pdist, cdist
-from openrdp.common import jc_distance, TripletGenerator
+from openrdp.common import jc_distance
 from tempfile import NamedTemporaryFile
 
 
 class Bootscan:
     def __init__(self, alignment, ref_align=None, win_size=200, step_size=20,
                  use_distances=True, num_replicates=100, random_seed=3,
-                 cutoff=0.7, model='JC69', quiet=False, max_pvalue=0.05, settings=None):
+                 cutoff=0.7, model='JC69', verbose=False, max_pvalue=0.05, settings=None):
         if settings:
             self.set_options_from_config(settings)
             self.validate_options(alignment)
@@ -33,13 +32,7 @@ class Bootscan:
         random.seed(self.random_seed)
         np.random.seed(self.random_seed)
 
-        self.quiet = quiet
-        if not self.quiet:
-            print('Starting Scanning Phase of Bootscan/Recscan')
-
-        self.dt_matrix_file = self.do_scanning_phase(alignment)
-        if not self.quiet:
-            print('Finished Scanning Phase of Bootscan/Recscan')
+        self.verbose = verbose
 
         self.raw_results = []
         self.results = []
@@ -159,15 +152,11 @@ class Bootscan:
             for name, obj in src_items:
                 dst.create_dataset(name, data=obj[()])
 
-    def do_scanning_phase(self, align):
+    def collate_scanning_phase(self, tempfiles):
         """
-        Perform scanning phase of the Bootscan/Recscan algorithm
+        gather temp files from MPI and collate them
         :param align: a n x m array of aligned sequences
         """
-
-        with multiprocessing.Pool(self.np) as p:
-            tempfiles = p.map(self.scan, range(0, align.shape[1], self.step_size))
-
         merged_dt_matrix_file = NamedTemporaryFile('w', prefix="dt_mtrx_", delete=False)
 
         # Merge hdf5 files
@@ -187,7 +176,7 @@ class Bootscan:
         i, triplet = arg
         raw_results = []
 
-        if not self.quiet:
+        if self.verbose:
             print(f"Scanning triplet {i + 1} / {self.total_triplet_combinations}")
 
         # Look at boostrap support for sequence pairs
@@ -308,15 +297,12 @@ class Bootscan:
 
         return raw_results
 
-    def execute_all(self, total_combinations, seq_names, ref_names=None):
-        self.seq_names = seq_names
-        self.total_triplet_combinations = total_combinations
-        with multiprocessing.Pool(self.np) as p:
-            results = p.map(self.execute, enumerate(TripletGenerator(self.align, self.seq_names,
-                                                                     ref_align=self.ref_align,
-                                                                     ref_names=ref_names)))
-
-        self.raw_results = [l for res in results for l in res] 
+    def update_results(self, raw):
+        """
+        put raw_results together from mpi
+        raw: list, results from each tuple from each individual execute run 
+        """
+        self.raw_results = [l for res in raw for l in res] 
 
     def merge_breakpoints(self):
         """

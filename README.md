@@ -14,7 +14,7 @@ For your convenience, we package these binaries along with their respective lice
 
 
 ## Dependencies 
-* Python 3 (tested on version [3.8.10](https://www.python.org/downloads/release/python-3810/))
+* Python v3.8+ (tested on version [3.8.10](https://www.python.org/downloads/release/python-3810/))
 * `numpy` version [1.17.4](https://numpy.org/devdocs/release/1.17.4-notes.html) or later
 * `scipy` version [1.5.0](https://docs.scipy.org/doc/scipy/reference/release.1.5.0.html) or later
 * `h5py` version [3.8.0](https://docs.h5py.org/en/stable/build.html) or later

@@ -194,23 +194,37 @@ def identify_recombinant(trp, aln_pos):
 
 
 class TripletGenerator:
-    def __init__(self, alignment, seq_names, ref_align=None, ref_names=None):
+    def __init__(self, alignment, seq_names, ref_align=None, ref_names=None, lock=''):
         """
         :param alignment:  numpy.array, a character array of 'n' sequences
         :param seq_names:  list, sequence labels / names
         :param ref_align:  numpy.array, a character array of 'n' sequences
         :param ref_names:  list, reference labels / names
+        :param lock: str, sequence name to lock in as parent
         """
         self.alignment = alignment
         self.seq_names = seq_names
         self.ref_align = ref_align
         self.ref_names = ref_names
+        self.lock = lock
 
         if isinstance(self.ref_align, np.ndarray):
-            self.combinations = product(
-                list(combinations(range(self.alignment.shape[0]), 1)),
-                list(combinations(range(self.ref_align.shape[0]), 2))
-            )  # Example: ((1,), (1, 2))
+            if self.lock:
+                if not self.lock in self.ref_names:
+                    print('Parent to test against is not found')
+                    exit()
+                locked_ind = self.ref_names.index(lock)
+                locked = [(locked_ind, i) for i in range(len(ref_names)) if i != locked_ind]
+                self.combinations = product(
+                    list(combinations(range(self.alignment.shape[0]), 1)),
+                    locked
+                )
+            else:
+                self.combinations = product(
+                    list(combinations(range(self.alignment.shape[0]), 1)),
+                    list(combinations(range(self.ref_align.shape[0]), 2))
+                )  # Example: ((1,), (1, 2))
+            
         else:
             self.combinations = combinations(
                 range(self.alignment.shape[0]),  # number of "rows" (sequences)

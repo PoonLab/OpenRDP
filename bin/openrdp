@@ -30,6 +30,8 @@ if __name__ == "__main__":
                         choices=all_methods, metavar="")
     parser.add_argument('-v', '--verbose', help='Show progress messages',
                         action='store_true')
+    parser.add_argument('-l', '--lock', help='Name of reference sequence to always test as parent',
+                        type=str)
     args = parser.parse_args()
 
     # check that config file exists
@@ -40,8 +42,8 @@ if __name__ == "__main__":
         args.methods = all_methods  # run all methods by default
 
     scanner = openrdp.Scanner(cfg=args.cfg, methods=tuple(args.methods),
-                              verbose=args.verbose)
-    results = scanner.run_scans(args.infile, args.ref)
+                              verbose=args.verbose, lock=args.lock)
+    results = scanner.run_scans(args.infile, args.ref, args.lock)
 
     if results: # in mpi, only root should have results
         print(results)  # calls custom __str__

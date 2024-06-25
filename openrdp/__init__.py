@@ -82,12 +82,13 @@ class ScanResults:
 
 
 class Scanner:
-    def __init__(self, cfg=None, methods=None, verbose=False):
+    def __init__(self, cfg=None, methods=None, verbose=False, lock=''):
         """
         :param cfg:  str, path to configuration file.  Defaults to None, causing
                      each method to use default settings.
         :param methods:  tuple, names of methods to setup and run
         :param verbose:  bool, if True, type console messages
+        :param lock: str, name of parent sequence to always test against
         """
         # Check that the OS is valid
         sp = sys.platform
@@ -113,6 +114,7 @@ class Scanner:
         self.alignment = None  # np.array
         self.ref_names = []
         self.ref_align = None  # np.array
+        self.lock = lock
 
     def print(self, msg):
         """ Implements self.quiet """
@@ -204,7 +206,7 @@ class Scanner:
         else:
             self.alignment = alignment
 
-    def run_scans(self, infile, ref_file=None):  # pragma: no cover
+    def run_scans(self, infile, ref_file=None, lock=''):  # pragma: no cover
         """
         Run the selected recombination detection analyses
         :param infile:  str, path to input FASTA file
@@ -222,7 +224,8 @@ class Scanner:
         self._import_data(infile)  # sets seq_names and alignment
         if ref_file:
             self._import_data(ref_file, True)
-
+        
+        bootset = None
         tmethods = {}
         for alias, a in aliases.items():
             
@@ -256,7 +259,8 @@ class Scanner:
 
         triplets = TripletGenerator(self.alignment, self.seq_names,
                                     ref_align=self.ref_align if ref_file else None,
-                                    ref_names=self.ref_names if ref_file else None)
+                                    ref_names=self.ref_names if ref_file else None,
+                                    lock = self.lock)
 
         # attempt at parallel processing
         from mpi4py import MPI

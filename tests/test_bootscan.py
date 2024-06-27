@@ -26,8 +26,8 @@ class TestBootscan(unittest.TestCase):
             ref_names, ref_seqs = read_fasta(short_ref)
         self.short_align = np.array(list(map(list, test_seqs)))
         self.short_align_r = np.array(list(map(list, ref_seqs)))
-        self.test_short = Bootscan(self.short_align, settings=test_settings, quiet=True)
-        self.test_short_r = Bootscan(self.short_align, self.short_align_r, settings=test_settings, quiet=True)
+        self.test_short = Bootscan(self.short_align, settings=test_settings, verbose=False)
+        self.test_short_r = Bootscan(self.short_align, self.short_align_r, settings=test_settings, verbose=False)
         self.short_names = names
         self.short_names_r = ref_names
 
@@ -39,8 +39,8 @@ class TestBootscan(unittest.TestCase):
             ref_names, ref_seqs = read_fasta(long_ref)
         self.long_align = np.array(list(map(list, test_seqs)))
         self.long_align_r = np.array(list(map(list, ref_seqs)))
-        self.test_long = Bootscan(self.long_align, settings=test_settings, quiet=True)
-        self.test_long_r = Bootscan(self.long_align, self.long_align_r, settings=test_settings, quiet=True)
+        self.test_long = Bootscan(self.long_align, settings=test_settings, verbose=False)
+        self.test_long_r = Bootscan(self.long_align, self.long_align_r, settings=test_settings, verbose=False)
         self.long_names = names
         self.long_names_r = ref_names
         
@@ -53,8 +53,8 @@ class TestBootscan(unittest.TestCase):
             ref_names, ref_seqs = read_fasta(hiv_ref)
         self.hiv_align = np.array(list(map(list, test_seqs)))
         self.hiv_align_r = np.array(list(map(list, ref_seqs)))
-        self.test_hiv = Bootscan(self.hiv_align, settings=test_settings, quiet=True)
-        self.test_hiv_r = Bootscan(self.hiv_align, self.hiv_align_r, settings=test_settings, quiet=True)
+        self.test_hiv = Bootscan(self.hiv_align, settings=test_settings, verbose=False)
+        self.test_hiv_r = Bootscan(self.hiv_align, self.hiv_align_r, settings=test_settings, verbose=False)
         self.hiv_names = names
         self.hiv_names_r = ref_names
 

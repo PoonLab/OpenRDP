@@ -6,6 +6,53 @@ from scipy.stats import pearsonr
 import copy
 import sys
 
+def merge_breakpoints(raw_results, max_pvalue=100):
+    """
+    took from siscan
+    added max_pvalue clause
+    """
+    results_dict = {}
+    results = []
+
+    raw_results = sorted(raw_results)
+
+    # Gather all regions with the same recombinant
+    for i, bp in enumerate(raw_results):
+        rec_name = raw_results[i][0]
+        parents = tuple(sorted(raw_results[i][1]))
+        key = (rec_name, parents)
+        if key not in results_dict:
+            results_dict[key] = []
+        results_dict[key].append(raw_results[i][2:])
+
+    # Merge any locations that overlap - eg [1, 5] and [3, 7] would become [1, 7]
+    for key in results_dict:
+        merged_regions = []
+        for region in results_dict[key]:
+            region = list(region)
+            old_regions = list(results_dict[key])
+            for region2 in old_regions:
+                start = region[0]
+                end = region[1]
+                start2 = region2[0]
+                end2 = region2[1]
+                if start <= start2 <= end or start <= end2 <= end:
+                    region[0] = min(start, start2)
+                    region[1] = max(end, end2)
+                    results_dict[key].remove(region2)
+            merged_regions.append(region)
+
+        # Output the results
+        for region in merged_regions:
+            rec_name = key[0]
+            parents = key[1]
+            start = region[0]
+            end = region[1]
+            p_value = region[2]
+            if float(p_value) < max_pvalue:
+                    results.append((rec_name, parents, start, end, p_value))
+
+    return results
 
 def read_fasta(handle):
     """

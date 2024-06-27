@@ -7,7 +7,7 @@ import sys
 
 class GeneConv:
     def __init__(self, gscale=1, ignore_indels=False, min_length=1, min_poly=2, min_score=2,
-                 max_overlap=1, settings=None, quiet=False):
+                 max_overlap=1, settings=None, verbose=False):
         """
         Constructs a GeneConv object
         :param gscale: mismatch penalty

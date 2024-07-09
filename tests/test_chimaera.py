@@ -5,7 +5,7 @@ import unittest
 import numpy as np
 
 from openrdp.chimaera import Chimaera
-from openrdp.common import TripletGenerator, Triplet, read_fasta
+from openrdp.common import TripletGenerator, read_fasta, merge_breakpoints
 
 
 class TestChimaera(unittest.TestCase):
@@ -221,7 +221,7 @@ class TestChimaera(unittest.TestCase):
                     ('E', ('A', 'D'), 3, 11, 0.8556951983876534)]
         for trp in self.short_triplets:
             self.test_short.execute(trp)
-        result = self.test_short.merge_breakpoints()
+        result = merge_breakpoints(self.test_short.raw_results, self.test_short.max_pvalues)
         self.assertEqual(expected, result)
 
     def test_execute_long(self):
@@ -231,7 +231,7 @@ class TestChimaera(unittest.TestCase):
                     ('Test2', ('Test3', 'Test4'), 176, 219, 0.0019834358538684586)]
         for trp in self.long_triplets:
             self.test_long.execute(trp)
-        result = self.test_long.merge_breakpoints()
+        result = merge_breakpoints(self.test_long.raw_results, self.test_long.max_pvalues)
         self.assertEqual(expected, result)
 
     def test_execute_hiv(self):
@@ -254,7 +254,7 @@ class TestChimaera(unittest.TestCase):
                     ('C', ('07_BC', 'B'), 611, 675, 0.0014988494708724491)]
         for trp in self.hiv_triplets:
             self.test_hiv.execute(trp)
-        result = self.test_hiv.merge_breakpoints()
+        result = merge_breakpoints(self.test_hiv.raw_results, self.test_hiv.max_pvalues)
 
         for index, exp_tuple in enumerate(expected):
             self.assertEqual(exp_tuple[0], result[index][0])

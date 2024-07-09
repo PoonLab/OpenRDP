@@ -3,7 +3,7 @@ import os
 import unittest
 import numpy as np
 
-from openrdp.common import TripletGenerator, Triplet, read_fasta
+from openrdp.common import TripletGenerator, read_fasta, merge_breakpoints
 from openrdp.rdp import RdpMethod
 
 
@@ -144,7 +144,7 @@ class TestRdpMethod(unittest.TestCase):
 
         for trp in self.short_triplets:
             self.test_short.execute(trp)
-        result = self.test_short.merge_breakpoints()
+        result = merge_breakpoints(self.test_short.raw_results, self.test_short.max_pvalues)
         self.assertEqual(expected, result)
 
     def test_execute_long(self):
@@ -154,7 +154,7 @@ class TestRdpMethod(unittest.TestCase):
 
         for trp in self.long_triplets:
             self.test_long.execute(trp)
-        result = self.test_long.merge_breakpoints()
+        result = merge_breakpoints(self.test_long.raw_results, self.test_long.max_pvalues)
         self.assertEqual(expected, result)
 
     def test_execute_hiv(self):
@@ -164,7 +164,7 @@ class TestRdpMethod(unittest.TestCase):
 
         for trp in self.hiv_triplets:
             self.test_hiv.execute(trp)
-        result = self.test_hiv.merge_breakpoints()
+        result = merge_breakpoints(self.test_hiv.raw_results, self.test_hiv.max_pvalues)
         self.assertEqual(expected, result)
 
 

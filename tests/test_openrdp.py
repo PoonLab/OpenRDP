@@ -1,4 +1,3 @@
-import os
 import unittest
 
 from openrdp.common import read_fasta

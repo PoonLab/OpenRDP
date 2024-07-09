@@ -2,7 +2,7 @@ import os
 import unittest
 import numpy as np
 
-from openrdp.common import TripletGenerator, Triplet, read_fasta
+from openrdp.common import TripletGenerator, read_fasta, merge_breakpoints
 from openrdp.siscan import Siscan
 
 
@@ -64,38 +64,38 @@ class TestSiscan(unittest.TestCase):
         self.assertEqual(3, self.test_hiv.random_seed)
 
     def test_execute_short(self):
-        expected = [('A', ('B', 'C'), 2, 11, 0.7787397893226586),
+        expected = [('A', ('B', 'C'), 2, 11, 0.7787397893226587),
                     ('A', ('B', 'D'), 3, 11, 0.7524567011843551),
-                    ('A', ('B', 'E'), 2, 11, 0.7787397893226586),
+                    ('A', ('B', 'E'), 2, 11, 0.7787397893226587),
                     ('A', ('C', 'D'), 2, 11, 0.7685248858128534),
-                    ('C', ('A', 'E'), 2, 11, 0.804804577675132),
                     ('A', ('D', 'E'), 2, 11, 0.7260095477693602),
-                    ('C', ('B', 'D'), 2, 11, 0.7838806032521947),
                     ('B', ('C', 'E'), 3, 11, 0.7750581068141527),
                     ('B', ('D', 'E'), 3, 11, 0.745172605746384),
+                    ('C', ('A', 'E'), 2, 11, 0.804804577675132),
+                    ('C', ('B', 'D'), 2, 11, 0.7838806032521947),
                     ('C', ('D', 'E'), 2, 11, 0.7465417522802897)]
 
         for trp in self.short_triplets:
             self.test_short.execute(trp)
-        result = self.test_short.merge_breakpoints()
+        result = merge_breakpoints(self.test_short.raw_results, self.test_short.max_pvalues)
         self.assertEqual(expected, result)
 
     def test_execute_long(self):
-        expected = [('Test1 ', ('Test2', 'Test3'), 2, 55, 0.7521364874425969),
+        expected = [('Test1 ', ('Test2', 'Test3'), 2, 55, 0.7521364874425968),
                     ('Test1 ', ('Test2', 'Test4'), 2, 55, 0.7669294010627822),
-                    ('Test1 ', ('Test3', 'Test4'), 2, 55, 0.7651446184495414),
-                    ('Test2', ('Test3', 'Test4'), 2, 55, 0.7651446184495414)]
+                    ('Test1 ', ('Test3', 'Test4'), 2, 55, 0.7651446184495413),
+                    ('Test2', ('Test3', 'Test4'), 2, 55, 0.7651446184495413)]
 
         for trp in self.long_triplets:
             self.test_long.execute(trp)
-        result = self.test_long.merge_breakpoints()
+        result = merge_breakpoints(self.test_long.raw_results, self.test_long.max_pvalues)
         self.assertEqual(expected, result)
 
     def test_execute_hiv(self):
         expected = []   # Breakpoints have p_values that are too large (above threshold)
         for trp in self.hiv_triplets:
             self.test_hiv.execute(trp)
-        result = self.test_hiv.merge_breakpoints()
+        result = merge_breakpoints(self.test_hiv.raw_results, self.test_hiv.max_pvalues)
         self.assertEqual(expected, result)
 
 

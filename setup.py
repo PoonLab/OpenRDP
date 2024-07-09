@@ -12,10 +12,10 @@ setup(
     ],
     install_requires=[
         'scipy>=1.5.0',
-        'numpy>=1.17.4',
-        'h5py==3.8.0'
+        'numpy>=1.17.4,<2.0.0',
+        'h5py>=3.8.0'
     ],
-    python_requires='>=3.6',
+    python_requires='>=3.8',
     scripts=['bin/openrdp'],
     options={'build_scripts': {'executable': '/usr/bin/env python3'}},
     package_data={

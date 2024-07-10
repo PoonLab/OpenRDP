@@ -38,7 +38,6 @@ class Bootscan:
         self.results = []
         self.name = 'bootscan'
         self.seq_names = None
-        self.total_triplet_combinations = 0
 
     def set_options_from_config(self, settings):
         """
@@ -175,9 +174,6 @@ class Bootscan:
         """
         i, triplet = arg
         raw_results = []
-
-        if self.verbose:
-            print(f"Scanning triplet {i + 1} / {self.total_triplet_combinations}")
 
         # Look at boostrap support for sequence pairs
         ab_support = [0] * (self.align.shape[1] // self.step_size)

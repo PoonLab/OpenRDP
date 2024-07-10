@@ -194,12 +194,6 @@ Siscan          2       205     E               J       K       7.60E-01
 If you wish to run openrdp with `mpi4py`, you can do so with the following commands, where `-n` is the number of cores. Given the excessive text output, messages are mute. If you wish to display them anyways, use `-v`
 ```console
 (myenv) [will@Paphlagon OpenRDP]$ mpirun -n 4 openrdp tests/long.fasta
-/home/will/miniconda3/envs/myenv/bin/openrdp:4: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
-  __import__('pkg_resources').run_script('OpenRDP==0.1.0', 'openrdp')
-/home/will/miniconda3/envs/myenv/bin/openrdp:4: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
-  __import__('pkg_resources').run_script('OpenRDP==0.1.0', 'openrdp')
-/home/will/miniconda3/envs/myenv/bin/openrdp:4: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
-  __import__('pkg_resources').run_script('OpenRDP==0.1.0', 'openrdp')
 
 Method          Start   End     Recombinant     Parent1 Parent2 Pvalue
 ------------------------------------------------------------------------

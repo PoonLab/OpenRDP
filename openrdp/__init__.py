@@ -15,6 +15,7 @@ from openrdp.maxchi import MaxChi
 from openrdp.rdp import RdpMethod
 from openrdp.siscan import Siscan
 from openrdp.threeseq import ThreeSeq
+from openrdp.common import merge_breakpoints
 
 
 # list of all recombination detection methods
@@ -81,12 +82,12 @@ class ScanResults:
 
 
 class Scanner:
-    def __init__(self, cfg=None, methods=None, quiet=True):
+    def __init__(self, cfg=None, methods=None, verbose=False):
         """
         :param cfg:  str, path to configuration file.  Defaults to None, causing
                      each method to use default settings.
         :param methods:  tuple, names of methods to setup and run
-        :param quiet:  bool, if True, suppress console messages
+        :param verbose:  bool, if True, type console messages
         """
         # Check that the OS is valid
         sp = sys.platform
@@ -98,7 +99,7 @@ class Scanner:
         if methods is None:
             methods = list(aliases.keys())
         self.methods = methods
-        self.quiet = quiet
+        self.verbose = verbose
 
         self.config = configparser.ConfigParser()
         self.cfg_file = cfg
@@ -115,7 +116,7 @@ class Scanner:
 
     def print(self, msg):
         """ Implements self.quiet """
-        if not self.quiet:
+        if self.verbose:
             print(msg)
 
     def get_config(self):
@@ -212,24 +213,6 @@ class Scanner:
         # prepare return value
         results = ScanResults(dict([(method, {}) for method in aliases.keys()]))
 
-        # Run methods with external binaries
-        if 'threeseq' in self.methods:
-            three_seq = ThreeSeq(infile)
-            self.print("Starting 3Seq Analysis")
-            results.dict['threeseq'] = three_seq.execute()
-            self.print("Finished 3Seq Analysis")
-
-        if 'geneconv' in self.methods:
-            # Parse output file if available
-            if self.config:
-                geneconv = GeneConv(settings=dict(self.config.items('Geneconv')))
-            else:
-                geneconv = GeneConv()  # default config
-
-            self.print("Starting GENECONV Analysis")
-            results.dict['geneconv'] = geneconv.execute(infile)
-            self.print("Finished GENECONV Analysis")
-
         # Exit early if 3Seq and Geneconv are the only methods selected
         check = set(aliases.keys()).intersection(self.methods)
         if len(check) == 0:
@@ -242,17 +225,26 @@ class Scanner:
 
         tmethods = {}
         for alias, a in aliases.items():
+            
+            # handle bootsacn with mpi, not here
             if alias in ['threeseq', 'geneconv'] or alias not in self.methods:
                 continue
 
             self.print(f"Setting up {alias} analysis...")
+            
+            if alias in 'bootscan':
+                if self.config:
+                    bootset = dict(self.config.items(a['key']))
+                else:
+                    bootset = None
+
             if self.config:
                 settings = dict(self.config.items(a['key']))
-                tmethod = a['method'](self.alignment, settings=settings, quiet=self.quiet,
-                                      ref_align=self.ref_align if ref_file else None)
+                tmethod = a['method'](self.alignment, settings=settings, verbose=self.verbose,
+                                    ref_align=self.ref_align if ref_file else None)
             else:
-                tmethod = a['method'](self.alignment, quiet=self.quiet,
-                                      ref_align=self.ref_align if ref_file else None)
+                tmethod = a['method'](self.alignment, verbose=self.verbose,
+                                    ref_align=self.ref_align if ref_file else None)
             tmethods.update({alias: tmethod})
 
         # iterate over all triplets in the alignment
@@ -260,25 +252,154 @@ class Scanner:
             total_num_trps = self.alignment.shape[0] * int(ncomb(self.ref_align.shape[0], 2))
         else:
             total_num_trps = int(ncomb(self.alignment.shape[0], 3))
-        if 'bootscan' in tmethods:
-            bootscan = tmethods['bootscan']
-            bootscan.execute_all(total_combinations=total_num_trps, seq_names=self.seq_names,
-                                 ref_names=self.ref_names if ref_file else None)
-            if os.path.exists(bootscan.dt_matrix_file):
-                os.remove(bootscan.dt_matrix_file)
+
 
         triplets = TripletGenerator(self.alignment, self.seq_names,
                                     ref_align=self.ref_align if ref_file else None,
                                     ref_names=self.ref_names if ref_file else None)
-        for trp_count, triplet in enumerate(triplets):
-            self.print("Scanning triplet {} / {}".format(trp_count + 1, total_num_trps))
+
+        # attempt at parallel processing
+        from mpi4py import MPI
+        try:
+            comm = MPI.COMM_WORLD
+            nprocs = comm.Get_size()
+            my_rank = comm.Get_rank()
+
+        except ModuleNotFoundError:
+            sys.stderr.write('Running in serial mode')
+            nprocs = 1
+            my_rank = 0
+
+        
+        # stops them from running over and over in every process
+        # Run methods with external binaries
+        if my_rank == 0: 
+            if 'threeseq' in self.methods:
+                three_seq = ThreeSeq(infile)
+                self.print("Starting 3Seq Analysis")
+                results.dict['threeseq'] = three_seq.execute()
+                self.print("Finished 3Seq Analysis")
+
+            if 'geneconv' in self.methods:
+                # Parse output file if available
+                if self.config:
+                    geneconv = GeneConv(settings=dict(self.config.items('Geneconv')))
+                else:
+                    geneconv = GeneConv()  # default config
+
+                self.print("Starting GENECONV Analysis")
+                results.dict['geneconv'] = geneconv.execute(infile)
+                self.print("Finished GENECONV Analysis")
+
+        if nprocs == 1:
+            if bootset:
+                boot = aliases['bootscan']['method'](self.alignment, settings = bootset,
+                                                    verbose=self.verbose, ref_align=self.ref_align if ref_file else None)
+            else:
+                boot = aliases['bootscan']['method'](self.alignment,
+                                                    verbose=self.verbose, ref_align=self.ref_align if ref_file else None)
+            temp = []
+            for i in range(0, self.alignment.shape[1], boot.step_size):
+                temp.append(boot.scan(i))
+            boot.dt_matrix_file = boot.collate_scanning_phase(temp) 
+            tmethods.update({'bootscan': boot})
+
+            temp = [] # just for bootscan
+            for trp_count, triplet in enumerate(triplets):
+                self.print("Scanning triplet {} / {}".format(trp_count + 1, total_num_trps))
+                for alias, tmethod in tmethods.items():
+                    if alias == 'bootscan':
+                        temp.append(tmethod.execute((trp_count, triplet)))
+                    else:
+                        tmethod.execute(triplet)
+
+            # should probably make setters and getters
+            tmethods['bootscan'].raw_results = [l for j in temp for l in j]
+
+            if os.path.exists(tmethods['bootscan'].dt_matrix_file):
+                os.remove(tmethods['bootscan'].dt_matrix_file)
+
             for alias, tmethod in tmethods.items():
-                if alias == 'bootscan':
-                    continue
-                tmethod.execute(triplet)
+                if not isinstance(tmethod.raw_results, list):
+                    tmethod.raw_results = list(tmethod.raw_results)
+                if alias in 'bootscan':
+                    results.dict[alias] = tmethod.merge_breakpoints()
+                else:
+                    results.dict[alias] = merge_breakpoints(tmethod.raw_results, tmethod.max_pvalues)
+            return results
 
-        # Process results by joining breakpoint locations that overlap
-        for alias, tmethod in tmethods.items():
-            results.dict[alias] = tmethod.merge_breakpoints()
 
-        return results
+        elif nprocs > 1:
+            if bootset:
+                boot = aliases['bootscan']['method'](self.alignment, settings = bootset,
+                                                    verbose=self.verbose, ref_align=self.ref_align if ref_file else None)
+            else:
+                boot = aliases['bootscan']['method'](self.alignment,
+                                                    verbose=self.verbose, ref_align=self.ref_align if ref_file else None)
+
+            # manually iterate what multiprocess would've done to scan
+            temp = []
+            which_process = 0 # since stepsize isn't always 1, use this for mpi
+            for i in range(0, self.alignment.shape[1], boot.step_size):
+                if which_process % nprocs == my_rank: 
+                    temp.append(boot.scan(i))
+                which_process += 1
+
+            comm.Barrier()
+            total_ranks = comm.gather(temp, root=0)
+
+            # generate the dt_matrix_file by collecting the files and then regiving them out
+            if my_rank == 0:
+                boot_scan = []
+                for i in total_ranks:
+                    boot_scan += i
+                boot_scan = boot.collate_scanning_phase(boot_scan)
+            else:
+                boot_scan = None
+
+            # give dt_matrix to all processes so execute can run
+            boot_scan = comm.bcast(boot_scan, root=0)
+            boot.dt_matrix_file = boot_scan 
+            tmethods.update({'bootscan': boot})
+
+            temp = [] # hold all results from execute
+            for trp_count, triplet in enumerate(triplets):
+                if trp_count % nprocs == my_rank:
+                    if self.verbose:
+                        self.print("Scanning triplet {} / {}".format(trp_count + 1, total_num_trps))
+                    for alias, tmethod in tmethods.items():
+                        if alias == 'bootscan':
+                            temp.append(tmethod.execute((trp_count, triplet)))
+                        else:
+                            tmethod.execute(triplet)
+
+            # manual execute_all()
+            tmethods['bootscan'].raw_results = [l for j in temp for l in j]
+
+            rank_result = {}
+            # Process results by joining breakpoint locations that overlap
+            # do this per process, then join them all up into a single results dict
+            for alias, tmethod in tmethods.items():
+                if not isinstance(tmethod.raw_results, list):
+                    tmethod.raw_results = list(tmethod.raw_results)
+                if alias in 'bootscan':
+                    rank_result[alias] = tmethod.merge_breakpoints()
+                else:
+                    rank_result[alias] = merge_breakpoints(tmethod.raw_results, tmethod.max_pvalues)
+            comm.Barrier()
+            total_ranks = comm.gather(rank_result, root=0)
+
+
+            if my_rank == 0:
+                if os.path.exists(tmethods['bootscan'].dt_matrix_file): 
+                    os.remove(tmethods['bootscan'].dt_matrix_file)
+                for process in total_ranks:
+                    for alias in process:
+                        # it is initally an empty dictionary that we turn into a [] anyways
+                        if not results.dict[alias]: 
+                            results.dict[alias] = []
+                        results.dict[alias] += process[alias]
+
+            # results = comm.bcast(results, root=0) # just for unittesting
+            # return results
+                return results

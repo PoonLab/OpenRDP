@@ -13,8 +13,8 @@ class Test3Seq(unittest.TestCase):
 
     def test_parse_results_long(self):
         result = self.long_test.execute()
-        expected = [('Test3', ('Test1', 'Test2'), '202', '787', '5.982096e-10'),
-                    ('Test2', ('Test3', 'Test4'), '181', '787', '5.294757e-06')]
+        expected = [('Test2', ('Test3', 'Test4'), '181', '787', '5.294757e-06'),
+                    ('Test3', ('Test1', 'Test2'), '202', '787', '5.982096e-10')]
         self.assertEqual(expected, result)
 
     def test_parse_results_crf(self):

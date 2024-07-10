@@ -3,10 +3,10 @@ import os
 import subprocess
 import sys
 from tempfile import NamedTemporaryFile
-
+from openrdp.common import merge_breakpoints
 
 class ThreeSeq:
-    def __init__(self, in_path, quiet=False):
+    def __init__(self, in_path, verbose=False):
         self.in_path = os.path.realpath(in_path)  # input FASTA file
         self.in_name = os.path.basename(in_path)
         self.raw_results = []
@@ -81,51 +81,6 @@ class ThreeSeq:
                     end_pos = parts[1].split('-')
                     self.raw_results.append((rec, ps, start_pos[0], end_pos[-1], corr_p_value))
 
-        self.results = self.merge_breakpoints()
+        self.results = merge_breakpoints(self.raw_results) # uses no pvalue cut off, set to default 100
         return self.results
-
-    def merge_breakpoints(self):
-        """
-        Merge overlapping breakpoint locations
-        :return: list of breakpoint locations where overlapping intervals are merged
-        """
-        results_dict = {}
-        results = []
-
-        # Gather all regions with the same recombinant
-        for i, bp in enumerate(self.raw_results):
-            rec_name = self.raw_results[i][0]
-            parents = tuple(sorted(self.raw_results[i][1]))
-            key = (rec_name, parents)
-            if key not in results_dict:
-                results_dict[key] = []
-            results_dict[key].append(self.raw_results[i][2:])
-
-        # Merge any locations that overlap - eg [1, 5] and [3, 7] would become [1, 7]
-        for key in results_dict:
-            merged_regions = []
-            for region in results_dict[key]:
-                region = list(region)
-                old_regions = list(results_dict[key])
-                for region2 in old_regions:
-                    start = region[0]
-                    end = region[1]
-                    start2 = region2[0]
-                    end2 = region2[1]
-                    if start <= start2 <= end or start <= end2 <= end:
-                        region[0] = min(start,start2)
-                        region[1] = max(end, end2)
-                        results_dict[key].remove(region2)
-                merged_regions.append(region)
-
-            # Output the results
-            for region in merged_regions:
-                rec_name = key[0]
-                parents = key[1]
-                start = region[0]
-                end = region[1]
-                p_value = region[2]
-                results.append((rec_name, parents, start, end, p_value))
-
-        return results
 

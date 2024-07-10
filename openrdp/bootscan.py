@@ -1,19 +1,18 @@
 import copy
-import multiprocessing
 import random
 import os
 import h5py
 
 import numpy as np
-from scipy.spatial.distance import pdist
-from openrdp.common import jc_distance, TripletGenerator
+from scipy.spatial.distance import pdist, cdist
+from openrdp.common import jc_distance
 from tempfile import NamedTemporaryFile
 
 
 class Bootscan:
     def __init__(self, alignment, ref_align=None, win_size=200, step_size=20,
                  use_distances=True, num_replicates=100, random_seed=3,
-                 cutoff=0.7, model='JC69', quiet=False, max_pvalue=0.05, settings=None):
+                 cutoff=0.7, model='JC69', verbose=False, max_pvalue=0.05, settings=None):
         if settings:
             self.set_options_from_config(settings)
             self.validate_options(alignment)
@@ -33,19 +32,12 @@ class Bootscan:
         random.seed(self.random_seed)
         np.random.seed(self.random_seed)
 
-        self.quiet = quiet
-        if not self.quiet:
-            print('Starting Scanning Phase of Bootscan/Recscan')
-
-        self.dt_matrix_file = self.do_scanning_phase(alignment)
-        if not self.quiet:
-            print('Finished Scanning Phase of Bootscan/Recscan')
+        self.verbose = verbose
 
         self.raw_results = []
         self.results = []
         self.name = 'bootscan'
         self.seq_names = None
-        self.total_triplet_combinations = 0
 
     def set_options_from_config(self, settings):
         """
@@ -118,17 +110,30 @@ class Bootscan:
         return putative_regions
 
     def scan(self, i):
-        window = self.align[:, i:i + self.win_size]
+        query_window = self.align[:, i:i + self.win_size]
+
+        if isinstance(self.ref_align, np.ndarray):
+            ref_window = self.ref_align[:, i:i + self.win_size]
+            array_shape = ((self.align.shape[0] * self.ref_align.shape[0]),)
+        else:
+            array_shape = ((self.align.shape[0] - 1) * (self.align.shape[0]) //2,)
         # Make bootstrap replicates of alignment
         num_arrays = self.num_replicates
-        array_shape = ((self.align.shape[0] - 1) * (self.align.shape[0]) //2,)
         dists = np.empty((num_arrays,) + array_shape, dtype=np.float16)
         np.random.seed(self.random_seed)
         random.seed(self.random_seed)
         for rep in range(self.num_replicates):
+            rand_indices = np.random.randint(0, query_window.shape[1], query_window.shape[1])
+
             # Shuffle columns with replacement
-            rep_window = window[:, np.random.randint(0, window.shape[1], window.shape[1])]
-            dist_mat = pdist(rep_window, jc_distance)
+            rep_window = query_window[:, rand_indices]
+
+            if isinstance(self.ref_align, np.ndarray):
+                ref_rep_window = ref_window[:, rand_indices]
+                dist_mat = cdist(rep_window, ref_rep_window, jc_distance).flatten()
+            else:
+                dist_mat = pdist(rep_window, jc_distance)
+
             dists[rep] = dist_mat
 
         dt_matrix_file = NamedTemporaryFile('w', prefix="dt_mtrx_", delete=False)
@@ -146,15 +151,11 @@ class Bootscan:
             for name, obj in src_items:
                 dst.create_dataset(name, data=obj[()])
 
-    def do_scanning_phase(self, align):
+    def collate_scanning_phase(self, tempfiles):
         """
-        Perform scanning phase of the Bootscan/Recscan algorithm
+        gather temp files from MPI and collate them
         :param align: a n x m array of aligned sequences
         """
-
-        with multiprocessing.Pool(self.np) as p:
-            tempfiles = p.map(self.scan, range(0, align.shape[1], self.step_size))
-
         merged_dt_matrix_file = NamedTemporaryFile('w', prefix="dt_mtrx_", delete=False)
 
         # Merge hdf5 files
@@ -174,9 +175,6 @@ class Bootscan:
         i, triplet = arg
         raw_results = []
 
-        if not self.quiet:
-            print(f"Scanning triplet {i + 1} / {self.total_triplet_combinations}")
-
         # Look at boostrap support for sequence pairs
         ab_support = [0] * (self.align.shape[1] // self.step_size)
         bc_support = [0] * (self.align.shape[1] // self.step_size)
@@ -191,15 +189,9 @@ class Bootscan:
                 dist_mat = matrix[rep]
                 # Access pairwise distances for each pair
                 if isinstance(self.ref_align, np.ndarray):  # triplet.idxs is a 2D tuple if ref file is included
-                    ab_dist = dist_mat[int(triplet.idxs[0][0] * (self.align.shape[0] - 1) -
-                                        (triplet.idxs[0][0] * (triplet.idxs[0][0] - 1)) / 2 +
-                                        triplet.idxs[1][0] - triplet.idxs[0][0] - 1)]
-                    bc_dist = dist_mat[int(triplet.idxs[1][0] * (self.align.shape[0] - 1) -
-                                        (triplet.idxs[1][0] * (triplet.idxs[1][0] - 1)) / 2 +
-                                        triplet.idxs[1][1] - triplet.idxs[1][0] - 1)]
-                    ac_dist = dist_mat[int(triplet.idxs[0][0] * (self.align.shape[0] - 1) -
-                                        (triplet.idxs[0][0] * (triplet.idxs[0][0] - 1)) / 2 +
-                                        triplet.idxs[1][1] - triplet.idxs[0][0] - 1)]
+                    ab_dist = dist_mat[int(triplet.idxs[0][0] * self.ref_align.shape[0] + triplet.idxs[1][0])]
+                    ac_dist = dist_mat[int(triplet.idxs[0][0] * self.ref_align.shape[0] + triplet.idxs[1][1])]
+                    supports.append(np.argmin([ab_dist, ac_dist]))
                 else:
                     ab_dist = dist_mat[int(triplet.idxs[0] * (self.align.shape[0] - 1) -
                                         (triplet.idxs[0] * (triplet.idxs[0] - 1)) / 2 +
@@ -211,15 +203,23 @@ class Bootscan:
                                         (triplet.idxs[0] * (triplet.idxs[0] - 1)) / 2 +
                                         triplet.idxs[2] - triplet.idxs[0] - 1)]
 
-                supports.append(np.argmin([ab_dist, bc_dist, ac_dist]))
+                    supports.append(np.argmin([ab_dist, bc_dist, ac_dist]))
 
-            ab_support[i] = (np.sum(np.equal(supports, 0)) / self.num_replicates)
-            bc_support[i] = (np.sum(np.equal(supports, 1)) / self.num_replicates)
-            ac_support[i] = (np.sum(np.equal(supports, 2)) / self.num_replicates)
+            if isinstance(self.ref_align, np.ndarray):
+                ab_support[i] = (np.sum(np.equal(supports, 0)) / self.num_replicates)
+                ac_support[i] = (np.sum(np.equal(supports, 1)) / self.num_replicates)
+            else:
+                ab_support[i] = (np.sum(np.equal(supports, 0)) / self.num_replicates)
+                bc_support[i] = (np.sum(np.equal(supports, 1)) / self.num_replicates)
+                ac_support[i] = (np.sum(np.equal(supports, 2)) / self.num_replicates)
 
         f.close()
 
-        supports = np.array([ab_support, bc_support, ac_support])
+        if isinstance(self.ref_align, np.ndarray):
+            supports = np.array([ab_support, ac_support])
+        else:
+            supports = np.array([ab_support, bc_support, ac_support])
+
         supports_max = np.argmax(supports, axis=0)
         supports_thresh = supports > self.cutoff
 
@@ -238,9 +238,14 @@ class Bootscan:
         # Identify areas where the bootstrap support alternates between two different sequence pairs
         transition_window_locations = [0] + transition_window_locations + [supports.shape[1] - 1]
         possible_regions = []
-        groupings = ((0, 2), (0, 1), (1, 2))
+
+        if isinstance(self.ref_align, np.ndarray):
+            groupings = ((0, 2), (0, 1))
+        else:
+            groupings = ((0, 2), (0, 1), (1, 2))
+
         trps = (0, 1, 2)
-        for rec_pot in range(3):
+        for rec_pot in range(len(groupings)):
             for i in range(len(transition_window_locations) - 1):
                 begin = transition_window_locations[i]
                 end = transition_window_locations[i + 1]
@@ -288,15 +293,12 @@ class Bootscan:
 
         return raw_results
 
-    def execute_all(self, total_combinations, seq_names, ref_names=None):
-        self.seq_names = seq_names
-        self.total_triplet_combinations = total_combinations
-        with multiprocessing.Pool(self.np) as p:
-            results = p.map(self.execute, enumerate(TripletGenerator(self.align, self.seq_names,
-                                                                     ref_align=self.ref_align,
-                                                                     ref_names=ref_names)))
-
-        self.raw_results = [l for res in results for l in res] 
+    def update_results(self, raw):
+        """
+        put raw_results together from mpi
+        raw: list, results from each tuple from each individual execute run 
+        """
+        self.raw_results = [l for res in raw for l in res] 
 
     def merge_breakpoints(self):
         """

@@ -18,7 +18,7 @@ For your convenience, we package these binaries along with their respective lice
 * `numpy` version [1.17.4](https://numpy.org/devdocs/release/1.17.4-notes.html) or later
 * `scipy` version [1.5.0](https://docs.scipy.org/doc/scipy/reference/release.1.5.0.html) or later
 * `h5py` version [3.8.0](https://docs.h5py.org/en/stable/build.html) or later
-
+* `mpi4py` optional for parallel processing
 
 ## Installation
 
@@ -191,7 +191,30 @@ Siscan          2       205     E               J       R       7.67E-01
 Siscan          2       205     E               K       R       7.08E-01
 Siscan          2       205     E               J       K       7.60E-01
 ```
+If you wish to run openrdp with `mpi4py`, you can do so with the following commands, where `-n` is the number of cores. Given the excessive text output, messages are mute. If you wish to display them anyways, use `-v`
+```console
+(myenv) [will@Paphlagon OpenRDP]$ mpirun -n 4 openrdp tests/long.fasta
+/home/will/miniconda3/envs/myenv/bin/openrdp:4: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
+  __import__('pkg_resources').run_script('OpenRDP==0.1.0', 'openrdp')
+/home/will/miniconda3/envs/myenv/bin/openrdp:4: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
+  __import__('pkg_resources').run_script('OpenRDP==0.1.0', 'openrdp')
+/home/will/miniconda3/envs/myenv/bin/openrdp:4: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
+  __import__('pkg_resources').run_script('OpenRDP==0.1.0', 'openrdp')
 
+Method          Start   End     Recombinant     Parent1 Parent2 Pvalue
+------------------------------------------------------------------------
+Geneconv        1       204     Test2           Test3   -       2.00E-05
+Geneconv        151     195     Test1           Test3   -       2.10E-03
+Geneconv        203     507     Test1           Test2   -       8.29E-03
+Geneconv        539     759     Test1           Test2   -       1.54E-01
+Geneconv        151     193     Test4           -       -       2.20E-02
+Geneconv        56      170     Test1           -       -       2.73E-02
+Bootscan        100     160     Test2           Test3   Test4   2.29E-02
+3Seq            181     787     Test2           Test3   Test4   5.29E-06
+3Seq            202     787     Test3           Test1   Test2   5.98E-10
+RDP             6       433     Test1           Test3   Test4   9.28E-17
+RDP             6       412     Test2           Test3   Test4   1.04E-15
+```
 ### Using OpenRDP as a Python module 
 
 OpenRDP can be used as a Python module.  In a typical workflow, we would start by creating an instance of the object class `Scanner`:

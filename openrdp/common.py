@@ -54,6 +54,7 @@ def merge_breakpoints(raw_results, max_pvalue=100):
 
     return results
 
+
 def read_fasta(handle):
     """
     Converts a FASTA formatted file to a tuple containing a list of headers and sequences
@@ -241,6 +242,9 @@ class TripletGenerator:
 
 class Triplet:
     def __init__(self, seqs, names, idxs=None):
+        """
+        :param seqs:  numpy.array
+        """
         self.sequences = seqs
         self.names = names
         self.idxs = idxs

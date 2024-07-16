@@ -104,9 +104,10 @@ class RdpMethod:
     def execute(self, triplet):
         """
         Performs RDP detection method for one triplet of sequences
+        :param triplet:  object of class Triplet
         :return: the coordinates of the potential recombinant region and the p_value
         """
-        G = sum(1 for _ in combinations(range(self.align.shape[0]), 3)) # Number of triplets
+        G = sum(1 for _ in combinations(range(self.align.shape[0]), 3))  # Number of triplets
 
         # Get the three pairs of sequences
         ab = np.array([triplet.info_sites_align[0], triplet.info_sites_align[1]])
@@ -164,14 +165,16 @@ class RdpMethod:
                             id_in_seq += 1
                     p = id_in_seq / triplet.sequences.shape[1]
 
-                    # Calculate p_value
+                    # Calculate p_value as binomial probability
                     val = 0
                     log_n_fact = np.sum(np.log(np.arange(1, n+1)))  # Convert to log space to prevent integer overflow
                     for i in range(m, n):
                         log_i_fact = np.sum(np.log(np.arange(1, i+1)))
                         log_ni_fact = np.sum(np.log(np.arange(1, n-i+1)))
                         with np.errstate(divide='ignore'):  # Ignore floating point error
-                            val += np.math.exp((log_n_fact - (log_i_fact + log_ni_fact)) + np.log(p**n) + np.log((1-p)**(n-i)))
+                            val += np.math.exp(
+                                (log_n_fact - (log_i_fact + log_ni_fact)) + n * np.log(p) + (n-i) * np.log(1-p)
+                            )
 
                     uncorr_pvalue = (len_trp / n) * val
                     corr_p_value = G * uncorr_pvalue

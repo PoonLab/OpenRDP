@@ -1,10 +1,10 @@
 from itertools import combinations, product
-
 import numpy as np
 from scipy.stats import chi2_contingency
 from scipy.stats import pearsonr
 import copy
 import sys
+
 
 def merge_breakpoints(raw_results, max_pvalue=100):
     """
@@ -267,21 +267,23 @@ class Triplet:
 
     def remove_uninformative_sites(self):
         """
-        Remove sites that are all the same or all different
+        Remove sites that are all the same or all different, leaving 
+        phylogenetically-informative sites.
+        :return:  numpy.Array, alignment containing only informative sites
+                  list, integer indices of informative sites in original alignment
+                  list, integer indices of non-informative sites in original alignment
         """
         infor_sites = []
         uninfor_sites = []
-        # Find positions of sites that are all the same sites or all sites that are different
         for i in range(self.sequences.shape[1]):
             col = self.sequences[:, i]
             if np.unique(col).shape[0] == 2:
-                infor_sites.append(i)
+                infor_sites.append(i)  # store index
             else:
                 uninfor_sites.append(i)
 
         # Build "new alignment"
         new_aln = self.sequences[:, infor_sites]
-
         return new_aln, infor_sites, uninfor_sites
 
     def remove_monomorphic_sites(self):

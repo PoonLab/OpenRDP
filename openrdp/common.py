@@ -154,7 +154,10 @@ def identify_recombinant(trp, aln_pos):
     """
     Find the most likely recombinant sequence using the PhPr method described in the RDP5 documentation
     and Weiler GF (1998) Phylogenetic profiles: A graphical method for detecting genetic recombinations
-    in homologous sequences. Mol Biol Evol 15: 326–335
+    in homologous sequences. Mol Biol Evol 15: 326-335
+    
+    :param trp:  object of class Triplet
+    :param aln_pos:  tuple, 
     :return: name of the recombinant sequence and the names of the parental sequences
     """
     upstream_dists = []

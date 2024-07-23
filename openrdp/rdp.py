@@ -2,6 +2,8 @@ import re
 from .common import identify_recombinant
 import numpy as np
 from itertools import combinations
+from scipy.stats import binom
+import math
 
 
 class RdpMethod:
@@ -52,6 +54,7 @@ class RdpMethod:
         """
         Check if the options from the config file are valid
         If the options are invalid, the default value will be used instead
+        FIXME: I think this should return a True/False value
         """
         if self.reference == 'None':
             self.reference = None
@@ -101,18 +104,21 @@ class RdpMethod:
                   list, binary vector of identity between sequences A and C
         """
         # FIXME: all sequences should probably have the same length...
-        a_b = [int(reg_ab[0, j] == reg_ab[1, j]) for i in range(reg_ab.shape[1])]
-        b_c = [int(reg_bc[0, j] == reg_bc[1, j]) for i in range(reg_bc.shape[1])]
-        a_c = [int(reg_ac[0, j] == reg_ac[1, j]) for i in range(reg_ac.shape[1])]
+        a_b = [int(reg_ab[0, i] == reg_ab[1, i]) for i in range(reg_ab.shape[1])]
+        b_c = [int(reg_bc[0, i] == reg_bc[1, i]) for i in range(reg_bc.shape[1])]
+        a_c = [int(reg_ac[0, i] == reg_ac[1, i]) for i in range(reg_ac.shape[1])]
         return a_b, b_c, a_c
-
+        
+        
     def execute(self, triplet):
         """
         Performs RDP detection method for one triplet of sequences
         :param triplet:  object of class Triplet
         :return: the coordinates of the potential recombinant region and the p_value
         """
-        G = sum(1 for _ in combinations(range(self.align.shape[0]), 3))  # Number of triplets
+        
+        # total number of triplets - to adjust for multiple comparisons?
+        G = sum(1 for _ in combinations(range(self.align.shape[0]), 3))
 
         # Get the three pairs of sequences from alignment of phylogenetically informative sites
         ab = np.array([triplet.info_sites_align[0], triplet.info_sites_align[1]])
@@ -127,67 +133,52 @@ class RdpMethod:
             len_trp = triplet.info_sites_align.shape[1]  # sequence length
 
             # 2. Sliding window over subsequence and calculate average percent identity at each position
-            recombinant_regions = ''  # Recombinant regions denoted by ones
-            coord = []
+            recombinant_regions = ''
             for i in range(len_trp - self.win_size):
                 # Calculate percent identity in each window
-                pid_ab = sum(ab_id[:, i: self.win_size + i]) / self.win_size * 100
-                pid_bc = sum(bc_id[:, i: self.win_size + i]) / self.win_size * 100
-                pid_ac = sum(ac_id[:, i: self.win_size + i]) / self.win_size * 100
+                try:
+                    pid_ab = sum(ab_id[i:(self.win_size+i)]) / self.win_size * 100
+                except TypeError:
+                    print(i)
+                    print(self.win_size)
+                    raise
+                pid_bc = sum(bc_id[i:(self.win_size+i)]) / self.win_size * 100
+                pid_ac = sum(ac_id[i:(self.win_size+i)]) / self.win_size * 100
 
-                # Identify potential recombinant regions
-                if pid_ac > pid_ab or pid_bc > pid_ab:
-                    recombinant_regions += "1"
-                    coord.append(i)  # FIXME: UNUSED
-                else:
-                    recombinant_regions += "0"
+                # Potential recombinant regions where % ident of A-C or B-C is higher than A-B
+                recombinant_regions += "1" if pid_ac > pid_ab or pid_bc > pid_ab else "0"
 
-            # 3. locate runs of 
-            recomb_idx = [(m.span()) for m in re.finditer('1+', recombinant_regions)]
+            # 3. locate runs of 1's
+            recomb_idx = [m.span() for m in re.finditer('1+', recombinant_regions)]
 
-            # Convert coordinates from  window-level to alignment-level and record number of windows
-            coords = []
-            for x, y in recomb_idx:
-                coords.append((triplet.info_sites[x], triplet.info_sites[y - 1]))
+            # Convert coordinates from window-level to alignment-level and record number of windows
+            coords = [(triplet.info_sites[x], triplet.info_sites[y-1]) for x, y in recomb_idx]
+            
+            for left, right in coords:
+                N = right - left  # length of putative recombinant region
+                if N <= 0:
+                    continue
+                
+                # retrieve full sequences
+                seq_a = triplet.sequences[0]
+                seq_b = triplet.sequences[1]
+                seq_c = triplet.sequences[2]
+                
+                M = 0  # number of nts in common between (A or B) and C in this region
+                p = 0  # proportion of nts in common between (A or B) and C in the entire sequence
+                L = len(seq_a)  # length of the entire sequence
+                for i in range(N):
+                    if seq_a[i]==seq_c[i] or seq_b[i]==seq_c[i]:
+                        p += 1
+                        if i >= left and i < right:
+                            M += 1  # within putative recombinant region
+                p /= L
+                
+                # Calculate p_value as binomial survival function (1-CDF)
+                pvalue = math.exp(math.log(G) + math.log(L) - math.log(N) + 
+                                  binom.logsf(M-1, n=N, p=p))  # RDP sums from M to N inclusive
 
-            for coord in coords:
-                n = coord[1] - coord[0]     # Length of putative recombinant region
-
-                if n > 0:
-                    # m is the proportion of nts in common between either A or B and C in the recombinant region
-                    nts_in_a = triplet.sequences[0][coord[0]: coord[1]]
-                    nts_in_c = triplet.sequences[2][coord[0]: coord[1]]
-                    m = 0
-                    for i in range(n):
-                        if nts_in_a[i] == nts_in_c[i]:
-                            m += 1
-
-                    # p is the proportion of nts in common between either A or B and C in the entire subsequence
-                    id_in_seq = 0
-                    for j in range(triplet.sequences.shape[1]):
-                        if triplet.sequences[0][j] == triplet.sequences[2][j]:
-                            id_in_seq += 1
-                    p = id_in_seq / triplet.sequences.shape[1]
-
-                    # Calculate p_value as binomial probability
-                    val = 0
-                    log_n_fact = np.sum(np.log(np.arange(1, n+1)))  # Convert to log space to prevent integer overflow
-                    for i in range(m, n):
-                        log_i_fact = np.sum(np.log(np.arange(1, i+1)))
-                        log_ni_fact = np.sum(np.log(np.arange(1, n-i+1)))
-                        with np.errstate(divide='ignore'):  # Ignore floating point error
-                            val += np.math.exp(
-                                (log_n_fact - (log_i_fact + log_ni_fact)) + n * np.log(p) + (n-i) * np.log(1-p)
-                            )
-
-                    uncorr_pvalue = (len_trp / n) * val
-                    corr_p_value = G * uncorr_pvalue
-
-                else:
-                    corr_p_value = 'NS'
-
-                if corr_p_value != 'NS' and corr_p_value != 0.0:
-                    rec_name, parents = identify_recombinant(triplet, coord)
-                    self.raw_results.append((rec_name, parents, *coord, corr_p_value))
-
-            return  # FIXME: why is this still here?
+                if pvalue != 0.0:
+                    # FIXME: what's wrong with P=0?
+                    rec_name, parents = identify_recombinant(triplet, [left, right])
+                    self.raw_results.append((rec_name, parents, left, right, pvalue))

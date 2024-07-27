@@ -82,12 +82,13 @@ class ScanResults:
 
 
 class Scanner:
-    def __init__(self, cfg=None, methods=None, verbose=False):
+    def __init__(self, cfg=None, methods=None, verbose=False, use_mpi=True):
         """
         :param cfg:  str, path to configuration file.  Defaults to None, causing
                      each method to use default settings.
         :param methods:  tuple, names of methods to setup and run
         :param verbose:  bool, if True, type console messages
+        :param use_mpi:  bool, if True attempt to use mpi4py
         """
         # Check that the OS is valid
         sp = sys.platform
@@ -100,6 +101,7 @@ class Scanner:
             methods = list(aliases.keys())
         self.methods = methods
         self.verbose = verbose
+        self.use_mpi = use_mpi
 
         self.config = configparser.ConfigParser()
         self.cfg_file = cfg
@@ -258,18 +260,21 @@ class Scanner:
                                     ref_align=self.ref_align if ref_file else None,
                                     ref_names=self.ref_names if ref_file else None)
 
-        # attempt at parallel processing
-        from mpi4py import MPI
-        try:
-            comm = MPI.COMM_WORLD
-            nprocs = comm.Get_size()
-            my_rank = comm.Get_rank()
-
-        except ModuleNotFoundError:
-            sys.stderr.write('Running in serial mode')
+        if self.use_mpi:
+            # attempt at parallel processing
+            try:
+                from mpi4py import MPI
+            except ModuleNotFoundError:
+                sys.stderr.write('Running in serial mode')
+                nprocs = 1
+                my_rank = 0
+            else:
+                comm = MPI.COMM_WORLD
+                nprocs = comm.Get_size()
+                my_rank = comm.Get_rank()
+        else:
             nprocs = 1
             my_rank = 0
-
         
         # stops them from running over and over in every process
         # Run methods with external binaries

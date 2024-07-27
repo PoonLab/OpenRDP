@@ -3,7 +3,7 @@ import sys
 import os
 import configparser
 import numpy as np
-from collections import OrderedDict
+from collections import OrderedDict, UserDict
 from scipy.special import comb as ncomb
 
 from openrdp import __path__ as basepath
@@ -31,10 +31,8 @@ aliases = {
 DNA_ALPHABET = ['A', 'T', 'G', 'C', '-', 'N']
 
 
-class ScanResults:
+class ScanResults(UserDict):
     """ Object to return from Scanner, derived from dict """
-    def __init__(self, d):
-        self.dict = d
 
     def write(self, outfile):
         """
@@ -42,7 +40,7 @@ class ScanResults:
         :param outfile:  file to write output
         """
         outfile.write('Method,Start,End,Recombinant,Parent1,Parent2,Pvalue\n')
-        for method, events in self.dict.items():
+        for method, events in self.items():
             for e in events:
                 if method == 'geneconv':
                     outfile.write(f'Geneconv,{e[2][0]},{e[2][1]},{e[0]},{e[1][0]},{e[1][1]},{e[3]}\n')
@@ -55,7 +53,7 @@ class ScanResults:
             'Method  ', 'Start', 'End', 'Recombinant', 'Parent1', 'Parent2',
             'Pvalue']) + '\n' + '-'*72 + '\n'
 
-        for method, events in self.dict.items():
+        for method, events in self.items():
             key = aliases[method]['key']
             for e in events:
                 if method == 'geneconv':
@@ -67,7 +65,8 @@ class ScanResults:
         return outstr
 
     def __getitem__(self, key):
-        events = self.dict.get(key, None)
+        # Let a KeyError happen if we're asked for a non-existent key.
+        events = self[key]
         if key == 'geneconv':
             return [{'start': e[2][0], 'end': e[2][1], 'recombinant': e[0],
                      'parent1': e[1][0], 'parent2': e[1][1], 'pvalue': float(e[3])}
@@ -76,9 +75,6 @@ class ScanResults:
             return [{'start': e[2], 'end': e[3], 'recombinant': e[0],
                      'parent1': e[1][0], 'parent2': e[1][1], 'pvalue': float(e[4])}
                     for e in events]
-
-    def keys(self):
-        return self.dict.keys()
 
 
 class Scanner:
@@ -96,9 +92,7 @@ class Scanner:
                   f"the developers at https://github.com/PoonLab/OpenRDP.")
             sys.exit()
 
-        if methods is None:
-            methods = list(aliases.keys())
-        self.methods = methods
+        self.methods = methods or list(aliases)
         self.verbose = verbose
 
         self.config = configparser.ConfigParser()
@@ -211,10 +205,10 @@ class Scanner:
         :param ref_file:  str, path to input FASTA reference file
         """
         # prepare return value
-        results = ScanResults(dict([(method, {}) for method in aliases.keys()]))
+        results = ScanResults(dict((method, {}) for method in aliases))
 
         # Exit early if 3Seq and Geneconv are the only methods selected
-        check = set(aliases.keys()).intersection(self.methods)
+        check = set(aliases).intersection(self.methods)
         if len(check) == 0:
             return results
 

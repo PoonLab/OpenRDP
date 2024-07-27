@@ -272,7 +272,7 @@ This object also has a method to write CSV-formatted results to a file:
 
 A `ScanResults` object also behaves like a dictionary for accessing specific results, which are stored as a list of `dict` objects for each detection method:
 ```python
->>> list(results.keys())
+>>> list(results)
 ['geneconv', 'bootscan', 'maxchi', 'siscan', 'chimaera', 'threeseq', 'rdp']
 >>> results["geneconv"]
 [{'start': 1, 'end': 204, 'recombinant': 'X64866', 'parent1': 'X64869', 'parent2': '-', 'pvalue': 2e-05}, {'start': 151, 'end': 195, 'recombinant': 'X64860', 'parent1': 'X64869', 'parent2': '-', 'pvalue': 0.0021}, {'start': 203, 'end': 507, 'recombinant': 'X64860', 'parent1': 'X64866', 'parent2': '-', 'pvalue': 0.00829}, {'start': 539, 'end': 759, 'recombinant': 'X64860', 'parent1': 'X64866', 'parent2': '-', 'pvalue': 0.15378}, {'start': 151, 'end': 193, 'recombinant': 'X64873', 'parent1': '-', 'parent2': '-', 'pvalue': 0.02202}, {'start': 56, 'end': 170, 'recombinant': 'X64860', 'parent1': '-', 'parent2': '-', 'pvalue': 0.02728}]

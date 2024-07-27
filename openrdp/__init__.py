@@ -259,8 +259,8 @@ class Scanner:
                                     ref_names=self.ref_names if ref_file else None)
 
         # attempt at parallel processing
-        from mpi4py import MPI
         try:
+            from mpi4py import MPI
             comm = MPI.COMM_WORLD
             nprocs = comm.Get_size()
             my_rank = comm.Get_rank()

@@ -1,21 +1,28 @@
+import sys
 import os
 import unittest
 import openrdp
-from mpi4py import MPI
+
+try:
+    from mpi4py import MPI
+except ModuleNotFoundError:
+    print("mpi4py could not be imported, skipping MPI tests.", file=sys.stderr)
+    have_mpi4py = False
+else:
+    have_mpi4py = True
 
 basepath = os.path.dirname(os.path.abspath(__file__))
 LONG_INFILE = os.path.join(basepath, 'long.fasta')
 CONFIG = os.path.join(basepath, 'test_cfg.ini')
 
+
 class TestMPI(unittest.TestCase):
     def setUp(self):
-        try:
-            self.comm = MPI.COMM_WORLD
-            self.my_rank = self.comm.Get_rank()
-            self.size = self.comm.Get_size()
-        except ImportError as error:
-            print(f"Error importing MPI, {error}")
-            exit()
+        if not have_mpi4py:
+            return
+        self.comm = MPI.COMM_WORLD
+        self.my_rank = self.comm.Get_rank()
+        self.size = self.comm.Get_size()
 
         self.LONG_EXPECTED = \
                 {'geneconv': [('Test1', ['-', '-'], (56, 170), '0.02728'),
@@ -42,6 +49,7 @@ class TestMPI(unittest.TestCase):
                          ('Test2', ('Test3', 'Test4'), 36, 481, 1.666567338773972e-05)]}
 
 
+    @unittest.skipUnless(have_mpi4py, "mpi4py not installed")
     def test_MPI(self):
         scanner = openrdp.Scanner(cfg=CONFIG)
         results = scanner.run_scans(LONG_INFILE)

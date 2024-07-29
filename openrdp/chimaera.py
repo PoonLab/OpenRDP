@@ -59,8 +59,11 @@ class Chimaera:
         If the options are invalid, the default value will be used instead
         """
         if self.win_size < 0 or self.win_size > align.shape[1]:
-            print("Invalid option for 'win_size'.\nUsing default value (200) instead.")
-            self.win_size = 200
+            if 200 > align.shape[1]:
+                self.win_size = len(align.shape) # TODO check if this is valid alternative 
+            else:
+                self.win_size = 200
+            print(f"Invalid option for 'win_size'.\nUsing default value ({self.win_size}) instead.")
 
         if not self.fixed_win_size:
             if self.num_var_sites < 0:
@@ -172,17 +175,9 @@ class Chimaera:
 
                 c_table = self.compute_contingency_table(reg_left, reg_right, half_win_size)
 
-                # Using notation from Maynard Smith (1992)
-                n = self.win_size
-                k2 = half_win_size
-                s = np.sum(reg_left == reg_right)
-                r = np.sum(reg_left != reg_right)
-
                 # Avoid dividing by 0 (both "parental" sequences are identical in the window)
-                if s > 0:
-                    cur_val = (float(n) * (k2 * s - n * r) * (k2 * s - n * r)) / (float(k2 * s) * (n - k2) * (n - s))
-                else:
-                    cur_val = -1
+                if np.sum(reg_left == reg_right) <= 0:
+                    continue
 
                 # Compute chi-squared value
                 chi2, p_value = calculate_chi2(c_table, self.max_pvalues)
@@ -191,7 +186,8 @@ class Chimaera:
                     chi2_values[triplet.poly_sites[k + half_win_size]] = chi2  # centred window
                     p_values[triplet.poly_sites[k + half_win_size]] = p_value
 
-                win_size = triplet.get_win_size(k, self.win_size, self.fixed_win_size, self.num_var_sites,
+                if not self.fixed_win_size: # reduce redunant searches
+                    win_size = triplet.get_win_size(k, self.win_size, self.fixed_win_size, self.num_var_sites,
                                                 self.frac_var_sites)
 
             # Smooth chi2-values

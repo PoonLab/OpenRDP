@@ -94,14 +94,12 @@ class MaxChi:
         return reg1_left, reg2_left, reg1_right, reg2_right, reg1, reg2
 
     @staticmethod
-    def compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left, half_win_size):
+    def compute_contingency_table(s, r, k):
         """
         Calculate the number of variable sites on either side of the partition
-        :param reg1_right: the right half of the window from the first sequence
-        :param reg2_right: the left half of the window from the second sequence
-        :param reg1_left: the left half of the window from the first sequence
-        :param reg2_left: the left half of the window from the second sequence
-        :param half_win_size: half the width of the window
+        :param s: number of total incorrect matches
+        :param r: number of incorrect matches on the left
+        :param k: length of half sequence
         :return: the contingency table
         """
         # Record the totals for the rows and columns
@@ -110,13 +108,11 @@ class MaxChi:
                    [0, 0, 0]]
 
         # Compute contingency table for each window position
-        r_matches = np.sum((reg1_right == reg2_right))
-        c_table[0][0] = int(r_matches)
-        c_table[0][1] = half_win_size - r_matches
+        c_table[0][0] = k - (s - r) # correct on right
+        c_table[0][1] = s - r # incorrect on right
 
-        l_matches = np.sum((reg1_left == reg2_left))
-        c_table[1][0] = int(l_matches)
-        c_table[1][1] = half_win_size - l_matches
+        c_table[1][0] = k - r # correct on left
+        c_table[1][1] = r # incorrect on left
 
         # Sum the rows and columns
         c_table[0][2] = c_table[0][0] + c_table[0][1]
@@ -148,40 +144,35 @@ class MaxChi:
                                             self.frac_var_sites)
 
             # Slide along the sequences
-            half_win_size = int(win_size // 2)
+            half_win_size = int(win_size // 2) # half length of n
             for k in range(triplet.poly_sites_align.shape[1] - win_size):
 
                 reg1_left, reg2_left, reg1_right, reg2_right, reg1, reg2 = self.get_window_positions(seq1, seq2,
                                                                                                      k, win_size)
 
-                s = np.sum(reg1 != reg2)
-                r = np.sum(reg1_left != reg2_left)
+                s = np.sum(reg1 != reg2) # total incorrect
+                r = np.sum(reg1_left != reg2_left) # total incorrect on left
+                n = self.win_size # lenght of sequence
 
-                c_table = self.compute_contingency_table(reg1_right, reg2_right,
-                                                         reg1_left, reg2_left, half_win_size)
+                c_table = self.compute_contingency_table(s, r, half_win_size)
 
-                n = self.win_size
-                k2 = half_win_size
-
-                if (float(k2 * s) * (n - k2) * (n - s)) == 0:
+                # checks to make sure windows aren't same, length of sequence > 1, they aren't completely different
+                if (float(half_win_size * s) * (n - half_win_size) * (n - s)) == 0: 
                     continue
-                else:
-                    cur_val = (float(n) * (k2 * s - n * r) * (k2 * s - n * r)) / (float(k2 * s) * (n - k2) * (n - s))
 
                 # Compute chi-squared value
                 chi2, p_value = calculate_chi2(c_table, self.max_pvalues)
                 if chi2 is not None and p_value is not None:
                     # Insert p-values and chi2 values so they correspond to positions in the original alignment
-                    chi2_values[triplet.poly_sites[k + half_win_size]] = cur_val  # centred window
+                    chi2_values[triplet.poly_sites[k + half_win_size]] = chi2  # centred window
                     p_values[triplet.poly_sites[k + half_win_size]] = p_value
 
-                win_size = triplet.get_win_size(k, self.win_size, self.fixed_win_size, self.num_var_sites,
-                                                self.frac_var_sites)
+                if not self.fixed_win_size: # reduces redunant checks
+                    win_size = triplet.get_win_size(k, self.win_size, self.fixed_win_size, self.num_var_sites,
+                                                    self.frac_var_sites)
 
             # Smooth chi2-values
             chi2_values = gaussian_filter1d(chi2_values, 1.5)
-            # p_values = gaussian_filter1d(p_values, 1.5)
-            # self.plot_chi2_values(chi2_values, p_values)
 
             peaks = find_peaks(chi2_values, distance=self.win_size)
             for k, peak in enumerate(peaks[0]):

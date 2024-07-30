@@ -232,7 +232,7 @@ class Scanner:
 
             self.print(f"Setting up {alias} analysis...")
             
-            if alias in 'bootscan':
+            if alias == 'bootscan':
                 if self.config:
                     bootset = dict(self.config.items(a['key']))
                 else:
@@ -259,8 +259,8 @@ class Scanner:
                                     ref_names=self.ref_names if ref_file else None)
 
         # attempt at parallel processing
-        from mpi4py import MPI
         try:
+            from mpi4py import MPI
             comm = MPI.COMM_WORLD
             nprocs = comm.Get_size()
             my_rank = comm.Get_rank()
@@ -324,7 +324,7 @@ class Scanner:
             for alias, tmethod in tmethods.items():
                 if not isinstance(tmethod.raw_results, list):
                     tmethod.raw_results = list(tmethod.raw_results)
-                if alias in 'bootscan':
+                if alias == 'bootscan':
                     results.dict[alias] = tmethod.merge_breakpoints()
                 else:
                     results.dict[alias] = merge_breakpoints(tmethod.raw_results, tmethod.max_pvalues)
@@ -386,7 +386,7 @@ class Scanner:
             for alias, tmethod in tmethods.items():
                 if not isinstance(tmethod.raw_results, list):
                     tmethod.raw_results = list(tmethod.raw_results)
-                if alias in 'bootscan':
+                if alias == 'bootscan':
                     rank_result[alias] = tmethod.merge_breakpoints()
                 else:
                     rank_result[alias] = merge_breakpoints(tmethod.raw_results, tmethod.max_pvalues)
@@ -399,7 +399,7 @@ class Scanner:
                     if os.path.exists(tmethods['bootscan'].dt_matrix_file): 
                         os.remove(tmethods['bootscan'].dt_matrix_file)
                 for process in total_ranks:
-                    for alias in process:
+                    for alias == process:
                         # it is initally an empty dictionary that we turn into a [] anyways
                         if not results.dict[alias]: 
                             results.dict[alias] = []

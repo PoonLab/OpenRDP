@@ -94,22 +94,36 @@ class Siscan:
         ad = a == d
         cd = c == d
         bd = b == d
-        np.logical_not(cd)
 
+        # 1 ~ 2 ~ 3 ~ 4
         pat_counts[0] = np.sum(np.logical_not(ab) & np.logical_not(ac) & np.logical_not(ad) & np.logical_not(bc) & np.logical_not(bd) & np.logical_not(cd))
-        pat_counts[1] = np.sum(ab & np.logical_not(ac) & np.logical_not(ad))
-        pat_counts[2] = np.sum(ac & np.logical_not(ab) & np.logical_not(ad))
-        pat_counts[3] = np.sum(ad & np.logical_not(ab) & np.logical_not(ac))
-        pat_counts[4] = np.sum(bc & np.logical_not(ab) & np.logical_not(bd))
-        pat_counts[5] = np.sum(bd & np.logical_not(ab) & np.logical_not(bc))
-        pat_counts[6] = np.sum(cd & np.logical_not(bc) & np.logical_not(ac))
+        # 1 = 2 ~ 3 ~ 4
+        pat_counts[1] = np.sum(ab & np.logical_not(ac) & np.logical_not(ad) & np.logical_not(cd))
+        # 1 = 3 ~ 2 ~ 4
+        pat_counts[2] = np.sum(ac & np.logical_not(ab) & np.logical_not(ad) & np.logical_not (bd))
+        # 1 = 4 ~ 2 ~ 3
+        pat_counts[3] = np.sum(ad & np.logical_not(ab) & np.logical_not(ac) & np.logcical_not (bc))
+        # 2 = 3 ~ 1 ~ 4
+        pat_counts[4] = np.sum(bc & np.logical_not(ab) & np.logical_not(bd) & np.logical_not(ad))
+        # 2 = 4 ~ 1 ~ 3
+        pat_counts[5] = np.sum(bd & np.logical_not(ab) & np.logical_not(bc) & np.logical_not (ac))
+        # 3 = 4 ~ 1 ~ 2
+        pat_counts[6] = np.sum(cd & np.logical_not(bc) & np.logical_not(ac) & np.logical_not(ab))
+        # 1 = 2 ~ 3 = 4
         pat_counts[7] = np.sum(ab & cd & np.logical_not(bc))
+        # 1 = 3 ~ 2 = 4
         pat_counts[8] = np.sum(ac & bd & np.logical_not(bc))
+        # 1 = 4 ~ 2 = 3
         pat_counts[9] = np.sum(ad & bc & np.logical_not(ab))
+        # 1 = 2 = 3 ~ 4
         pat_counts[10] = np.sum(ab & bc & np.logical_not(ad))
+        # 1 = 2 = 4 ~ 3
         pat_counts[11] = np.sum(ab & bd & np.logical_not(ac))
+        # 1 = 3 = 4 ~ 2
         pat_counts[12] = np.sum(ac & cd & np.logical_not(ab))
+        # 2 = 3 = 4 ~ 1
         pat_counts[13] = np.sum(bc & cd & np.logical_not(ab))
+        # 1 = 2 = 3 = 4
         pat_counts[14] = np.sum(ab & bc & ad)
 
         return pat_counts
@@ -145,17 +159,16 @@ class Siscan:
 
         # Based on leading edge of the window
         for window in range(0, self.align.shape[1], self.step_size):
-            win_start = 0
-            win_end = win_start + self.win_size
+            win_end = window + self.win_size
 
             # Label sequences
-            a = triplet.sequences[0][win_start: win_end]
-            b = triplet.sequences[1][win_start: win_end]
-            c = triplet.sequences[2][win_start: win_end]
+            a = triplet.sequences[0][window: win_end]
+            b = triplet.sequences[1][window: win_end]
+            c = triplet.sequences[2][window: win_end]
 
             # Create the fourth sequence through horizontal randomization
             selected_seq = random.choice((0, 1, 2))
-            d = triplet.sequences[selected_seq][win_start: win_end]
+            d = triplet.sequences[selected_seq][window: win_end]
             np.random.shuffle(d)
 
             # (1) Count number of positions within a window that conform to each pattern

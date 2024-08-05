@@ -146,6 +146,16 @@ class Siscan:
 
         return sum_pat_counts
 
+    def sum_informative(pat_counts, sum_pat_counts):
+        '''
+        step 3 where you count the informative sites, done in place
+        
+        return void
+        '''
+        sum_pat_counts[0] = pat_counts[1] + pat_counts[6] + pat_counts[7]  # 2 + 7 + 8
+        sum_pat_counts[1] = pat_counts[2] + pat_counts[5] + pat_counts[8]  # 3 + 6 + 9
+        sum_pat_counts[2] = pat_counts[3] + pat_counts[4] + pat_counts[9]  # 4 + 5 + 10
+
     def execute(self, triplet):
         """
         Do Sister-scanning as described in Gibbs, Armstrong, and Gibbs (2000), using a randomized 4th sequence
@@ -155,7 +165,8 @@ class Siscan:
         np.random.seed(self.random_seed)
 
         # Initialize list to map z_values to window positions
-        z_values = np.zeros(triplet.sequences.shape[1])
+        z_pattern_values = np.zeros(triplet.sequences.shape[1])
+        z_sum_values = np.zreos(triplet.sequences.shape[1]) 
 
         # Based on leading edge of the window
         for window in range(0, self.align.shape[1], self.step_size):
@@ -179,9 +190,7 @@ class Siscan:
             sum_pat_counts = self.sum_pattern_counts(pat_counts)
 
             # (3) Sum counts of each kind of informative site for each window
-            sum_pat_counts[0] = pat_counts[1] + pat_counts[6] + pat_counts[7]  # 2 + 7 + 8
-            sum_pat_counts[1] = pat_counts[2] + pat_counts[5] + pat_counts[8]  # 3 + 6 + 9
-            sum_pat_counts[2] = pat_counts[3] + pat_counts[4] + pat_counts[9]  # 4 + 5 + 10
+            self.sum_informative(pat_counts, sum_pat_counts)
 
             # (4) Create 4 vertically randomized sequences (steps 1 and 2), repeat for 100 times
             p_counts = []
@@ -192,44 +201,44 @@ class Siscan:
                 a1 = seq_array[:, np.random.permutation(seq_array.shape[1])]
 
                 # Count number of patterns and sum counts
-                p_counts = self.count_patterns(a1)
-                sum_p_counts = self.sum_pattern_counts(p_counts)
+                p_counts.append(self.count_patterns(a1))
+                sum_p_counts.append(self.sum_pattern_counts(p_counts))
 
-            # (5) Calculate Z-scores for each pattern and sum of patterns for each window
-            pop_mean_pcounts = np.mean(p_counts)
-            pop_mean_patsum = np.mean(sum_p_counts)
-            pop_std_pcounts = np.std(p_counts)
-            pop_std_patsum = np.std(sum_p_counts)
+            # (5) Calculate Z-scores for each pattern and sum of patterns for each window, position should be middle of window            
+            pop_mean_pcounts = np.mean(p_counts, axis=0)
+            pop_mean_patsum = np.mean(sum_p_counts, axis=0)
+            pop_std_pcounts = np.std(p_counts, axis=0)
+            pop_std_patsum = np.std(sum_p_counts, axis=0)
 
-            pat_zscore = []
-            for val in pat_counts:
-                z = (val - pop_mean_pcounts) / pop_std_pcounts
-                pat_zscore.append(z)
+            z_pat_counts = []
+            for num, value in enumerate(pat_counts):
+                z_pat_counts[num] = (value - pop_mean_pcounts) / pop_std_pcounts
+                
+            z_sum_counts = [0 for i in sum_pat_counts]
+            for num, value in enumerate(sum_pat_counts[3:]):
+                z_sum_counts[num + 3] (value - pop_mean_patsum) / pop_std_patsum
 
-            sum_pat_zscore = []
-            for val in sum_pat_counts:
-                z = (val - pop_mean_patsum) / pop_std_patsum
-                sum_pat_zscore.append(z)
+            # update to total by middle of window
+            z_pattern_values[window + self.win_size//2] = z_pat_counts
+            z_sum_values[window + self.win_size//2] = z_sum_counts
 
-            # Smooth z-values
-            sum_pat_zscore = gaussian_filter1d(sum_pat_zscore, 1.5)
+        # Smooth z-values
+        sum_pat_zscore = gaussian_filter1d(sum_pat_zscore, 1.5)
 
-            peaks = find_peaks(sum_pat_zscore, distance=self.win_size)
-            for k, peak in enumerate(peaks[0]):
-                search_win_size = 1
-                while peak - search_win_size > 0 \
-                        and peak + search_win_size < len(sum_pat_zscore) - 1 \
-                        and sum_pat_zscore[peak + search_win_size] > 0.3 * sum_pat_zscore[peak] \
-                        and sum_pat_zscore[peak - search_win_size] > 0.3 * sum_pat_zscore[peak]:
-                    search_win_size += 1
+        peaks = find_peaks(sum_pat_zscore, distance=self.win_size)
+        for k, peak in enumerate(peaks[0]):
+            search_win_size = 1
+            while peak - search_win_size > 0 \
+                    and peak + search_win_size < len(sum_pat_zscore) - 1 \
+                    and sum_pat_zscore[peak + search_win_size] > 0.3 * sum_pat_zscore[peak] \
+                    and sum_pat_zscore[peak - search_win_size] > 0.3 * sum_pat_zscore[peak]:
+                search_win_size += 1
 
-                if sum_pat_zscore[peak + search_win_size] > sum_pat_zscore[peak - search_win_size]:
-                    aln_pos = (int(peak), int(peak + search_win_size + self.win_size))
-                else:
-                    aln_pos = (int(peak - search_win_size), int(peak + self.win_size))
+            if sum_pat_zscore[peak + search_win_size] > sum_pat_zscore[peak - search_win_size]:
+                aln_pos = (int(peak), int(peak + search_win_size + self.win_size))
+            else:
+                aln_pos = (int(peak - search_win_size), int(peak + self.win_size))
 
-                rec_name, parents = identify_recombinant(triplet, aln_pos)
-                if (rec_name, parents, *aln_pos, abs(sum_pat_zscore[peak])) not in self.raw_results:
-                    self.raw_results.append((rec_name, parents, *aln_pos, abs(sum_pat_zscore[peak])))
-
-            return
+            rec_name, parents = identify_recombinant(triplet, aln_pos)
+            if (rec_name, parents, *aln_pos, abs(sum_pat_zscore[peak])) not in self.raw_results:
+                self.raw_results.append((rec_name, parents, *aln_pos, abs(sum_pat_zscore[peak])))

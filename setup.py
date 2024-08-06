@@ -13,7 +13,7 @@ setup(
     install_requires=[
         'scipy>=1.5.0',
         'numpy>=1.17.4,<2.0.0',
-        'h5py>=3.8.0'
+        'h5py>=3.8.0,<3.11.0'
     ],
     python_requires='>=3.8',
     scripts=['bin/openrdp'],

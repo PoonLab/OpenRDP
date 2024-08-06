@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name='OpenRDP',
-    version="0.1.0",
+    version="0.1.1",
     description='Open Source implementation of RDP5',
     packages=['openrdp'],
     classifiers=[

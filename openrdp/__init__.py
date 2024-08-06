@@ -399,7 +399,7 @@ class Scanner:
                     if os.path.exists(tmethods['bootscan'].dt_matrix_file): 
                         os.remove(tmethods['bootscan'].dt_matrix_file)
                 for process in total_ranks:
-                    for alias == process:
+                    for alias in process:
                         # it is initally an empty dictionary that we turn into a [] anyways
                         if not results.dict[alias]: 
                             results.dict[alias] = []

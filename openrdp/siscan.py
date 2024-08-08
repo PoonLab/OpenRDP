@@ -8,7 +8,7 @@ from .common import identify_recombinant
 
 
 class Siscan:
-    def __init__(self, align, win_size=200, step_size=20, strip_gaps=True, pvalue_perm_num=1100,
+    def __init__(self, align, win_size=100, step_size=20, strip_gaps=True, pvalue_perm_num=1100,
                  scan_perm_num=100, random_seed=3, max_pvalue=0.05, settings=None, ref_align=None, verbose=False):
         """
         Constructs a Siscan object
@@ -167,7 +167,7 @@ class Siscan:
 
 
         # Based on leading edge of the window
-        for window in range(0, self.align.shape[1]): # TODO re-add step size
+        for window in range(0, self.align.shape[1], self.step_size):
             win_end = window + self.win_size
 
             # shouldn't run if it doesn't get plotted
@@ -216,8 +216,7 @@ class Siscan:
             pop_std_patsum = np.std(sum_p_counts, axis=0)
 
             z_pat_counts = [0 for i in pat_counts]
-            for num, value in enumerate(pat_counts):
-                exit()
+            for num, value in enumerate(pat_counts): # if none it will give error
                 z_pat_counts[num] = float((value - pop_mean_pcounts[num]) / pop_std_pcounts[num])
                 
             z_sum_counts = [0 for i in sum_pat_counts]

@@ -1,5 +1,5 @@
 import random
-
+import json
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
@@ -81,10 +81,7 @@ class Siscan:
 
     @staticmethod
     def count_patterns(seq_array):
-        a = seq_array[0]
-        b = seq_array[1]
-        c = seq_array[2]
-        d = seq_array[3]
+        a, b, c, d = [np.array(list(i[0])) for i in seq_array]
 
         pat_counts = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
@@ -102,7 +99,7 @@ class Siscan:
         # 1 = 3 ~ 2 ~ 4
         pat_counts[2] = np.sum(ac & np.logical_not(ab) & np.logical_not(ad) & np.logical_not (bd))
         # 1 = 4 ~ 2 ~ 3
-        pat_counts[3] = np.sum(ad & np.logical_not(ab) & np.logical_not(ac) & np.logcical_not (bc))
+        pat_counts[3] = np.sum(ad & np.logical_not(ab) & np.logical_not(ac) & np.logical_not (bc))
         # 2 = 3 ~ 1 ~ 4
         pat_counts[4] = np.sum(bc & np.logical_not(ab) & np.logical_not(bd) & np.logical_not(ad))
         # 2 = 4 ~ 1 ~ 3
@@ -146,7 +143,7 @@ class Siscan:
 
         return sum_pat_counts
 
-    def sum_informative(pat_counts, sum_pat_counts):
+    def sum_informative(self, pat_counts, sum_pat_counts):
         '''
         step 3 where you count the informative sites, done in place
         
@@ -165,12 +162,17 @@ class Siscan:
         np.random.seed(self.random_seed)
 
         # Initialize list to map z_values to window positions
-        z_pattern_values = np.zeros(triplet.sequences.shape[1])
-        z_sum_values = np.zreos(triplet.sequences.shape[1]) 
+        z_pattern_values = [[0 for i in range(14)] for i in range(triplet.sequences.shape[1])]
+        z_sum_values = [[0 for i in range(9)] for i in range(triplet.sequences.shape[1])] 
+
 
         # Based on leading edge of the window
-        for window in range(0, self.align.shape[1], self.step_size):
+        for window in range(0, self.align.shape[1]): # TODO re-add step size
             win_end = window + self.win_size
+
+            # shouldn't run if it doesn't get plotted
+            if (window + win_end)//2 >= len(z_pattern_values):
+                continue
 
             # Label sequences
             a = triplet.sequences[0][window: win_end]
@@ -201,26 +203,38 @@ class Siscan:
                 a1 = seq_array[:, np.random.permutation(seq_array.shape[1])]
 
                 # Count number of patterns and sum counts
-                p_counts.append(self.count_patterns(a1))
-                sum_p_counts.append(self.sum_pattern_counts(p_counts))
+                curr_p = self.count_patterns(a1)
+                p_counts.append(curr_p)
+                curr_s = self.sum_pattern_counts(curr_p)
+                self.sum_informative(curr_p, curr_s)
+                sum_p_counts.append(curr_s)
 
             # (5) Calculate Z-scores for each pattern and sum of patterns for each window, position should be middle of window            
-            pop_mean_pcounts = np.mean(p_counts, axis=0)
+            pop_mean_pcounts = np.mean(p_counts, axis=0) # array of [mean pat 1, mean pat 2, ...]
             pop_mean_patsum = np.mean(sum_p_counts, axis=0)
             pop_std_pcounts = np.std(p_counts, axis=0)
             pop_std_patsum = np.std(sum_p_counts, axis=0)
 
-            z_pat_counts = []
+            z_pat_counts = [0 for i in pat_counts]
             for num, value in enumerate(pat_counts):
-                z_pat_counts[num] = (value - pop_mean_pcounts) / pop_std_pcounts
+                exit()
+                z_pat_counts[num] = float((value - pop_mean_pcounts[num]) / pop_std_pcounts[num])
                 
             z_sum_counts = [0 for i in sum_pat_counts]
-            for num, value in enumerate(sum_pat_counts[3:]):
-                z_sum_counts[num + 3] (value - pop_mean_patsum) / pop_std_patsum
+            for num, value in enumerate(sum_pat_counts):
+                z_sum_counts[num] = float((value - pop_mean_patsum[num]) / pop_std_patsum[num])
 
             # update to total by middle of window
-            z_pattern_values[window + self.win_size//2] = z_pat_counts
-            z_sum_values[window + self.win_size//2] = z_sum_counts
+            z_pattern_values[(window + win_end)//2] = z_pat_counts
+            z_sum_values[(window + win_end)//2] = z_sum_counts
+
+        with open('pre_guas_counts.json', 'w') as file:
+            json.dump(z_pattern_values, file, indent=4)
+
+        with open('pre_gaus_sums.json', 'w') as file:
+            json.dump(z_sum_values, file, indent=4)
+
+        exit()
 
         # Smooth z-values
         sum_pat_zscore = gaussian_filter1d(sum_pat_zscore, 1.5)

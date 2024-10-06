@@ -157,7 +157,7 @@ class Siscan:
         """
         z_cut = norm.ppf(1 - 0.05/len(major)) # zscore corrected to number of windows
         end = int
-        while minor[ind] > major[ind] and minor[ind] > z_cut:
+        while minor[end] > major[end] and minor[end] > z_cut:
             end += 1
         return int, end
 
@@ -174,6 +174,15 @@ class Siscan:
             if min2 > maj and min2 > z_cut:
                 min2_intervals.append(self.find_interval(maj, min1, ind))
         return min1_intervals, min2_intervals
+
+    def fine_adj(major, minor1, minor2, interval):
+        """
+        
+        """
+        
+        
+        
+        
 
     def execute(self, triplet):
         """
@@ -251,15 +260,92 @@ class Siscan:
         seq_2_3 = [z_pat_counts[6], z_pat_counts[11], z_sum_counts[4], z_sum_counts[8]] # p5/10, s3/7, 2==3
 
         # find major combination
-        major, minor = None, None
+        major = None
+
         #
         if major == 1: # seq1/2 major 
-            self.find_signal(seq_1_2, seq_1_3, seq_2_3)
+            min1, min2 = self.find_signal(seq_1_2, seq_1_3, seq_2_3)
         if major == 2: # seq2/3 major
-            self.find_signal(seq_2_3, seq_1_2, seq_1_3)
+            min1, min2 = self.find_signal(seq_2_3, seq_1_2, seq_1_3)
         if major == 3: # seq1/3 major
-            self.find_signal(seq_1_3, seq_1_2, seq_2_3)
+            min1, min2 = self.find_signal(seq_1_3, seq_1_2, seq_2_3)
+
+        for ind, start, end in enumerate(min2):
+            nt_start = start * self.step_size
+            nt_end = end * self.step_size + self.win_size + 1
             
+            # adjust the start of the window til it matches the pattern
+            for ind, seq1, seq2, seq3 in enumerate(zip(a[nt_start:nt_end], b[nt_start:nt_end], c[nt_start:nt_end])):
+                if major == 1: # seq1/2 major
+                    if seq1 == seq2 and seq1 != seq3:
+                        nt_start = nt_start + ind
+                if major == 2:
+                    if seq1 == seq3 and seq1 != seq2:
+                        nt_start = nt_start + ind
+                if major == 3:
+                    if seq2 == seq3 and seq1 != seq2:
+                        nt_start = nt_start + ind
+            min2[ind][0] = nt_start # update new index based on NT
+            
+            nt_start = start * self.step_size - 1
+            nt_end = end * self.step_size + self.win_size
+            # adjust the end of the interval til it matches the pattern
+            for ind, seq1, seq2, seq3 in enumerate(zip(a[nt_end:nt_start:-1], b[nt_end:nt_start:-1], c[nt_end:nt_start:-1])):
+                if major == 1: # seq1/2 major
+                    if seq1 == seq2 and seq1 != seq3:
+                        nt_start = nt_start + ind
+                if major == 2:
+                    if seq1 == seq3 and seq1 != seq2:
+                        nt_start = nt_start + ind
+                if major == 3:
+                    if seq2 == seq3 and seq1 != seq2:
+                        nt_start = nt_start + ind
+            min2[ind][1] = nt_start # update new end index based on NT
+
+        for ind, start, end in enumerate(min1):
+            nt_start = start * self.step_size
+            nt_end = end * self.step_size + self.win_size + 1
+            
+            # adjust the start of the window til it matches the pattern
+            for ind, seq1, seq2, seq3 in enumerate(zip(a[nt_start:nt_end], b[nt_start:nt_end], c[nt_start:nt_end])):
+                if major == 1: # seq1/2 major
+                    if seq1 == seq2 and seq1 != seq3:
+                        nt_start = nt_start + ind
+                if major == 2:
+                    if seq1 == seq3 and seq1 != seq2:
+                        nt_start = nt_start + ind
+                if major == 3:
+                    if seq2 == seq3 and seq1 != seq2:
+                        nt_start = nt_start + ind
+            min1[ind][0] = nt_start # update new index based on NT
+            
+            nt_start = start * self.step_size - 1
+            nt_end = end * self.step_size + self.win_size
+            # adjust the end of the interval til it matches the pattern
+            for ind, seq1, seq2, seq3 in enumerate(zip(a[nt_end:nt_start:-1], b[nt_end:nt_start:-1], c[nt_end:nt_start:-1])):
+                if major == 1: # seq1/2 major
+                    if seq1 == seq2 and seq1 != seq3:
+                        nt_start = nt_start + ind
+                if major == 2:
+                    if seq1 == seq3 and seq1 != seq2:
+                        nt_start = nt_start + ind
+                if major == 3:
+                    if seq2 == seq3 and seq1 != seq2:
+                        nt_start = nt_start + ind
+            min1[ind][1] = nt_start # update new end index based on NT
+
+        if major == 1: # The recombinant should be the sequence that's the least releated
+            rec_name, parents = triplet.name[0], (triplet.name[1], triplet.name[2])
+        if major == 2:
+            rec_name, parents = triplet.name[1], (triplet.name[0], triplet.name[2])
+        if major == 3:
+            rec_name, parents = triplet.name[2], (triplet.name[0], triplet.name[1])
+
+        for start, end in min1:
+            self.raw_results.append((rec_name, parents, (start, end), None)) # TODO need to add Z score
+        for start, end in min2:
+            self.raw_results.append((rec_name, parents, (start, end), None))
+
         # peaks = find_peaks(sum_pat_zscore, distance=self.win_size)
         # for k, peak in enumerate(peaks[0]):
         #     search_win_size = 1

@@ -6,6 +6,80 @@ from scipy.stats import pearsonr
 import copy
 import sys
 
+class node:
+    """
+    node class for UPGMA tree
+    """
+    def __init__(self, name=None, left=None, right=None, terminal=True):
+        self.left = left
+        self.right = right
+        self.name = name
+        self.terminal = terminal
+
+def recalculate_dist(matrix, pos1, pos2, header):
+    """
+    matrix, pairwise, distance matrix
+    pos1, pos2, indexes on matrix
+    header, list of ids
+    """
+    # make new distance matrix with combined node
+    # combined node will be at pos1 row
+    new_dist_mat = matrix
+    # remove rows
+    new_dist_mat = np.delete(new_dist_mat, pos1, axis=0)
+    # remove columns
+    new_dist_mat = np.delete(new_dist_mat, pos1, axis=1)
+    
+    if pos1 == len(new_dist_mat): # otherwise out of bound
+        pos1 = len(new_dist_mat) - 1
+    if pos2 == len(new_dist_mat):
+        pos2 = len(new_dist_mat) - 1
+    
+    # reupdate distance matrix for average
+    for index, ids in enumerate(header):
+        if index != pos1:
+            average = matrix[index][pos1] + matrix[index][pos2] / 2
+            new_dist_mat[index][pos1] = average
+    return new_dist_mat
+    
+def upgma(headers, matrix):
+    """
+    headers, list, ids/nodes
+    matrix, numpy 2d array
+    """
+    # get closest
+    pos1, pos2 = find_min(matrix)
+    print(pos1, pos2, len(matrix))
+    id1, id2 = headers[pos1], headers[pos2]
+    
+    # turn closest into new node
+    new = node(name = id1.name + ';' + id2.name, left = id1, right = id2)
+    
+    # update nodes
+    headers[pos1] = new
+    headers.pop(pos2)
+    
+    # create new distance matrix
+    new_dist_matrix = recalculate_dist(matrix, pos1, pos2, headers)
+    
+    if len(headers) == 1: # last node
+        return headers, matrix
+    return upgma(headers, new_dist_matrix)
+        
+    
+def find_min(matrix):
+    """
+    matrix, adj matrix
+    return inds, (column, row indexes) of closest
+    """
+    smallest = np.inf
+    ind = None
+    for row_ind, row in enumerate(matrix):
+        for column_ind, value in enumerate(row):
+            if value != 0 and value < smallest:
+                ind = (column_ind, row_ind)
+    return ind
+
 def merge_breakpoints(raw_results, max_pvalue=100):
     """
     took from siscan

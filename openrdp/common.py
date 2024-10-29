@@ -41,7 +41,7 @@ def recalculate_dist(matrix, pos1, pos2, header):
             average = matrix[index][pos1] + matrix[index][pos2] / 2
             new_dist_mat[index][pos1] = average
     return new_dist_mat
-    
+
 def upgma(headers, matrix):
     """
     headers, list, ids/nodes
@@ -49,7 +49,6 @@ def upgma(headers, matrix):
     """
     # get closest
     pos1, pos2 = find_min(matrix)
-    print(pos1, pos2, len(matrix))
     id1, id2 = headers[pos1], headers[pos2]
     
     # turn closest into new node

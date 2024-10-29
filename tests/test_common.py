@@ -159,6 +159,46 @@ class TestCommon(unittest.TestCase):
             s2 = self.hiv_align[pair[1]]
             result = jc_distance(s1, s2)
             self.assertEqual(expected[i], result)
+            
+    def test_update_matrix(self):
+        matrix = np.array([
+            np.array([0,1,3,4]),
+            np.array([0,0,2,3]),
+            np.array([0,0,0,3]),
+            np.array([0,0,0,0])
+        ])
+        headers = [node(name='ab'),node(name='c'),node(name='d')]
+        expected = np.array([
+            np.array([0,2.5,3.5]),
+            np.array([0,0,3]),
+            np.array([0,0,0]) 
+        ])
+        self.assertEqual(recalculate_dist(matrix,0,1,headers).tolist(), expected.tolist())
+    
+    def test_upgma(self):
+        matrix = np.array([
+            np.array([0,1,3,4]),
+            np.array([0,0,2,3]),
+            np.array([0,0,0,3]),
+            np.array([0,0,0,0])
+        ])
+        headers = [node(name='a'),node(name='b'),node(name='c'),node(name='d')]
+        expected = np.array([
+            np.array([0,3.25]),
+            np.array([0,0]), 
+        ])
+        h, out = upgma(headers, matrix)
+        self.assertEqual(out.tolist(), expected.tolist())
+    
+    def test_find_min(self):
+        matrix = np.array([
+            np.array([0,1,3,4]),
+            np.array([0,0,2,3]),
+            np.array([0,0,0,3]),
+            np.array([0,0,0,0])
+        ])
+        expected = (1,0)
+        self.assertEqual(find_min(matrix), expected)
 
 
 class TestTriplet(unittest.TestCase):

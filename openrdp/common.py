@@ -16,31 +16,45 @@ class node:
         self.name = name
         self.terminal = terminal
 
-def recalculate_dist(matrix, pos1, pos2, header):
+class node:
     """
-    matrix, pairwise, distance matrix
-    pos1, pos2, indexes on matrix
-    header, list of ids
+    node class for UPGMA tree
     """
-    # make new distance matrix with combined node
-    # combined node will be at pos1 row
-    new_dist_mat = matrix
-    # remove rows
-    new_dist_mat = np.delete(new_dist_mat, pos1, axis=0)
-    # remove columns
-    new_dist_mat = np.delete(new_dist_mat, pos1, axis=1)
-    
-    if pos1 == len(new_dist_mat): # otherwise out of bound
-        pos1 = len(new_dist_mat) - 1
-    if pos2 == len(new_dist_mat):
-        pos2 = len(new_dist_mat) - 1
-    
-    # reupdate distance matrix for average
-    for index, ids in enumerate(header):
-        if index != pos1:
-            average = matrix[index][pos1] + matrix[index][pos2] / 2
-            new_dist_mat[index][pos1] = average
+    def __init__(self, name=None, left=None, right=None, terminal=True):
+        self.left = left
+        self.right = right
+        self.name = name
+        self.terminal = terminal
+
+def recalculate_dist(matrix, pos1, pos2):
+    """
+    Recalculate the distance matrix after merging two clusters.
+
+    Parameters:
+    matrix (np.ndarray): Pairwise distance matrix.
+    pos1 (int): Index of the first cluster (to keep).
+    pos2 (int): Index of the second cluster (to merge and remove).
+
+    Returns:
+    np.ndarray: Updated distance matrix.
+    """
+    # Create a copy of the distance matrix
+    new_dist_mat = matrix.copy()
+
+    # Update distances for the merged cluster
+    for i in range(len(matrix)):
+        if i != pos1 and i != pos2:  # Skip the merged clusters
+            dist1 = matrix[pos1, i]
+            dist2 = matrix[pos2, i]
+            new_dist_mat[pos1, i] = (dist1 + dist2) / 2
+            new_dist_mat[i, pos1] = (dist1 + dist2) / 2
+
+    # Remove the row and column corresponding to pos2
+    new_dist_mat = np.delete(new_dist_mat, pos2, axis=0)
+    new_dist_mat = np.delete(new_dist_mat, pos2, axis=1)
+
     return new_dist_mat
+
 
 def upgma(headers, matrix):
     """
@@ -48,18 +62,18 @@ def upgma(headers, matrix):
     matrix, numpy 2d array
     """
     # get closest
-    pos1, pos2 = find_min(matrix)
-    id1, id2 = headers[pos1], headers[pos2]
+    x, y = find_min(matrix)
+    id1, id2 = headers[x], headers[y]
     
     # turn closest into new node
     new = node(name = id1.name + ';' + id2.name, left = id1, right = id2)
     
     # update nodes
-    headers[pos1] = new
-    headers.pop(pos2)
+    headers[x] = new
+    headers.pop(y)
     
     # create new distance matrix
-    new_dist_matrix = recalculate_dist(matrix, pos1, pos2, headers)
+    new_dist_matrix = recalculate_dist(matrix, x, y)
     
     if len(headers) == 1: # last node
         return headers, matrix
@@ -77,6 +91,7 @@ def find_min(matrix):
         for column_ind, value in enumerate(row):
             if value != 0 and value < smallest:
                 ind = (column_ind, row_ind)
+                smallest = value
     return ind
 
 def merge_breakpoints(raw_results, max_pvalue=100):

@@ -173,7 +173,11 @@ class TestCommon(unittest.TestCase):
             np.array([0,0,3]),
             np.array([0,0,0]) 
         ])
-        self.assertEqual(recalculate_dist(matrix,0,1,headers).tolist(), expected.tolist())
+        matrix += matrix.T
+        matrix = matrix.astype(object)
+        expected += expected.T
+        expected = expected.astype(object)
+        self.assertEqual(recalculate_dist(matrix,1,0).tolist(), expected.tolist())
     
     def test_upgma(self):
         matrix = np.array([
@@ -187,6 +191,10 @@ class TestCommon(unittest.TestCase):
             np.array([0,3.25]),
             np.array([0,0]), 
         ])
+        matrix += matrix.T
+        expected += expected.T
+        matrix = matrix.astype(object)
+        expected = expected.astype(object)
         h, out = upgma(headers, matrix)
         self.assertEqual(out.tolist(), expected.tolist())
     
@@ -197,6 +205,8 @@ class TestCommon(unittest.TestCase):
             np.array([0,0,0,3]),
             np.array([0,0,0,0])
         ])
+        matrix += matrix.T
+        matrix = matrix.astype(object)
         expected = (1,0)
         self.assertEqual(find_min(matrix), expected)
 

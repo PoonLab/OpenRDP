@@ -6,6 +6,21 @@ from scipy.stats import pearsonr
 import copy
 import sys
 
+class node:
+    """
+    node class for UPGMA tree
+
+    dist is distance from parent 
+    total_dist is distance from current node to the end of the tree
+    """
+    def __init__(self, name=None, left=None, right=None, dist=0, p_dist=0, terminal=True):
+        self.left = left
+        self.right = right
+        self.name = name
+        self.dist = dist
+        self.p_dist = p_dist # distance from parent node to this node
+        self.terminal = terminal
+
 def merge_breakpoints(raw_results, max_pvalue=100):
     """
     took from siscan
@@ -138,6 +153,107 @@ def jc_distance(s1, s2):
     if p_dist >= 0.75:
         return 1
     return -0.75 * np.log(1 - (p_dist * 4 / 3)) if p_dist else 0
+
+
+def setup_upgma(seqs, names):
+    """
+    calculate the pairwise distance matrix for upgma and get list of tree nodes
+    
+    :param seqs: list of nucleotide sequence from import_data
+    :param names: list of sequence names from import_data
+
+    :return tree: list, nodes
+    :return matrix: pairwise distance matrix where [y][x] is the two sequences indexed by tree
+    """
+
+    # get list of of ndoes, all are terminal with names of seuqences
+    tree = [node(name=name) for name in names]
+    matrix = [[0 for j in names] for i in names] # emtpy distance matrix with size of len(seq)
+
+    for y, seq in enumerate(seqs):
+        seq = np.array(seq)
+        for x, seq2 in enumerate(seqs[y:]):
+            x += y
+            seq2 = np.array(seq2)
+
+            matrix[y][x] = sum(seq!=seq2)
+
+
+    matrix = np.array([np.array(row) for row in matrix])
+    matrix += matrix.T
+    return tree, matrix
+
+
+def recalculate_dist(matrix, pos1, pos2):
+    """
+    Recalculate the distance matrix after merging two clusters.
+
+    Parameters:
+    matrix (np.ndarray): Pairwise distance matrix.
+    pos1 (int): Index of the first cluster (to keep).
+    pos2 (int): Index of the second cluster (to merge and remove).
+
+    Returns:
+    np.ndarray: Updated distance matrix.
+    """
+    # Create a copy of the distance matrix
+    new_dist_mat = matrix.copy()
+
+    # Update distances for the merged cluster
+    for i in range(len(matrix)):
+        if i != pos1 and i != pos2:  # Skip the merged clusters
+            dist1 = matrix[pos1, i]
+            dist2 = matrix[pos2, i]
+            new_dist_mat[pos1, i] = (dist1 + dist2) / 2
+            new_dist_mat[i, pos1] = (dist1 + dist2) / 2
+
+    # Remove the row and column corresponding to pos2
+    new_dist_mat = np.delete(new_dist_mat, pos2, axis=0)
+    new_dist_mat = np.delete(new_dist_mat, pos2, axis=1)
+
+    return new_dist_mat
+
+def upgma(headers, matrix):
+    """
+    headers, list, ids/nodes
+    matrix, numpy 2d array
+    """
+    # get closest
+    (x, y), smallest = find_min(matrix)
+    id1, id2 = headers[x], headers[y]
+    b_len = smallest / 2 
+
+    # turn closest into new node
+    new = node(name = id1.name + ';' + id2.name, left = id1, right = id2, dist = smallest/2)
+    id1.p_dist = b_len - id1.dist
+    id2.p_dist = b_len - id2.dist
+    
+    # update nodes
+    headers[x] = new
+    headers.pop(y)
+    
+    # create new distance matrix
+    new_dist_matrix = recalculate_dist(matrix, x, y)
+    
+    if len(headers) == 1: # last node
+        return headers, matrix
+
+    return upgma(headers, new_dist_matrix)
+        
+    
+def find_min(matrix):
+    """
+    matrix, adj matrix
+    return inds, (column, row indexes) of closest
+    """
+    smallest = np.inf
+    ind = None
+    for row_ind, row in enumerate(matrix):
+        for column_ind, value in enumerate(row):
+            if value != 0 and value < smallest:
+                ind = (column_ind, row_ind)
+                smallest = value
+    return ind, smallest
 
 
 def all_items_equal(x):

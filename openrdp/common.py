@@ -19,7 +19,7 @@ class node:
         self.name = name
         self.dist = dist
         self.p_dist = p_dist # distance from parent node to this node
-        self.terminal = terminal
+        self.terminal = terminal # is terminal branch 
 
 def merge_breakpoints(raw_results, max_pvalue=100):
     """
@@ -155,6 +155,14 @@ def jc_distance(s1, s2):
     return -0.75 * np.log(1 - (p_dist * 4 / 3)) if p_dist else 0
 
 
+def find_parent(id1, id2, id3, root):
+    """
+    determine which of the two are the closest related
+
+
+    """
+
+
 def setup_upgma(seqs, names):
     """
     calculate the pairwise distance matrix for upgma and get list of tree nodes
@@ -224,7 +232,7 @@ def upgma(headers, matrix):
     b_len = smallest / 2 
 
     # turn closest into new node
-    new = node(name = id1.name + ';' + id2.name, left = id1, right = id2, dist = smallest/2)
+    new = node(name = id1.name + ';' + id2.name, left = id1, right = id2, dist = smallest/2, terminal=False)
     id1.p_dist = b_len - id1.dist
     id2.p_dist = b_len - id2.dist
     
@@ -254,6 +262,24 @@ def find_min(matrix):
                 ind = (column_ind, row_ind)
                 smallest = value
     return ind, smallest
+
+def find_dist(curr, n1, n2):
+    
+    if curr.terminal: # this is the last node
+        if curr.name in (n1, n2):
+            return curr.p_dist, True
+        
+        return 0, False
+    
+    l1, f1 = find_dist(curr.left, n1, n2)
+    l2, f2 = find_dist(curr.right, n1, n2)
+
+    if f1:
+        if f2:
+            return l1+l2, True
+        
+        return l1, True
+    return 0, False
 
 
 def all_items_equal(x):

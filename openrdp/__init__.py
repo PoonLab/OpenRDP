@@ -278,7 +278,15 @@ class Scanner:
             # do upgma clustering to find major and minor parents
             tree, upgma_mat = setup_upgma(self.alignment, self.seq_names)
             tree, upgma_mat = upgma(tree, upgma_mat)
-            print(tree[0].dist)
+
+            print(find_dist, "all_a", 'all_c')
+            
+            def dfs(node):
+                print(node.name, node.dist, node.p_dist)
+                if not node.terminal:
+                    dfs(node.left)
+                    dfs(node.right)
+            dfs(tree[0])
 
             if 'threeseq' in self.methods:
                 three_seq = ThreeSeq(infile)

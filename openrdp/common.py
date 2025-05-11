@@ -159,8 +159,20 @@ def find_parent(id1, id2, id3, root):
     """
     determine which of the two are the closest related
 
+    id1, id2, id3: names of the sequences in the triplet
+    root: root node of dendrogram
 
+    return: two seq ids
     """
+    d1 = find_dist(root, id1, id2)
+    d2 = find_dist(root, id1, id3)
+    d3 = find_dist(root, id2, id3)
+
+    res = [(d1, id1, id2), (d2, id1, id3), (d3, id2, id3)]
+
+    # return the two ids that are the smallest, these are the major parents
+    # should probably clean this up
+    return res[list(map(lambda x:x[0], res)).index(min(map(lambda x:x[0], res)))][1:]
 
 
 def setup_upgma(seqs, names):

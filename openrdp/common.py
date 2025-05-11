@@ -21,6 +21,7 @@ class node:
         self.p_dist = p_dist # distance from parent node to this node
         self.terminal = terminal # is terminal branch 
 
+        
 def merge_breakpoints(raw_results, max_pvalue=100):
     """
     took from siscan

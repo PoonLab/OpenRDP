@@ -225,6 +225,8 @@ def upgma(headers, matrix):
     """
     headers, list, ids/nodes
     matrix, numpy 2d array
+
+    returns: root node, 
     """
     # get closest
     (x, y), smallest = find_min(matrix)
@@ -244,7 +246,7 @@ def upgma(headers, matrix):
     new_dist_matrix = recalculate_dist(matrix, x, y)
     
     if len(headers) == 1: # last node
-        return headers, matrix
+        return headers[0], matrix
 
     return upgma(headers, new_dist_matrix)
         
@@ -271,14 +273,23 @@ def find_dist(curr, n1, n2):
         
         return 0, False
     
+    # recursively traverse the tree
     l1, f1 = find_dist(curr.left, n1, n2)
     l2, f2 = find_dist(curr.right, n1, n2)
 
+    # both terminal nodes are found, don't add distance upwards now
+    if f1 and f2:
+        return l1 + l2, True
+    
+    # if found only one, don't add otherside
     if f1:
-        if f2:
-            return l1+l2, True
-        
-        return l1, True
+        return l1 + curr.p_dist, True
+    
+    # other case
+    if f2:
+        return l2 + curr.p_dist, True
+
+    # if this node contains no children/itself isn't the node we care about
     return 0, False
 
 

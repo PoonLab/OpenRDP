@@ -15,7 +15,7 @@ from openrdp.maxchi import MaxChi
 from openrdp.rdp import RdpMethod
 from openrdp.siscan import Siscan
 from openrdp.threeseq import ThreeSeq
-from openrdp.common import merge_breakpoints
+from openrdp.common import *
 
 
 # list of all recombination detection methods
@@ -274,6 +274,20 @@ class Scanner:
         # stops them from running over and over in every process
         # Run methods with external binaries
         if my_rank == 0: 
+
+            # do upgma clustering to find major and minor parents
+            tree, upgma_mat = setup_upgma(self.alignment, self.seq_names)
+            tree, upgma_mat = upgma(tree, upgma_mat)
+
+            print(find_dist, "all_a", 'all_c')
+            
+            def dfs(node):
+                print(node.name, node.dist, node.p_dist)
+                if not node.terminal:
+                    dfs(node.left)
+                    dfs(node.right)
+            dfs(tree[0])
+
             if 'threeseq' in self.methods:
                 three_seq = ThreeSeq(infile)
                 self.print("Starting 3Seq Analysis")
@@ -399,7 +413,7 @@ class Scanner:
                     if os.path.exists(tmethods['bootscan'].dt_matrix_file): 
                         os.remove(tmethods['bootscan'].dt_matrix_file)
                 for process in total_ranks:
-                    for alias == process:
+                    for alias in process:
                         # it is initally an empty dictionary that we turn into a [] anyways
                         if not results.dict[alias]: 
                             results.dict[alias] = []

@@ -9,91 +9,19 @@ import sys
 class node:
     """
     node class for UPGMA tree
+
+    dist is distance from parent 
+    total_dist is distance from current node to the end of the tree
     """
-    def __init__(self, name=None, left=None, right=None, terminal=True):
+    def __init__(self, name=None, left=None, right=None, dist=0, p_dist=0, terminal=True):
         self.left = left
         self.right = right
         self.name = name
-        self.terminal = terminal
+        self.dist = dist
+        self.p_dist = p_dist # distance from parent node to this node
+        self.terminal = terminal # is terminal branch 
 
-class node:
-    """
-    node class for UPGMA tree
-    """
-    def __init__(self, name=None, left=None, right=None, terminal=True):
-        self.left = left
-        self.right = right
-        self.name = name
-        self.terminal = terminal
-
-def recalculate_dist(matrix, pos1, pos2):
-    """
-    Recalculate the distance matrix after merging two clusters.
-
-    Parameters:
-    matrix (np.ndarray): Pairwise distance matrix.
-    pos1 (int): Index of the first cluster (to keep).
-    pos2 (int): Index of the second cluster (to merge and remove).
-
-    Returns:
-    np.ndarray: Updated distance matrix.
-    """
-    # Create a copy of the distance matrix
-    new_dist_mat = matrix.copy()
-
-    # Update distances for the merged cluster
-    for i in range(len(matrix)):
-        if i != pos1 and i != pos2:  # Skip the merged clusters
-            dist1 = matrix[pos1, i]
-            dist2 = matrix[pos2, i]
-            new_dist_mat[pos1, i] = (dist1 + dist2) / 2
-            new_dist_mat[i, pos1] = (dist1 + dist2) / 2
-
-    # Remove the row and column corresponding to pos2
-    new_dist_mat = np.delete(new_dist_mat, pos2, axis=0)
-    new_dist_mat = np.delete(new_dist_mat, pos2, axis=1)
-
-    return new_dist_mat
-
-
-def upgma(headers, matrix):
-    """
-    headers, list, ids/nodes
-    matrix, numpy 2d array
-    """
-    # get closest
-    x, y = find_min(matrix)
-    id1, id2 = headers[x], headers[y]
-    
-    # turn closest into new node
-    new = node(name = id1.name + ';' + id2.name, left = id1, right = id2)
-    
-    # update nodes
-    headers[x] = new
-    headers.pop(y)
-    
-    # create new distance matrix
-    new_dist_matrix = recalculate_dist(matrix, x, y)
-    
-    if len(headers) == 1: # last node
-        return headers, matrix
-    return upgma(headers, new_dist_matrix)
         
-    
-def find_min(matrix):
-    """
-    matrix, adj matrix
-    return inds, (column, row indexes) of closest
-    """
-    smallest = np.inf
-    ind = None
-    for row_ind, row in enumerate(matrix):
-        for column_ind, value in enumerate(row):
-            if value != 0 and value < smallest:
-                ind = (column_ind, row_ind)
-                smallest = value
-    return ind
-
 def merge_breakpoints(raw_results, max_pvalue=100):
     """
     took from siscan
@@ -226,6 +154,156 @@ def jc_distance(s1, s2):
     if p_dist >= 0.75:
         return 1
     return -0.75 * np.log(1 - (p_dist * 4 / 3)) if p_dist else 0
+
+
+def find_parent(id1, id2, id3, root):
+    """
+    determine which of the two are the closest related
+
+    id1, id2, id3: names of the sequences in the triplet
+    root: root node of dendrogram
+
+    return: two seq ids
+    """
+    d1 = find_dist(root, id1, id2)
+    d2 = find_dist(root, id1, id3)
+    d3 = find_dist(root, id2, id3)
+
+    res = [(d1, id1, id2), (d2, id1, id3), (d3, id2, id3)]
+
+    # return the two ids that are the smallest, these are the major parents
+    # should probably clean this up
+    return res[list(map(lambda x:x[0], res)).index(min(map(lambda x:x[0], res)))][1:]
+
+
+def setup_upgma(seqs, names):
+    """
+    calculate the pairwise distance matrix for upgma and get list of tree nodes
+    
+    :param seqs: list of nucleotide sequence from import_data
+    :param names: list of sequence names from import_data
+
+    :return tree: list, nodes
+    :return matrix: pairwise distance matrix where [y][x] is the two sequences indexed by tree
+    """
+
+    # get list of of ndoes, all are terminal with names of seuqences
+    tree = [node(name=name) for name in names]
+    matrix = [[0 for j in names] for i in names] # emtpy distance matrix with size of len(seq)
+
+    for y, seq in enumerate(seqs):
+        seq = np.array(seq)
+        for x, seq2 in enumerate(seqs[y:]):
+            x += y
+            seq2 = np.array(seq2)
+
+            matrix[y][x] = sum(seq!=seq2)
+
+
+    matrix = np.array([np.array(row) for row in matrix])
+    matrix += matrix.T
+    return tree, matrix
+
+
+def recalculate_dist(matrix, pos1, pos2):
+    """
+    Recalculate the distance matrix after merging two clusters.
+
+    Parameters:
+    matrix (np.ndarray): Pairwise distance matrix.
+    pos1 (int): Index of the first cluster (to keep).
+    pos2 (int): Index of the second cluster (to merge and remove).
+
+    Returns:
+    np.ndarray: Updated distance matrix.
+    """
+    # Create a copy of the distance matrix
+    new_dist_mat = matrix.copy()
+
+    # Update distances for the merged cluster
+    for i in range(len(matrix)):
+        if i != pos1 and i != pos2:  # Skip the merged clusters
+            dist1 = matrix[pos1, i]
+            dist2 = matrix[pos2, i]
+            new_dist_mat[pos1, i] = (dist1 + dist2) / 2
+            new_dist_mat[i, pos1] = (dist1 + dist2) / 2
+
+    # Remove the row and column corresponding to pos2
+    new_dist_mat = np.delete(new_dist_mat, pos2, axis=0)
+    new_dist_mat = np.delete(new_dist_mat, pos2, axis=1)
+
+    return new_dist_mat
+
+def upgma(headers, matrix):
+    """
+    headers, list, ids/nodes
+    matrix, numpy 2d array
+
+    returns: root node, 
+    """
+    # get closest
+    (x, y), smallest = find_min(matrix)
+    id1, id2 = headers[x], headers[y]
+    b_len = smallest / 2 
+
+    # turn closest into new node
+    new = node(name = id1.name + ';' + id2.name, left = id1, right = id2, dist = smallest/2, terminal=False)
+    id1.p_dist = b_len - id1.dist
+    id2.p_dist = b_len - id2.dist
+    
+    # update nodes
+    headers[x] = new
+    headers.pop(y)
+    
+    # create new distance matrix
+    new_dist_matrix = recalculate_dist(matrix, x, y)
+    
+    if len(headers) == 1: # last node
+        return headers[0], matrix
+
+    return upgma(headers, new_dist_matrix)
+        
+    
+def find_min(matrix):
+    """
+    matrix, adj matrix
+    return inds, (column, row indexes) of closest
+    """
+    smallest = np.inf
+    ind = None
+    for row_ind, row in enumerate(matrix):
+        for column_ind, value in enumerate(row):
+            if value != 0 and value < smallest:
+                ind = (column_ind, row_ind)
+                smallest = value
+    return ind, smallest
+
+def find_dist(curr, n1, n2):
+    
+    if curr.terminal: # this is the last node
+        if curr.name in (n1, n2):
+            return curr.p_dist, True
+        
+        return 0, False
+    
+    # recursively traverse the tree
+    l1, f1 = find_dist(curr.left, n1, n2)
+    l2, f2 = find_dist(curr.right, n1, n2)
+
+    # both terminal nodes are found, don't add distance upwards now
+    if f1 and f2:
+        return l1 + l2, True
+    
+    # if found only one, don't add otherside
+    if f1:
+        return l1 + curr.p_dist, True
+    
+    # other case
+    if f2:
+        return l2 + curr.p_dist, True
+
+    # if this node contains no children/itself isn't the node we care about
+    return 0, False
 
 
 def all_items_equal(x):

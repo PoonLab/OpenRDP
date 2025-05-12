@@ -5,12 +5,13 @@ from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
 from scipy.stats import norm
 
-from .common import identify_recombinant
+from .common import identify_recombinant, find_parent
 
 
 class Siscan:
-    def __init__(self, align, win_size=150, step_size=100, strip_gaps=True, pvalue_perm_num=1100,
-                 scan_perm_num=100, random_seed=3, max_pvalue=0.05, settings=None, ref_align=None, verbose=False):
+    def __init__(self, align, win_size=200, step_size=5, strip_gaps=True, pvalue_perm_num=1000,
+                 scan_perm_num=100, random_seed=3, max_pvalue=0.05, settings=None, 
+                 ref_align=None, verbose=False, tree=None):
         """
         Constructs a Siscan object
         :param win_size: the size of the sliding window
@@ -19,6 +20,7 @@ class Siscan:
         :param pvalue_perm_num: p-value permutation number
         :param scan_perm_num: number of permutations of the scans
         :param random_seed: the random seed
+        :param tree: root node to upgma dendrogram
         """
         self.align = align
         if settings:
@@ -36,6 +38,7 @@ class Siscan:
         self.raw_results = []
         self.results = []
         self.name = 'siscan'
+        self.tree = tree
 
     def set_options_from_config(self, settings):
         """
@@ -156,32 +159,36 @@ class Siscan:
         ind of list to start looking
         """
         z_cut = norm.ppf(1 - 0.05/len(major)) # zscore corrected to number of windows
-        end = int
-        while minor[end] > major[end] and minor[end] > z_cut:
+        end = ind
+        while (minor[end] > major[end] and minor[end] > z_cut) or minor[end] != None:
             end += 1
         return int, end
 
-    def find_signal(self, major, minor1, minor2):
+    def find_signal(self, min, maj1, maj2):
         """
-        major_comb is pattern/sum set of two most related
-        minor_combs is least related
+        maj1/maj2 is the list of pattern/sum set of two most related
+        min is least related
         """
-        min1_intervals, min2_intervals = [], []
-        z_cut = norm.ppf(1 - 0.05/len(major))
-        for ind, maj, min1, min2 in enumerate(zip(major, minor1, minor2)):
+        # use f1 and f2 to keep the intervals where it is found to be ok
+        m1_intervals, m2_intervals, f1, f2 = [], [], set(), set()
+        z_cut = norm.ppf(1 - 0.05/len(maj1)) # TODO check this value, it seems too stringent. Need empyrical testing with RDP
+        
+        while ind < len(min):
             if min1 > maj and min1 > z_cut:
-                min1_intervals.append(self.find_interval(maj, min1, ind))
+                m1_intervals.append(self.find_interval(maj, min1, ind))
+                f1.add(i for i in range(m1_intervals[-1][0], m1_intervals[-1][1], self.step_size))
             if min2 > maj and min2 > z_cut:
-                min2_intervals.append(self.find_interval(maj, min1, ind))
-        return min1_intervals, min2_intervals
+                m2_intervals.append(self.find_interval(maj, min1, ind))
+        
+            ind += 1
 
-    def fine_adj(major, minor1, minor2, interval):
-        """
         
-        """
-        
-        
-        
+        for ind, maj, min1, min2 in enumerate(zip(min, maj1, maj2)):
+            if min1 > maj and min1 > z_cut:
+                m1_intervals.append(self.find_interval(maj, min1, ind))
+            if min2 > maj and min2 > z_cut:
+                m2_intervals.append(self.find_interval(maj, min1, ind))
+        return m1_intervals, m2_intervals        
         
 
     def execute(self, triplet):
@@ -193,15 +200,17 @@ class Siscan:
         np.random.seed(self.random_seed)
 
         # Initialize list to map z_values to window positions
-        z_pattern_values = [[None for i in range(14)] for i in range(triplet.sequences.shape[1])]
-        z_sum_values = [[None for i in range(9)] for i in range(triplet.sequences.shape[1])] 
-
+        z_pattern_values = [[None for i in range(14)] for j in range(triplet.sequences.shape[1])]
+        z_sum_values = [[None for i in range(9)] for j in range(triplet.sequences.shape[1])] 
 
         # Based on leading edge of the window
         for window in range(0, self.align.shape[1], self.step_size):
             win_end = window + self.win_size
+            
+            print(win_end, window, self.win_size, self.align.shape[1])
 
             # shouldn't run if it doesn't get plotted
+            # TODO check if this is the right way to handle it and not to just put at end
             if (window + win_end)//2 >= len(z_pattern_values):
                 continue
 
@@ -255,20 +264,30 @@ class Siscan:
             z_pattern_values[(window + win_end)//2] = z_pat_counts
             z_sum_values[(window + win_end)//2] = z_sum_counts
 
-        seq_1_2 = [z_pat_counts[3], z_pat_counts[9], z_sum_counts[2], z_sum_counts[5]] # p2/8, s1/4, 1==2
-        seq_1_3 = [z_pat_counts[4], z_pat_counts[10], z_sum_counts[6], z_sum_counts[7]] # p3/9, s5/6, 1==3
-        seq_2_3 = [z_pat_counts[6], z_pat_counts[11], z_sum_counts[4], z_sum_counts[8]] # p5/10, s3/7, 2==3
+        # TODO: extract the right position
+        seq_1_2, seq_1_3, seq_2_3 = [], [], []
+        for i in range(len(z_sum_values)):
+            seq_1_2.append([z_pattern_values[i][2], z_pattern_values[i][7], z_sum_values[i][0], z_sum_values[i][3]]) # p2/8, s1/4, 1==2
+            seq_1_3.append([z_pattern_values[i][2], z_pattern_values[i][8], z_sum_values[i][4], z_sum_values[i][5]]) # p3/9, s5/6, 1==3
+            seq_2_3.append([z_pattern_values[i][4], z_pattern_values[i][9], z_sum_values[i][2], z_sum_values[i][6]]) # p5/10, s3/7, 2==3
 
         # find major combination
-        major = None
+        s1, s2, s3 = triplet.names
+        maj1, maj2 = find_parent(self.tree, s1, s2, s3)
 
-        #
-        if major == 1: # seq1/2 major 
-            min1, min2 = self.find_signal(seq_1_2, seq_1_3, seq_2_3)
-        if major == 2: # seq2/3 major
+        for i in triplet.names:
+            if not i in (maj1, maj2):
+                min = i
+
+        # use this variable as indicator to see which group is major and which is minor        
+        major = triplet.index(min)
+
+        if major == 0: # seq2/3 major 
             min1, min2 = self.find_signal(seq_2_3, seq_1_2, seq_1_3)
-        if major == 3: # seq1/3 major
-            min1, min2 = self.find_signal(seq_1_3, seq_1_2, seq_2_3)
+        if major == 1: # seq1/3 major
+            min1, min2 = self.find_signal(seq_1_3, seq_2_3, seq_1_2)
+        if major == 2: # seq1/2 major
+            min1, min2 = self.find_signal(seq_1_2, seq_1_3, seq_2_3)
 
         for ind, start, end in enumerate(min2):
             nt_start = start * self.step_size
@@ -276,13 +295,13 @@ class Siscan:
             
             # adjust the start of the window til it matches the pattern
             for ind, seq1, seq2, seq3 in enumerate(zip(a[nt_start:nt_end], b[nt_start:nt_end], c[nt_start:nt_end])):
-                if major == 1: # seq1/2 major
+                if major == 2: # seq1/2 major
                     if seq1 == seq2 and seq1 != seq3:
                         nt_start = nt_start + ind
-                if major == 2:
+                if major == 1: # seq1/3 major
                     if seq1 == seq3 and seq1 != seq2:
                         nt_start = nt_start + ind
-                if major == 3:
+                if major == 0: # seq2/3 major
                     if seq2 == seq3 and seq1 != seq2:
                         nt_start = nt_start + ind
             min2[ind][0] = nt_start # update new index based on NT
@@ -302,7 +321,7 @@ class Siscan:
                         nt_start = nt_start + ind
             min2[ind][1] = nt_start # update new end index based on NT
 
-        for ind, start, end in enumerate(min1):
+        for ind, start, end in enumerate(   ):
             nt_start = start * self.step_size
             nt_end = end * self.step_size + self.win_size + 1
             

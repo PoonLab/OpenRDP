@@ -279,14 +279,13 @@ class Scanner:
             tree, upgma_mat = setup_upgma(self.alignment, self.seq_names)
             tree, upgma_mat = upgma(tree, upgma_mat)
 
-            print(find_dist, "all_a", 'all_c')
-            
-            def dfs(node):
-                print(node.name, node.dist, node.p_dist)
-                if not node.terminal:
-                    dfs(node.left)
-                    dfs(node.right)
-            dfs(tree[0])
+            # debugging            
+            # def dfs(node):
+            #     print(node.name, node.dist, node.p_dist)
+            #     if not node.terminal:
+            #         dfs(node.left)
+            #         dfs(node.right)
+            # dfs(tree[0])
 
             if 'threeseq' in self.methods:
                 three_seq = ThreeSeq(infile)
@@ -325,6 +324,8 @@ class Scanner:
                 for alias, tmethod in tmethods.items():
                     if alias == 'bootscan':
                         temp.append(tmethod.execute((trp_count, triplet)))
+                    elif alias == 'siscan':
+                        tmethod.execute(triplet, tree = tree)
                     else:
                         tmethod.execute(triplet)
 

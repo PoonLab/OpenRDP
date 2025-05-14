@@ -11,7 +11,7 @@ from .common import identify_recombinant, find_parent
 class Siscan:
     def __init__(self, align, win_size=200, step_size=5, strip_gaps=True, pvalue_perm_num=1000,
                  scan_perm_num=100, random_seed=3, max_pvalue=0.05, settings=None, 
-                 ref_align=None, verbose=False, tree=None):
+                 ref_align=None, verbose=False):
         """
         Constructs a Siscan object
         :param win_size: the size of the sliding window
@@ -20,7 +20,6 @@ class Siscan:
         :param pvalue_perm_num: p-value permutation number
         :param scan_perm_num: number of permutations of the scans
         :param random_seed: the random seed
-        :param tree: root node to upgma dendrogram
         """
         self.align = align
         if settings:
@@ -38,7 +37,6 @@ class Siscan:
         self.raw_results = []
         self.results = []
         self.name = 'siscan'
-        self.tree = tree
 
     def set_options_from_config(self, settings):
         """
@@ -127,8 +125,6 @@ class Siscan:
         # 1 = 2 = 3 = 4
         pat_counts[14] = np.sum(ab & bc & ad)
 
-        print(pat_counts)
-
         return pat_counts
 
     @staticmethod
@@ -152,16 +148,25 @@ class Siscan:
 
         return sum_pat_counts
 
-    def find_interval(self, ind, maj, close):
+    def find_interval(self, ind, maj, close, ps):
         """
         close, major/major zlist
         maj, major/minor zlist
         ind of list to start looking
+        ps int, ind of which p/s on the array of maj is the one we care about
         """
-        z_cut = norm.ppf(1 - 0.05/len(close)//len(self.win_size)) # zscore corrected to number of windows
+        z_cut = norm.cdf(1 - 0.05/len(close)//self.win_size) # zscore corrected to number of windows
         end = ind
-        while (maj[end] > close[end] and maj[end] > z_cut) or maj[end] != None:
-            end += 1
+        while True: 
+            if maj[end][ps] and close[end][ps]:
+                if maj[end][ps] > close[end][ps] and (1 - norm.cdf(maj[end][ps])) > z_cut:
+                    end += 1
+                else:
+                    break
+            else: # it's none so move forward a NT
+                end += 1
+            if end >= len(maj):
+                break
         return ind, end
 
     def find_signal(self, close, maj1, maj2, signal):
@@ -173,28 +178,32 @@ class Siscan:
         """
         # use f1 and f2 to keep the intervals where it is found to be significant
         m1_intervals, m2_intervals = [], []
-        z_cut = norm.ppf(1 - 0.05/len(maj1)) # TODO check this value, it seems too stringent. Need empyrical testing with RDP
+        z_cut = norm.ppf(1 - 0.05/(len(maj1)//self.step_size - len(maj1))) 
         
-        ind, ind2 = 0, 0
         # check per pattern/sum
         for ps in range(4):
 
+            ind, ind2 = 0, 0
             while ind < len(close):
                 value = maj1[ind][ps]
                 # if any pattern for the minor and major is greater than major major
-                if value > close[ind][ps] and value > z_cut:
-                    # in this case `i` is the index of the pattern of importance
-                    ind, new = self.find_interval(ind, maj1)
-                    m1_intervals.append((ind, new, signal, 0)) # which pattern/sum, and starting index and ending index of the recombinant region
-                    ind = new # so we don't keep adding them back and forth
+                if value:
+                    if value > close[ind][ps] and value > z_cut:
+                        # in this case `i` is the index of the pattern of importance
+                        ind, new = self.find_interval(ind, maj1, ps)
+                        m1_intervals.append((ind, new, signal, 0)) # which pattern/sum, and starting index and ending index of the recombinant region
+                        ind = new # so we don't keep adding them back and forth
+                ind += 1
 
             while ind2 < len(close):
                 # do again with maj2
                 value = maj2[ind2][ps]
-                if value > close[ind][ps] and value > z_cut:
-                    ind, new = self.find_interval(ind2, maj2, close)
-                    m2_intervals.append((ind, new, signal, 1))
-                    ind2 = new
+                if value:
+                    if value > close[ind2][ps] and value > z_cut:
+                        ind, new = self.find_interval(ind2, maj2, close, ps)
+                        m2_intervals.append((ind2, new, signal, 1))
+                        ind2 = new
+                ind2 += 1
 
         return m1_intervals, m2_intervals        
 
@@ -211,7 +220,7 @@ class Siscan:
             if eq1[start] == eq2[start] and eq1[start] != diff[start]:
                 return start
             start += 1
-        return # if not found
+        return start # assumes that it's on the same window
 
     def adjust_nt_r(self, eq1, eq2, diff, start, end):
         """
@@ -221,7 +230,7 @@ class Siscan:
             if eq1[start] == eq2[start] and eq1[start] != diff[start]:
                 return start
             start -= 1
-        return # if not found
+        return start 
 
     def shuffle(self, parent1, parent2, recombinant, out, ps, ind):
         """
@@ -245,9 +254,8 @@ class Siscan:
         if ps:
             true_val = p[ind]
         else:
-            s = self.sum_pattern_counts(s)
+            s = self.sum_pattern_counts(p)
             true_val = s[ind]
-
 
         null_dist = []
         for i in range(self.scan_perm_num):
@@ -267,7 +275,7 @@ class Siscan:
         mean = np.mean(null_dist)
         sd = np.std(null_dist, axis=0)
 
-        return 1 - np.normcdf((true_val - mean)/sd)
+        return 1 - norm.cdf((true_val - mean)/sd)
 
 
     def get_ps(self, min, ind, lr):
@@ -294,10 +302,11 @@ class Siscan:
         return signal_orders[min][lr][ind]
 
 
-    def execute(self, triplet):
+    def execute(self, triplet, tree):
         """
         Do Sister-scanning as described in Gibbs, Armstrong, and Gibbs (2000), using a randomized 4th sequence
         :param triplet: a triplet object
+        :param tree: node object from upgma
         """
         random.seed(self.random_seed)
         np.random.seed(self.random_seed)
@@ -310,8 +319,6 @@ class Siscan:
         for window in range(0, self.align.shape[1], self.step_size):
             win_end = window + self.win_size
             
-            print(win_end, window, self.win_size, self.align.shape[1])
-
             # shouldn't run if it doesn't get plotted
             # TODO check if this is the right way to handle it and not to just put at end
             if (window + win_end)//2 >= len(z_pattern_values):
@@ -358,11 +365,19 @@ class Siscan:
 
             z_pat_counts = [0 for i in pat_counts]
             for num, value in enumerate(pat_counts): # if none it will give error
-                z_pat_counts[num] = (value - pop_mean_pcounts[num]) / pop_std_pcounts[num]
-                
+                if value:
+                    z_pat_counts[num] = (value - pop_mean_pcounts[num]) / pop_std_pcounts[num]
+                else:
+                    z_pat_counts[num] = 0
+
             z_sum_counts = [0 for i in sum_pat_counts]
             for num, value in enumerate(sum_pat_counts):
-                z_sum_counts[num] = (value - pop_mean_patsum[num]) / pop_std_patsum[num]
+                if value:
+                    z_sum_counts[num] = (value - pop_mean_patsum[num]) / pop_std_patsum[num]
+                else:
+                    z_sum_counts[num] = 0
+
+            
 
             # update to total by middle of window
             z_pattern_values[(window + win_end)//2] = z_pat_counts
@@ -377,14 +392,15 @@ class Siscan:
 
         # find major combination
         s1, s2, s3 = triplet.names
-        parent1, parent2 = find_parent(self.tree, s1, s2, s3)
+        names = [s1, s2, s3]
+        parent1, parent2 = find_parent(s1, s2, s3, tree)
 
         for i in triplet.names:
             if not i in (parent1, parent2):
                 recombinant = i
 
         # use this variable as indicator to see which group is major and which is minor        
-        signal = triplet.index(recombinant)
+        signal = names.index(recombinant)
 
         # functions input order is relative
         signal_orders = [
@@ -397,14 +413,14 @@ class Siscan:
         min1, min2 = self.find_signal(x, y, z, signal)
 
         for signals in [min1, min2]:
-            for ind, start, end, signal, lr in enumerate(signals):
+            for ind, (start, end, signal, lr) in enumerate(signals):
                 a,b,c = triplet.sequences
                 seqs = [a,b,c]
 
                 # TODO make sequence d an outgroup rather than randomized sequences of the three
-                d = ''
-                for i in range(a):
-                    d += seqs[random.choice((0, 1, 2))][i]
+                d = np.array([])
+                for i in range(len(a)):
+                    d = np.append(d, seqs[random.choice((0, 1, 2))][i])
 
                 # this is a much cleaner way
                 sequence_orders = [
@@ -416,11 +432,18 @@ class Siscan:
                 x, y, z = sequence_orders[signal]
                 start = self.adjust_nt_f(x, y, z, start, end)
                 end = self.adjust_nt_r(x, y, z, end, start)
+                
+                # if the window does not continue, don't draw new window and discard
+                # in second though, I have no idea if this is right or not, need to check
+                if end == start:
+                    continue 
+
                 pval = self.shuffle(x, y, z, d, signal, lr)
 
                 self.raw_results.append((recombinant, (parent1, parent2), (start, end), pval))
             
         # this is from max_chi, likely wrong
+        # i'm just gonna keep it here because 
 
         # peaks = find_peaks(sum_pat_zscore, distance=self.win_size)
         # for k, peak in enumerate(peaks[0]):

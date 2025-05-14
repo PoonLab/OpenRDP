@@ -152,44 +152,147 @@ class Siscan:
 
         return sum_pat_counts
 
-    def find_interval(major, minor, ind):
+    def find_interval(self, ind, maj, close):
         """
-        major zlist
-        minor zlist
+        close, major/major zlist
+        maj, major/minor zlist
         ind of list to start looking
         """
-        z_cut = norm.ppf(1 - 0.05/len(major)) # zscore corrected to number of windows
+        z_cut = norm.ppf(1 - 0.05/len(close)//len(self.win_size)) # zscore corrected to number of windows
         end = ind
-        while (minor[end] > major[end] and minor[end] > z_cut) or minor[end] != None:
+        while (maj[end] > close[end] and maj[end] > z_cut) or maj[end] != None:
             end += 1
-        return int, end
+        return ind, end
 
-    def find_signal(self, min, maj1, maj2):
+    def find_signal(self, close, maj1, maj2, signal):
         """
-        maj1/maj2 is the list of pattern/sum set of two most related
-        min is least related
+        close is the list of p/s of the two most related
+        maj1/maj2 is the list of pattern/sum set of related to non related
+
+        return list of indexes that matter, ind is the pattern/sum that matters
         """
-        # use f1 and f2 to keep the intervals where it is found to be ok
-        m1_intervals, m2_intervals, f1, f2 = [], [], set(), set()
+        # use f1 and f2 to keep the intervals where it is found to be significant
+        m1_intervals, m2_intervals = [], []
         z_cut = norm.ppf(1 - 0.05/len(maj1)) # TODO check this value, it seems too stringent. Need empyrical testing with RDP
         
-        while ind < len(min):
-            if min1 > maj and min1 > z_cut:
-                m1_intervals.append(self.find_interval(maj, min1, ind))
-                f1.add(i for i in range(m1_intervals[-1][0], m1_intervals[-1][1], self.step_size))
-            if min2 > maj and min2 > z_cut:
-                m2_intervals.append(self.find_interval(maj, min1, ind))
-        
-            ind += 1
+        ind, ind2 = 0, 0
+        # check per pattern/sum
+        for ps in range(4):
 
-        
-        for ind, maj, min1, min2 in enumerate(zip(min, maj1, maj2)):
-            if min1 > maj and min1 > z_cut:
-                m1_intervals.append(self.find_interval(maj, min1, ind))
-            if min2 > maj and min2 > z_cut:
-                m2_intervals.append(self.find_interval(maj, min1, ind))
+            while ind < len(close):
+                value = maj1[ind][ps]
+                # if any pattern for the minor and major is greater than major major
+                if value > close[ind][ps] and value > z_cut:
+                    # in this case `i` is the index of the pattern of importance
+                    ind, new = self.find_interval(ind, maj1)
+                    m1_intervals.append((ind, new, signal, 0)) # which pattern/sum, and starting index and ending index of the recombinant region
+                    ind = new # so we don't keep adding them back and forth
+
+            while ind2 < len(close):
+                # do again with maj2
+                value = maj2[ind2][ps]
+                if value > close[ind][ps] and value > z_cut:
+                    ind, new = self.find_interval(ind2, maj2, close)
+                    m2_intervals.append((ind, new, signal, 1))
+                    ind2 = new
+
         return m1_intervals, m2_intervals        
+
+    def adjust_nt_f(self, eq1, eq2, diff, start, end):
+        """
+        adjust the range of nucleotide positions to match the significant patterns for start
         
+        eq1/eq2 are the triplet.sequences that we want to equal one another
+        diff is the sequence that we want to be different
+        start int, is the start index of the nucleotide sequences
+        end int, is the end index of window 
+        """
+        while start < end:
+            if eq1[start] == eq2[start] and eq1[start] != diff[start]:
+                return start
+            start += 1
+        return # if not found
+
+    def adjust_nt_r(self, eq1, eq2, diff, start, end):
+        """
+        same as above, just other way
+        """
+        while start > end:
+            if eq1[start] == eq2[start] and eq1[start] != diff[start]:
+                return start
+            start -= 1
+        return # if not found
+
+    def shuffle(self, parent1, parent2, recombinant, out, ps, ind):
+        """
+        recalculate the value of pattern and sum counts for the window by regenerating a null distribution
+
+        parent1, parent2, strings of the window for the sequence that are most related
+        recombinant, string of the window of the recombinant
+        out, string of outlier sequence
+        ps, (true/false, index), index of the pattern/sum we care about. T = pattern, F = sum
+        ind, int, second index is which one that matters
+        
+        return pval, float, the pvalue!!!
+        """
+
+        #TODO find a way to not calculate all numbers and just find the one you care about
+        # ps_ind doesn't work the way you want it to right now
+        seqs = [parent1, parent2, recombinant, out]
+        seqs = list(map(np.array, seqs))
+
+        p = self.count_patterns(seqs)
+        if ps:
+            true_val = p[ind]
+        else:
+            s = self.sum_pattern_counts(s)
+            true_val = s[ind]
+
+
+        null_dist = []
+        for i in range(self.scan_perm_num):
+            # Generate 4 vertically randomized sequences (shuffle the values in the columns)
+            a1 = np.apply_along_axis(np.random.permutation, 0, seqs)
+
+            curr_p = self.count_patterns(a1)    
+            # Count number of patterns and sum counts
+            if ps: # it's a pattern we care about
+                null_dist.append(curr_p[ind])
+
+            else: # it's a sum we care about
+                curr_s = self.sum_pattern_counts(curr_p)
+                null_dist.append(curr_s[ind])
+
+
+        mean = np.mean(null_dist)
+        sd = np.std(null_dist, axis=0)
+
+        return 1 - np.normcdf((true_val - mean)/sd)
+
+
+    def get_ps(self, min, ind, lr):
+        """
+        get a tuple that works as an identifier for if it is a sum or a pattern, and which one
+
+        min, int, denotes which seq_X_Y was used in self.execute() in the signal_orders list
+        lr, int, determines which min_maj combo was used in self.find_signal() 0 should be min1, 1 should be min2
+        ind, int, index of position the pattern that denotes how X = Y ~ Z (so which position in seq_X_Y)
+        
+        return: (True/False denoting Pattern/Sum, index of the position that matter)
+        """
+        
+        seq_1_2 = [(True, 2), (True, 7), (False, 0), (False, 3)]
+        seq_1_3 = [(True, 2), (True, 8), (False, 4), (False, 5)]
+        seq_2_3 = [(True, 4), (True, 9), (False, 2), (False, 6)]
+
+        signal_orders = [
+            (seq_1_2, seq_1_3),  # min == 0 2==3
+            (seq_2_3, seq_1_2),  # min == 1 1==3
+            (seq_1_3, seq_2_3)   # min == 2 1==2
+        ]
+        
+        return signal_orders[min][lr][ind]
+
 
     def execute(self, triplet):
         """
@@ -221,6 +324,7 @@ class Siscan:
 
             # Create the fourth sequence through horizontal randomization
             selected_seq = random.choice((0, 1, 2))
+
             d = triplet.sequences[selected_seq][window: win_end]
             np.random.shuffle(d)
 
@@ -264,7 +368,7 @@ class Siscan:
             z_pattern_values[(window + win_end)//2] = z_pat_counts
             z_sum_values[(window + win_end)//2] = z_sum_counts
 
-        # TODO: extract the right position
+        # extract the patterns and sums according to which patterns are describing each pattern 
         seq_1_2, seq_1_3, seq_2_3 = [], [], []
         for i in range(len(z_sum_values)):
             seq_1_2.append([z_pattern_values[i][2], z_pattern_values[i][7], z_sum_values[i][0], z_sum_values[i][3]]) # p2/8, s1/4, 1==2
@@ -273,97 +377,50 @@ class Siscan:
 
         # find major combination
         s1, s2, s3 = triplet.names
-        maj1, maj2 = find_parent(self.tree, s1, s2, s3)
+        parent1, parent2 = find_parent(self.tree, s1, s2, s3)
 
         for i in triplet.names:
-            if not i in (maj1, maj2):
-                min = i
+            if not i in (parent1, parent2):
+                recombinant = i
 
         # use this variable as indicator to see which group is major and which is minor        
-        major = triplet.index(min)
+        signal = triplet.index(recombinant)
 
-        if major == 0: # seq2/3 major 
-            min1, min2 = self.find_signal(seq_2_3, seq_1_2, seq_1_3)
-        if major == 1: # seq1/3 major
-            min1, min2 = self.find_signal(seq_1_3, seq_2_3, seq_1_2)
-        if major == 2: # seq1/2 major
-            min1, min2 = self.find_signal(seq_1_2, seq_1_3, seq_2_3)
+        # functions input order is relative
+        signal_orders = [
+            (seq_2_3, seq_1_2, seq_1_3),  # min == 0 2==3
+            (seq_1_3, seq_2_3, seq_1_2),  # min == 1 1==3
+            (seq_1_2, seq_1_3, seq_2_3)   # min == 2 1==2
+        ]
 
-        for ind, start, end in enumerate(min2):
-            nt_start = start * self.step_size
-            nt_end = end * self.step_size + self.win_size + 1
+        x, y, z = signal_orders[signal]
+        min1, min2 = self.find_signal(x, y, z, signal)
+
+        for signals in [min1, min2]:
+            for ind, start, end, signal, lr in enumerate(signals):
+                a,b,c = triplet.sequences
+                seqs = [a,b,c]
+
+                # TODO make sequence d an outgroup rather than randomized sequences of the three
+                d = ''
+                for i in range(a):
+                    d += seqs[random.choice((0, 1, 2))][i]
+
+                # this is a much cleaner way
+                sequence_orders = [
+                    (b, c, a),
+                    (a, c, b),
+                    (a, b, c)
+                ]
+
+                x, y, z = sequence_orders[signal]
+                start = self.adjust_nt_f(x, y, z, start, end)
+                end = self.adjust_nt_r(x, y, z, end, start)
+                pval = self.shuffle(x, y, z, d, signal, lr)
+
+                self.raw_results.append((recombinant, (parent1, parent2), (start, end), pval))
             
-            # adjust the start of the window til it matches the pattern
-            for ind, seq1, seq2, seq3 in enumerate(zip(a[nt_start:nt_end], b[nt_start:nt_end], c[nt_start:nt_end])):
-                if major == 2: # seq1/2 major
-                    if seq1 == seq2 and seq1 != seq3:
-                        nt_start = nt_start + ind
-                if major == 1: # seq1/3 major
-                    if seq1 == seq3 and seq1 != seq2:
-                        nt_start = nt_start + ind
-                if major == 0: # seq2/3 major
-                    if seq2 == seq3 and seq1 != seq2:
-                        nt_start = nt_start + ind
-            min2[ind][0] = nt_start # update new index based on NT
-            
-            nt_start = start * self.step_size - 1
-            nt_end = end * self.step_size + self.win_size
-            # adjust the end of the interval til it matches the pattern
-            for ind, seq1, seq2, seq3 in enumerate(zip(a[nt_end:nt_start:-1], b[nt_end:nt_start:-1], c[nt_end:nt_start:-1])):
-                if major == 1: # seq1/2 major
-                    if seq1 == seq2 and seq1 != seq3:
-                        nt_start = nt_start + ind
-                if major == 2:
-                    if seq1 == seq3 and seq1 != seq2:
-                        nt_start = nt_start + ind
-                if major == 3:
-                    if seq2 == seq3 and seq1 != seq2:
-                        nt_start = nt_start + ind
-            min2[ind][1] = nt_start # update new end index based on NT
-
-        for ind, start, end in enumerate(   ):
-            nt_start = start * self.step_size
-            nt_end = end * self.step_size + self.win_size + 1
-            
-            # adjust the start of the window til it matches the pattern
-            for ind, seq1, seq2, seq3 in enumerate(zip(a[nt_start:nt_end], b[nt_start:nt_end], c[nt_start:nt_end])):
-                if major == 1: # seq1/2 major
-                    if seq1 == seq2 and seq1 != seq3:
-                        nt_start = nt_start + ind
-                if major == 2:
-                    if seq1 == seq3 and seq1 != seq2:
-                        nt_start = nt_start + ind
-                if major == 3:
-                    if seq2 == seq3 and seq1 != seq2:
-                        nt_start = nt_start + ind
-            min1[ind][0] = nt_start # update new index based on NT
-            
-            nt_start = start * self.step_size - 1
-            nt_end = end * self.step_size + self.win_size
-            # adjust the end of the interval til it matches the pattern
-            for ind, seq1, seq2, seq3 in enumerate(zip(a[nt_end:nt_start:-1], b[nt_end:nt_start:-1], c[nt_end:nt_start:-1])):
-                if major == 1: # seq1/2 major
-                    if seq1 == seq2 and seq1 != seq3:
-                        nt_start = nt_start + ind
-                if major == 2:
-                    if seq1 == seq3 and seq1 != seq2:
-                        nt_start = nt_start + ind
-                if major == 3:
-                    if seq2 == seq3 and seq1 != seq2:
-                        nt_start = nt_start + ind
-            min1[ind][1] = nt_start # update new end index based on NT
-
-        if major == 1: # The recombinant should be the sequence that's the least releated
-            rec_name, parents = triplet.name[0], (triplet.name[1], triplet.name[2])
-        if major == 2:
-            rec_name, parents = triplet.name[1], (triplet.name[0], triplet.name[2])
-        if major == 3:
-            rec_name, parents = triplet.name[2], (triplet.name[0], triplet.name[1])
-
-        for start, end in min1:
-            self.raw_results.append((rec_name, parents, (start, end), None)) # TODO need to add Z score
-        for start, end in min2:
-            self.raw_results.append((rec_name, parents, (start, end), None))
+        # this is from max_chi, likely wrong
 
         # peaks = find_peaks(sum_pat_zscore, distance=self.win_size)
         # for k, peak in enumerate(peaks[0]):

@@ -165,7 +165,7 @@ class Siscan:
                     break
             else: # it's none so move forward a NT
                 end += 1
-            if end >= len(maj):
+            if end == len(maj)-1:
                 break
         return ind, end
 
@@ -173,25 +173,28 @@ class Siscan:
         """
         close is the list of p/s of the two most related
         maj1/maj2 is the list of pattern/sum set of related to non related
+        signal, index used in see which set is maj/min
 
         return list of indexes that matter, ind is the pattern/sum that matters
         """
         # use f1 and f2 to keep the intervals where it is found to be significant
         m1_intervals, m2_intervals = [], []
-        z_cut = norm.ppf(1 - 0.05/(len(maj1)//self.step_size - len(maj1))) 
-        
+        z_cut = norm.ppf(1-(0.05/(len(close)//self.win_size))) 
         # check per pattern/sum
         for ps in range(4):
 
             ind, ind2 = 0, 0
             while ind < len(close):
+                
                 value = maj1[ind][ps]
+
                 # if any pattern for the minor and major is greater than major major
                 if value:
                     if value > close[ind][ps] and value > z_cut:
                         # in this case `i` is the index of the pattern of importance
-                        ind, new = self.find_interval(ind, maj1, ps)
-                        m1_intervals.append((ind, new, signal, 0)) # which pattern/sum, and starting index and ending index of the recombinant region
+                        ind, new = self.find_interval(ind, maj1, close, ps)
+                        ps_fin = self.get_ps(signal, 0, ps) # identifier for later use to optimize shuffling (ok, upon further checking it's super slow still here)
+                        m1_intervals.append((ind, new, signal, ps_fin)) # which pattern/sum, and starting index and ending index of the recombinant region
                         ind = new # so we don't keep adding them back and forth
                 ind += 1
 
@@ -201,6 +204,7 @@ class Siscan:
                 if value:
                     if value > close[ind2][ps] and value > z_cut:
                         ind, new = self.find_interval(ind2, maj2, close, ps)
+                        ps_fin = self.get_ps(signal, 1, ps)
                         m2_intervals.append((ind2, new, signal, 1))
                         ind2 = new
                 ind2 += 1
@@ -232,7 +236,7 @@ class Siscan:
             start -= 1
         return start 
 
-    def shuffle(self, parent1, parent2, recombinant, out, ps, ind):
+    def shuffle(self, parent1, parent2, recombinant, out, ps_ind):
         """
         recalculate the value of pattern and sum counts for the window by regenerating a null distribution
 
@@ -249,6 +253,8 @@ class Siscan:
         # ps_ind doesn't work the way you want it to right now
         seqs = [parent1, parent2, recombinant, out]
         seqs = list(map(np.array, seqs))
+        ps, ind = ps_ind
+
 
         p = self.count_patterns(seqs)
         if ps:
@@ -278,11 +284,11 @@ class Siscan:
         return 1 - norm.cdf((true_val - mean)/sd)
 
 
-    def get_ps(self, min, ind, lr):
+    def get_ps(self, signal, ind, lr):
         """
         get a tuple that works as an identifier for if it is a sum or a pattern, and which one
 
-        min, int, denotes which seq_X_Y was used in self.execute() in the signal_orders list
+        signal, int, denotes which seq_X_Y was used in self.execute() in the signal_orders list
         lr, int, determines which min_maj combo was used in self.find_signal() 0 should be min1, 1 should be min2
         ind, int, index of position the pattern that denotes how X = Y ~ Z (so which position in seq_X_Y)
         
@@ -298,8 +304,7 @@ class Siscan:
             (seq_2_3, seq_1_2),  # min == 1 1==3
             (seq_1_3, seq_2_3)   # min == 2 1==2
         ]
-        
-        return signal_orders[min][lr][ind]
+        return signal_orders[signal][ind][lr]
 
 
     def execute(self, triplet, tree):
@@ -315,6 +320,11 @@ class Siscan:
         z_pattern_values = [[None for i in range(14)] for j in range(triplet.sequences.shape[1])]
         z_sum_values = [[None for i in range(9)] for j in range(triplet.sequences.shape[1])] 
 
+        # Create the fourth sequence through horizontal randomization
+        selected_seq = random.choice((0, 1, 2))
+        out = triplet.sequences[selected_seq]
+        np.random.shuffle(out)
+
         # Based on leading edge of the window
         for window in range(0, self.align.shape[1], self.step_size):
             win_end = window + self.win_size
@@ -328,12 +338,7 @@ class Siscan:
             a = triplet.sequences[0][window: win_end]
             b = triplet.sequences[1][window: win_end]
             c = triplet.sequences[2][window: win_end]
-
-            # Create the fourth sequence through horizontal randomization
-            selected_seq = random.choice((0, 1, 2))
-
-            d = triplet.sequences[selected_seq][window: win_end]
-            np.random.shuffle(d)
+            d = out[window: win_end]
 
             # (1) Count number of positions within a window that conform to each pattern
             seq_array = np.array([a, b, c, d])
@@ -434,16 +439,16 @@ class Siscan:
                 end = self.adjust_nt_r(x, y, z, end, start)
                 
                 # if the window does not continue, don't draw new window and discard
-                # in second though, I have no idea if this is right or not, need to check
+                # TODO: in second thought, I have no idea if this is right or not, need to check
                 if end == start:
                     continue 
 
-                pval = self.shuffle(x, y, z, d, signal, lr)
+                pval = self.shuffle(x, y, z, d, lr)
 
-                self.raw_results.append((recombinant, (parent1, parent2), (start, end), pval))
+                self.raw_results.append((recombinant, [parent1, parent2], start, end, pval))
             
         # this is from max_chi, likely wrong
-        # i'm just gonna keep it here because 
+        # i'm just gonna keep it here for reference
 
         # peaks = find_peaks(sum_pat_zscore, distance=self.win_size)
         # for k, peak in enumerate(peaks[0]):

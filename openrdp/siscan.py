@@ -155,11 +155,11 @@ class Siscan:
         ind of list to start looking
         ps int, ind of which p/s on the array of maj is the one we care about
         """
-        z_cut = norm.cdf(1 - 0.05/len(close)//self.win_size) # zscore corrected to number of windows
+        z_cut = norm.ppf(1-(0.05/(len(close)//self.win_size)))  # zscore corrected to number of windows
         end = ind
         while True: 
             if maj[end][ps] and close[end][ps]:
-                if maj[end][ps] > close[end][ps] and (1 - norm.cdf(maj[end][ps])) > z_cut:
+                if maj[end][ps] > close[end][ps] and maj[end][ps] > z_cut:
                     end += 1
                 else:
                     break
@@ -205,7 +205,7 @@ class Siscan:
                     if value > close[ind2][ps] and value > z_cut:
                         ind, new = self.find_interval(ind2, maj2, close, ps)
                         ps_fin = self.get_ps(signal, 1, ps)
-                        m2_intervals.append((ind2, new, signal, 1))
+                        m2_intervals.append((ind2, new, signal, ps_fin))
                         ind2 = new
                 ind2 += 1
 
@@ -246,7 +246,7 @@ class Siscan:
         ps, (true/false, index), index of the pattern/sum we care about. T = pattern, F = sum
         ind, int, second index is which one that matters
         
-        return pval, float, the pvalue!!!
+        return zscore for the final p-value
         """
 
         #TODO find a way to not calculate all numbers and just find the one you care about
@@ -281,7 +281,7 @@ class Siscan:
         mean = np.mean(null_dist)
         sd = np.std(null_dist, axis=0)
 
-        return 1 - norm.cdf((true_val - mean)/sd)
+        return (true_val - mean)/sd
 
 
     def get_ps(self, signal, ind, lr):
@@ -419,6 +419,7 @@ class Siscan:
 
         for signals in [min1, min2]:
             for ind, (start, end, signal, lr) in enumerate(signals):
+                print(start, end, signal, lr)
                 a,b,c = triplet.sequences
                 seqs = [a,b,c]
 
@@ -443,9 +444,9 @@ class Siscan:
                 if end == start:
                     continue 
 
-                pval = self.shuffle(x, y, z, d, lr)
+                zscore = self.shuffle(x, y, z, d, lr)
 
-                self.raw_results.append((recombinant, [parent1, parent2], start, end, pval))
+                self.raw_results.append((recombinant, (parent1, parent2), start, end, abs(zscore)))
             
         # this is from max_chi, likely wrong
         # i'm just gonna keep it here for reference

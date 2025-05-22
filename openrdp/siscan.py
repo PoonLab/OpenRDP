@@ -1,5 +1,5 @@
 import random
-import json
+
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
@@ -9,7 +9,7 @@ from .common import identify_recombinant, find_parent
 
 
 class Siscan:
-    def __init__(self, align, win_size=200, step_size=5, strip_gaps=True, pvalue_perm_num=1000,
+    def __init__(self, align, win_size=200, step_size=20, strip_gaps=True, pvalue_perm_num=1000,
                  scan_perm_num=100, random_seed=3, max_pvalue=0.05, settings=None, 
                  ref_align=None, verbose=False):
         """
@@ -361,7 +361,7 @@ class Siscan:
                 p_counts.append(curr_p)
                 curr_s = self.sum_pattern_counts(curr_p)
                 sum_p_counts.append(curr_s)
-
+ 
             # (5) Calculate Z-scores for each pattern and sum of patterns for each window, position should be middle of window            
             pop_mean_pcounts = np.mean(p_counts, axis=0) # array of [mean pat 1, mean pat 2, ...]
             pop_mean_patsum = np.mean(sum_p_counts, axis=0)
@@ -370,18 +370,16 @@ class Siscan:
 
             z_pat_counts = [0 for i in pat_counts]
             for num, value in enumerate(pat_counts): # if none it will give error
-                if value:
-                    z_pat_counts[num] = (value - pop_mean_pcounts[num]) / pop_std_pcounts[num]
-                else:
-                    z_pat_counts[num] = 0
+                if pop_std_pcounts[num] == 0:
+                    continue
+                z_pat_counts[num] = (value - pop_mean_pcounts[num]) / pop_std_pcounts[num]
 
             z_sum_counts = [0 for i in sum_pat_counts]
             for num, value in enumerate(sum_pat_counts):
-                if value:
-                    z_sum_counts[num] = (value - pop_mean_patsum[num]) / pop_std_patsum[num]
-                else:
-                    z_sum_counts[num] = 0
-
+                if pop_std_patsum[num] == 0:
+                    continue
+                z_sum_counts[num] = (value - pop_mean_patsum[num]) / pop_std_patsum[num]
+    
             
 
             # update to total by middle of window
@@ -394,6 +392,10 @@ class Siscan:
             seq_1_2.append([z_pattern_values[i][2], z_pattern_values[i][7], z_sum_values[i][0], z_sum_values[i][3]]) # p2/8, s1/4, 1==2
             seq_1_3.append([z_pattern_values[i][2], z_pattern_values[i][8], z_sum_values[i][4], z_sum_values[i][5]]) # p3/9, s5/6, 1==3
             seq_2_3.append([z_pattern_values[i][4], z_pattern_values[i][9], z_sum_values[i][2], z_sum_values[i][6]]) # p5/10, s3/7, 2==3
+
+        # DEBUGGING
+        # with open('siscan.json', 'w') as file:
+        #     json.dump([seq_1_2, seq_2_3, seq_1_3], file)
 
         # find major combination
         s1, s2, s3 = triplet.names
@@ -419,14 +421,11 @@ class Siscan:
 
         for signals in [min1, min2]:
             for ind, (start, end, signal, lr) in enumerate(signals):
-                print(start, end, signal, lr)
                 a,b,c = triplet.sequences
                 seqs = [a,b,c]
 
                 # TODO make sequence d an outgroup rather than randomized sequences of the three
-                d = np.array([])
-                for i in range(len(a)):
-                    d = np.append(d, seqs[random.choice((0, 1, 2))][i])
+
 
                 # this is a much cleaner way
                 sequence_orders = [
@@ -444,9 +443,8 @@ class Siscan:
                 if end == start:
                     continue 
 
-                zscore = self.shuffle(x, y, z, d, lr)
-
-                self.raw_results.append((recombinant, (parent1, parent2), start, end, abs(zscore)))
+                zscore = self.shuffle(x, y, z, out, lr)
+                self.raw_results.append((recombinant, (parent1, parent2), start, end, norm.sf(zscore)))
             
         # this is from max_chi, likely wrong
         # i'm just gonna keep it here for reference

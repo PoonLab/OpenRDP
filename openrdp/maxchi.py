@@ -1,12 +1,14 @@
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
+from scipy.stats import chisqprob
+import json
 
 from .common import calculate_chi2, identify_recombinant
 
 
 class MaxChi:
-    def __init__(self, align, max_pvalue=0.05, win_size=200, strip_gaps=True, fixed_win_size=True,
+    def __init__(self, align, max_pvalue=0.05, win_size=70, strip_gaps=True, fixed_win_size=True,
                  num_var_sites=None, frac_var_sites=None, settings=None, ref_align=None, verbose=False):
         """
         Constructs a MaxChi Object
@@ -23,12 +25,16 @@ class MaxChi:
         else: # pragma: no cover
             self.align = align
             self.raw_results = {}
-            self.max_pvalues = max_pvalue
+            self.max_pvalues = max_pvalue           
             self.fixed_win_size = win_size
             self.strip_gaps = strip_gaps
             self.fixed_win = fixed_win_size
             self.num_var_sites = num_var_sites
             self.frac_var_sites = frac_var_sites
+
+        # see issue #99
+        if len(align[0]) < self.win_size:
+            win_size = len(align[0])
 
         self.raw_results = []
         self.results = []
@@ -135,71 +141,175 @@ class MaxChi:
 
         # 1. Sample two sequences
         pairs = ((0, 1), (1, 2), (2, 0))
-        for i, j in pairs:
+        chi2_values = [np.zeros(triplet.sequences.shape[1])] * 3
+
+        for pair, (i, j) in enumerate(pairs):
             seq1 = triplet.sequences[i]
             seq2 = triplet.sequences[j]
 
             # Initialize lists to map chi2 and p-values to window positions
-            chi2_values = np.zeros(triplet.sequences.shape[1])
-            p_values = np.ones(triplet.sequences.shape[1])  # Map window position to p-values
 
             # Get the size of the first window
             win_size = triplet.get_win_size(0, self.win_size, self.fixed_win_size, self.num_var_sites,
                                             self.frac_var_sites)
 
             # Slide along the sequences
-            half_win_size = int(win_size // 2)
+            k2 = int(win_size // 2) # using these variable names to be consistant with the original paper
             for k in range(triplet.poly_sites_align.shape[1] - win_size):
 
                 reg1_left, reg2_left, reg1_right, reg2_right, reg1, reg2 = self.get_window_positions(seq1, seq2,
                                                                                                      k, win_size)
 
-                s = np.sum(reg1 != reg2)
-                r = np.sum(reg1_left != reg2_left)
-
                 c_table = self.compute_contingency_table(reg1_right, reg2_right,
-                                                         reg1_left, reg2_left, half_win_size)
+                                                         reg1_left, reg2_left, k2)
 
-                n = self.win_size
-                k2 = half_win_size
-
-                if (float(k2 * s) * (n - k2) * (n - s)) == 0:
-                    continue
-                else:
-                    cur_val = (float(n) * (k2 * s - n * r) * (k2 * s - n * r)) / (float(k2 * s) * (n - k2) * (n - s))
 
                 # Compute chi-squared value
                 chi2, p_value = calculate_chi2(c_table, self.max_pvalues)
                 if chi2 is not None and p_value is not None:
                     # Insert p-values and chi2 values so they correspond to positions in the original alignment
-                    chi2_values[triplet.poly_sites[k + half_win_size]] = cur_val  # centred window
-                    p_values[triplet.poly_sites[k + half_win_size]] = p_value
+                    chi2_values[pair][triplet.poly_sites[k + k2]] = chi2  # centred window
 
-                win_size = triplet.get_win_size(k, self.win_size, self.fixed_win_size, self.num_var_sites,
-                                                self.frac_var_sites)
+                # win_size = triplet.get_win_size(k, self.win_size, self.fixed_win_size, self.num_var_sites,
+                #                                 self.frac_var_sites)
 
-            # Smooth chi2-values
-            chi2_values = gaussian_filter1d(chi2_values, 1.5)
-            # p_values = gaussian_filter1d(p_values, 1.5)
-            # self.plot_chi2_values(chi2_values, p_values)
+        with open('chi2.json', 'w') as file:
+            json.dump(
+                [gaussian_filter1d(x, 1.5).tolist() for x in chi2_values], 
+                file
+            )
 
-            peaks = find_peaks(chi2_values, distance=self.win_size)
-            for k, peak in enumerate(peaks[0]):
-                search_win_size = 1
-                while peak - search_win_size > 0 \
-                        and peak + search_win_size < len(chi2_values) - 1 \
-                        and chi2_values[peak + search_win_size] > 0.3 * chi2_values[peak] \
-                        and chi2_values[peak - search_win_size] > 0.3 * chi2_values[peak]:
-                    search_win_size += 1
+        # Smooth chi2-values
+        
+        # p_values = gaussian_filter1d(p_values, 1.5)
+        # self.plot_chi2_values(chi2_values, p_values)
 
-                if chi2_values[peak + search_win_size] > chi2_values[peak - search_win_size]:
-                    aln_pos = (int(peak), int(peak + search_win_size + win_size))
+        # method as according to Darren:
+        peaks = find_peaks(chi2_values, distance=self.win_size)
+
+        # 1. find highest peak amongst all three pairs
+        best = [0,0,0]
+        for pair, values in enumerate(chi2_values):
+            for pos, chi in enumerate(values):
+                if chi > best[1]:
+                    best = [pair, chi, pos]
+
+        # 2. find optimized window of maxChi values by expanding and contracting the window and recalc Chi2 while counting fails
+
+        ##### problem outlined:
+        # assuming you have an array of integers, n, with a start index, k, and a left and right value index of the window. You have to expand and contract this window to get the max value. 
+        # However, you are limited by your actions. You can either increase one end of the window by 1 position or contract the window by 1 position. If the new window has a lower max value than the previous best, you add a counter to fail. if you reach 100 fails you automatically return the best max window.
+        # NOTE BY WILL: i coulnd't find how RDP solved this problem, so i'm going to use a greedy algorithm to expand the window similar to LeetCode 1004
+        # NOTE 2: a dp solution is probably the optimal solution. gets out of [100, ... n * fails limit -1, 10001]
+
+        if chisqprob(best[1],1) < 0.05/len(chi2_values[0] * 3): #BF correction
+
+            # using degree of freedom of 1 because of 2x2 chi2 test
+            initial_window = 5
+            fail_count = 0
+                        
+            # get pair that mattered and get the windows
+            i, j = pairs[best[0]]
+            seq1 = triplet.sequences[i]
+            seq2 = triplet.sequences[j]
+
+            # initalize variables to expand the window
+            left, right = best[2] - initial_window // 2, best[2] + initial_window // 2
+
+            # TODO: check source code, rn the 100 is arbitrary
+            fail_count = 0
+            while fail_count < 100:
+                candidates = []
+
+                # expand left
+                if left > 0:
+                    el = left - 1
+                    c_table = self.compute_contingency_table(
+                        seq1[k:right], seq2[k:right],
+                        seq1[el:k], seq2[el:k], (right - el)//2
+                        )
+                    chi2, p_value = calculate_chi2(c_table, self.max_pvalues)
+                    candidates.append(('expand_left', chi2, el, right))
+
+                # expand right
+                if right < len(seq1) - 1:
+                    er = right + 1
+                    c_table = self.compute_contingency_table(
+                        seq1[k:er], seq2[k:er],
+                        seq1[left:k], seq2[left:k], (right - er)//2
+                    )
+                    chi2, p_value = calculate_chi2(c_table, self.max_pvalues)
+                    candidates.append(('expand_right', chi2, left, er))
+
+                # contract left
+                if left < k:
+                    cl = left + 1
+                    c_table = self.compute_contingency_table(
+                        seq1[k:right], seq2[k:right],
+                        seq1[cl:k], seq2[cl:k], (right - cl)//2
+                    )
+                    chi2, p_value = calculate_chi2(c_table, self.max_pvalues)
+                    candidates.append(('contract_left', chi2, cl, right))
+
+                # contract right
+                if right > k:
+                    cr = right - 1
+                    c_table = self.compute_contingency_table(
+                        seq1[k:cr], seq2[k:cr],
+                        seq1[left:k], seq2[left:k], (cr - left)//2
+                    )
+                    chi2, p_value = calculate_chi2(c_table, self.max_pvalues)
+                    candidates.append(('contract_right', chi2, left, cr))
+
+                if not candidates:
+                    break  # no valid moves
+
+                # Choose the best candidate
+                best_move, best_chi2, new_left, new_right = max(candidates, key=lambda x: x[1])
+
+                if best_chi2 > best_score:
+                    best_score = best_chi2
+                    best_left = new_left
+                    best_right = new_right
+                    fail_count = 0
                 else:
-                    aln_pos = (int(peak - search_win_size), int(peak + win_size))
+                    fail_count += 1
 
-                rec_name, parents = identify_recombinant(triplet, aln_pos)
-                if (rec_name, parents, *aln_pos) not in self.raw_results and p_values[peak] != 1.0 and p_values[
-                    peak] != 0.0:
-                    self.raw_results.append((rec_name, parents, *aln_pos, p_values[peak]))
+                # Apply the move explicitly
+                if best_move == 'expand_left':
+                    left -= 1
+                elif best_move == 'expand_right':
+                    right += 1
+                elif best_move == 'contract_left':
+                    left += 1
+                elif best_move == 'contract_right':
+                    right -= 1
+
+        # 3, determine if left or right side of the new window is the best
+
+        # breakpoint one is the original peak, now find the biggest peak for the second breakpoint
+        break2 = [0, 0] # ind, val
+        for ind, val in enumerate(chi2_values[best[0]][k+1:right+1]):
+            if val > break2[1]:
+                break2[1] = val
+                break2[0] = ind
+        
+        # check left side of window now
+        for ind, val in enumerate(chi2_values[best[0]][left:k]):
+            if val > break2[1]:
+                break2[1] = val
+                break2[0] = ind
+        
+        # 4, take higher chi2 value as the p-value
+        p_val = min(chisqprob(chi2_values[break2[0]],1), chisqprob(chi2_values[k], 1))
+
+        # now add back to solutions
+        # TODO: check if this is the right way
+        aln_pos = [min(break2[0], k), max(break2[0])]
+
+        rec_name, parents = identify_recombinant(triplet, aln_pos)
+
+        self.raw_results.append((rec_name, parents, aln_pos, p_val))
+
 
         return

@@ -187,7 +187,6 @@ class MaxChi:
         # However, you are limited by your actions. You can either increase one end of the window by 1 position or contract the window by 1 position. If the new window has a lower max value than the previous best, you add a counter to fail. if you reach 100 fails you automatically return the best max window.
         # NOTE BY WILL: i coulnd't find how RDP solved this problem, so i'm going to use a greedy algorithm to expand the window similar to LeetCode 1004
         # NOTE 2: a dp solution is probably the optimal choice. gets out of [100, ... n * fails limit -1, 10001]
-
         k = best[2] # the midpoint to start expanding the window from
         if chisq.sf(best[1],1) < 0.05/len(chi2_values[0]) * 3: #BF correction
 
@@ -205,33 +204,21 @@ class MaxChi:
             # TODO: the 100 is arbitrary
             fail_count, best_score = 0, 0
             while fail_count < 100:
-
                 candidates = []
 
-                # expand left
-                if left > 0:
+                # expand left and right at the same time
+                if left > 0 and right < len(seq1):
                     el = left - 1
-                    reg1_left, reg2_left, reg1_right, reg2_right = self.get_window_positions(seq1, seq2, k, el, right)
-                    c_table = self.compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left)
-                    chi2, p_value = calculate_chi2(c_table)
-
-                    # print(c_table)
-
-                    if chi2:
-                        candidates.append(('expand_left', chi2))
-
-                # expand right
-                if right < len(seq1) - 1:
                     er = right + 1
-                    reg1_left, reg2_left, reg1_right, reg2_right = self.get_window_positions(seq1, seq2, k, left, er)
+
+                    reg1_left, reg2_left, reg1_right, reg2_right = self.get_window_positions(seq1, seq2, k, el, er)
                     c_table = self.compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left)
                     chi2, p_value = calculate_chi2(c_table)
 
                     # print(c_table)
 
                     if chi2:
-                        candidates.append(('expand_right', chi2))
-
+                        candidates.append(('expand', chi2))
 
                 # contract left
                 if left < k:
@@ -271,63 +258,47 @@ class MaxChi:
                     fail_count += 1
 
                 # Apply the move explicitly
-                if best_move == 'expand_left':
+                if best_move == 'expand':
                     left -= 1
-                elif best_move == 'expand_right':
                     right += 1
                 elif best_move == 'contract_left':
                     left += 1
                 elif best_move == 'contract_right':
                     right -= 1
 
+
         # 3, determine if left or right side of the new window is the best
-        break2 = [0, 0] # ind, val
-        for ind, val in enumerate(chi2_values[best[0]][k+1:right+1]):
-            if val > break2[1]:
-                break2[1] = val
-                break2[0] = ind + k
-        
-        # check left side of window now
-        for ind, val in enumerate(chi2_values[best[0]][left:k]):
-            if val > break2[1]:
-                break2[1] = val
-                break2[0] = ind + left
-
-        # 4, take higher chi2 value as the p-value based on the left and right windows
-        # Define primary and paired break regions
-        half_window = (right - left) // 2
-
-        # Determine which side was stronger and compute the paired chi2
-        if break2[0] < k:  # signal stronger on the left side
-            # Paired is right side
-            paired_seq1 = seq1[k:k+half_window]
-            paired_seq2 = seq2[k:k+half_window]
-            fixed_seq1 = seq1[k-half_window:k]
-            fixed_seq2 = seq2[k-half_window:k]
+        left_peak = chi2_values[best[0]][left]
+        right_peak = chi2_values[best[0]][right]
+        if left_peak > right_peak:
+            primary_breakpoint = left
         else:
-            # Paired is left side
-            paired_seq1 = seq1[k-half_window:k]
-            paired_seq2 = seq2[k-half_window:k]
-            fixed_seq1 = seq1[k:k+half_window]
-            fixed_seq2 = seq2[k:k+half_window]
+            primary_breakpoint = right
+        
+        break1 = primary_breakpoint
+
+        window_size = right - left
+
+        # Try placing second breakpoint at the mirrored opposite side
+        # Option A: if primary is left, then second is right, and vice versa
+        if primary_breakpoint == left:
+            second_break = right
+        else:
+            second_break = left
+
+        # Recalculate chi² for this second breakpoint
+        reg1_l, reg2_l, reg1_r, reg2_r = self.get_window_positions(seq1, seq2, second_break, second_break - window_size // 2, second_break + window_size // 2)
+        c_table = self.compute_contingency_table(reg1_r, reg2_r, reg1_l, reg2_l)
+        chi2_b2, _ = calculate_chi2(c_table)
+
+        final_chi2 = max(best_score, chi2_b2)
+        final_p = chisq.sf(final_chi2, df=1)
 
 
-        # Compute contingency table and chi2
-        c_table = self.compute_contingency_table(paired_seq1, paired_seq2, fixed_seq1, fixed_seq2)
-        paired_chi2, paired_pval = calculate_chi2(c_table)
+        aln_pos = [min((primary_breakpoint, second_break)), max((primary_breakpoint, second_break))]
 
-        if paired_chi2:
-            # Now compare to original optimized chi2
-            final_chi2 = max(best[1], paired_chi2)
-            final_p_value = chisq.sf(final_chi2, 1)  # assuming df=1 for 2x2 test
+        rec_name, parents = identify_recombinant(triplet, aln_pos)
 
-            # now add back to solutions
-            # TODO: check if the indentify_recombinant function is the right way
+        self.raw_results.append((rec_name, parents, *aln_pos, final_p))
 
-            aln_pos = [min((break2[0], k)), max((break2[0], k))]
-
-            rec_name, parents = identify_recombinant(triplet, aln_pos)
-
-            self.raw_results.append((rec_name, parents, *aln_pos, final_p_value))
-
-            return
+        return

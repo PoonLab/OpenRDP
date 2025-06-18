@@ -1,7 +1,8 @@
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
-from scipy.signal import find_peaks
-from scipy.stats import chisqprob
+from scipy.stats import chi2 as chisq
+from scipy.stats import chi2_contingency
+
 import json
 
 from .common import calculate_chi2, identify_recombinant
@@ -79,28 +80,24 @@ class MaxChi:
             self.frac_var_sites = 0.1
 
     @staticmethod
-    def get_window_positions(seq1, seq2, k, win_size):
+    def get_window_positions(seq1, seq2, k, l, r):
         """
         Get the left and right half of the window
         :param seq1: the first sequence
         :param seq2: the second sequence
         :param k: the offset for the window
-        :param win_size: the size of the window
+        :param l,r: the left and right index of the sequence
         :return: the left and right regions on either side of the partition
         """
-        half_win_size = int(win_size // 2)
-        reg1_left = seq1[k: half_win_size + k]
-        reg2_left = seq2[k: half_win_size + k]
-        reg1_right = seq1[k + half_win_size: k + win_size]
-        reg2_right = seq2[k + half_win_size: k + win_size]
 
-        reg1 = seq1[k: k + win_size]
-        reg2 = seq2[k: k + win_size]
-
-        return reg1_left, reg2_left, reg1_right, reg2_right, reg1, reg2
+        reg1_left = seq1[l:k]
+        reg2_left = seq2[l:k]
+        reg1_right = seq1[k:r]
+        reg2_right = seq2[k:r]
+        return reg1_left, reg2_left, reg1_right, reg2_right
 
     @staticmethod
-    def compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left, half_win_size):
+    def compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left):
         """
         Calculate the number of variable sites on either side of the partition
         :param reg1_right: the right half of the window from the first sequence
@@ -115,22 +112,23 @@ class MaxChi:
                    [0, 0, 0],
                    [0, 0, 0]]
 
-        # Compute contingency table for each window position
-        r_matches = np.sum((reg1_right == reg2_right))
-        c_table[0][0] = int(r_matches)
-        c_table[0][1] = half_win_size - r_matches
+        reg1_left = np.array(reg1_left)
+        reg2_left = np.array(reg2_left)
+        reg1_right = np.array(reg1_right)
+        reg2_right = np.array(reg2_right)
 
-        l_matches = np.sum((reg1_left == reg2_left))
-        c_table[1][0] = int(l_matches)
-        c_table[1][1] = half_win_size - l_matches
+        # Compute matches/mismatches
+        left_matches = np.sum(reg1_left == reg2_left)
+        left_mismatches = len(reg1_left) - left_matches
+        right_matches = np.sum(reg1_right == reg2_right)
+        right_mismatches = len(reg1_right) - right_matches
 
-        # Sum the rows and columns
-        c_table[0][2] = c_table[0][0] + c_table[0][1]
-        c_table[1][2] = c_table[1][0] + c_table[1][1]
-        c_table[2][0] = c_table[0][0] + c_table[1][0]
-        c_table[2][1] = c_table[0][1] + c_table[1][1]
-        c_table[2][2] = c_table[0][2] + c_table[1][2]
-
+        # Contingency table
+        c_table = np.array([
+            [left_matches, left_mismatches, left_matches+left_mismatches],
+            [right_matches, right_mismatches, right_matches+right_mismatches],
+            [left_matches+right_matches, left_mismatches+right_mismatches, left_matches+right_matches+left_mismatches+right_mismatches]
+        ])
         return c_table
 
     def execute(self, triplet):
@@ -141,7 +139,7 @@ class MaxChi:
 
         # 1. Sample two sequences
         pairs = ((0, 1), (1, 2), (2, 0))
-        chi2_values = [np.zeros(triplet.sequences.shape[1])] * 3
+        chi2_values = [np.zeros(triplet.sequences.shape[1]) for _ in range(3)]
 
         for pair, (i, j) in enumerate(pairs):
             seq1 = triplet.sequences[i]
@@ -149,35 +147,25 @@ class MaxChi:
 
             # Initialize lists to map chi2 and p-values to window positions
 
-            # Get the size of the first window
-            win_size = triplet.get_win_size(0, self.win_size, self.fixed_win_size, self.num_var_sites,
-                                            self.frac_var_sites)
-
             # Slide along the sequences
-            k2 = int(win_size // 2) # using these variable names to be consistant with the original paper
-            for k in range(triplet.poly_sites_align.shape[1] - win_size):
+            k2 = int(self.win_size // 2) # using these variable names to be consistant with the original paper
+            l, r = 0, self.win_size
+            for k in range(self.win_size//2, triplet.poly_sites_align.shape[1] - self.win_size//2):
 
-                reg1_left, reg2_left, reg1_right, reg2_right, reg1, reg2 = self.get_window_positions(seq1, seq2,
-                                                                                                     k, win_size)
-
+                
+                reg1_left, reg2_left, reg1_right, reg2_right = self.get_window_positions(seq1, seq2, k, l, r)
                 c_table = self.compute_contingency_table(reg1_right, reg2_right,
-                                                         reg1_left, reg2_left, k2)
+                                                         reg1_left, reg2_left)
 
 
                 # Compute chi-squared value
-                chi2, p_value = calculate_chi2(c_table, self.max_pvalues)
+                chi2, p_value = calculate_chi2(c_table)
                 if chi2 is not None and p_value is not None:
                     # Insert p-values and chi2 values so they correspond to positions in the original alignment
                     chi2_values[pair][triplet.poly_sites[k + k2]] = chi2  # centred window
 
-                # win_size = triplet.get_win_size(k, self.win_size, self.fixed_win_size, self.num_var_sites,
-                #                                 self.frac_var_sites)
-
-        with open('chi2.json', 'w') as file:
-            json.dump(
-                [gaussian_filter1d(x, 1.5).tolist() for x in chi2_values], 
-                file
-            )
+                l += 1
+                r += 1
 
         # Smooth chi2-values
         
@@ -185,8 +173,6 @@ class MaxChi:
         # self.plot_chi2_values(chi2_values, p_values)
 
         # method as according to Darren:
-        peaks = find_peaks(chi2_values, distance=self.win_size)
-
         # 1. find highest peak amongst all three pairs
         best = [0,0,0]
         for pair, values in enumerate(chi2_values):
@@ -200,13 +186,13 @@ class MaxChi:
         # assuming you have an array of integers, n, with a start index, k, and a left and right value index of the window. You have to expand and contract this window to get the max value. 
         # However, you are limited by your actions. You can either increase one end of the window by 1 position or contract the window by 1 position. If the new window has a lower max value than the previous best, you add a counter to fail. if you reach 100 fails you automatically return the best max window.
         # NOTE BY WILL: i coulnd't find how RDP solved this problem, so i'm going to use a greedy algorithm to expand the window similar to LeetCode 1004
-        # NOTE 2: a dp solution is probably the optimal solution. gets out of [100, ... n * fails limit -1, 10001]
+        # NOTE 2: a dp solution is probably the optimal choice. gets out of [100, ... n * fails limit -1, 10001]
 
-        if chisqprob(best[1],1) < 0.05/len(chi2_values[0] * 3): #BF correction
+        k = best[2] # the midpoint to start expanding the window from
+        if chisq.sf(best[1],1) < 0.05/len(chi2_values[0]) * 3: #BF correction
 
             # using degree of freedom of 1 because of 2x2 chi2 test
-            initial_window = 5
-            fail_count = 0
+            initial_window = self.win_size
                         
             # get pair that mattered and get the windows
             i, j = pairs[best[0]]
@@ -216,62 +202,71 @@ class MaxChi:
             # initalize variables to expand the window
             left, right = best[2] - initial_window // 2, best[2] + initial_window // 2
 
-            # TODO: check source code, rn the 100 is arbitrary
-            fail_count = 0
+            # TODO: the 100 is arbitrary
+            fail_count, best_score = 0, 0
             while fail_count < 100:
+
                 candidates = []
 
                 # expand left
                 if left > 0:
                     el = left - 1
-                    c_table = self.compute_contingency_table(
-                        seq1[k:right], seq2[k:right],
-                        seq1[el:k], seq2[el:k], (right - el)//2
-                        )
-                    chi2, p_value = calculate_chi2(c_table, self.max_pvalues)
-                    candidates.append(('expand_left', chi2, el, right))
+                    reg1_left, reg2_left, reg1_right, reg2_right = self.get_window_positions(seq1, seq2, k, el, right)
+                    c_table = self.compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left)
+                    chi2, p_value = calculate_chi2(c_table)
+
+                    # print(c_table)
+
+                    if chi2:
+                        candidates.append(('expand_left', chi2))
 
                 # expand right
                 if right < len(seq1) - 1:
                     er = right + 1
-                    c_table = self.compute_contingency_table(
-                        seq1[k:er], seq2[k:er],
-                        seq1[left:k], seq2[left:k], (right - er)//2
-                    )
-                    chi2, p_value = calculate_chi2(c_table, self.max_pvalues)
-                    candidates.append(('expand_right', chi2, left, er))
+                    reg1_left, reg2_left, reg1_right, reg2_right = self.get_window_positions(seq1, seq2, k, left, er)
+                    c_table = self.compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left)
+                    chi2, p_value = calculate_chi2(c_table)
+
+                    # print(c_table)
+
+                    if chi2:
+                        candidates.append(('expand_right', chi2))
+
 
                 # contract left
                 if left < k:
                     cl = left + 1
-                    c_table = self.compute_contingency_table(
-                        seq1[k:right], seq2[k:right],
-                        seq1[cl:k], seq2[cl:k], (right - cl)//2
-                    )
-                    chi2, p_value = calculate_chi2(c_table, self.max_pvalues)
-                    candidates.append(('contract_left', chi2, cl, right))
+                    reg1_left, reg2_left, reg1_right, reg2_right = self.get_window_positions(seq1, seq2, k, cl, right)
+                    c_table = self.compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left)
+                    chi2, p_value = calculate_chi2(c_table)
+
+                    # print(c_table)
+
+                    if chi2:
+                        candidates.append(('contract_left', chi2))
+
 
                 # contract right
                 if right > k:
                     cr = right - 1
-                    c_table = self.compute_contingency_table(
-                        seq1[k:cr], seq2[k:cr],
-                        seq1[left:k], seq2[left:k], (cr - left)//2
-                    )
-                    chi2, p_value = calculate_chi2(c_table, self.max_pvalues)
-                    candidates.append(('contract_right', chi2, left, cr))
+                    reg1_left, reg2_left, reg1_right, reg2_right = self.get_window_positions(seq1, seq2, k, left, cr)
+                    c_table = self.compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left)
+                    chi2, p_value = calculate_chi2(c_table)
+
+                    # print(c_table)
+
+                    if chi2:
+                        candidates.append(('contract_right', chi2))
 
                 if not candidates:
                     break  # no valid moves
 
                 # Choose the best candidate
-                best_move, best_chi2, new_left, new_right = max(candidates, key=lambda x: x[1])
+                best_move, best_chi2 = max(candidates, key=lambda x: x[1])
 
                 if best_chi2 > best_score:
                     best_score = best_chi2
-                    best_left = new_left
-                    best_right = new_right
-                    fail_count = 0
+
                 else:
                     fail_count += 1
 
@@ -286,30 +281,53 @@ class MaxChi:
                     right -= 1
 
         # 3, determine if left or right side of the new window is the best
-
-        # breakpoint one is the original peak, now find the biggest peak for the second breakpoint
         break2 = [0, 0] # ind, val
         for ind, val in enumerate(chi2_values[best[0]][k+1:right+1]):
             if val > break2[1]:
                 break2[1] = val
-                break2[0] = ind
+                break2[0] = ind + k
         
         # check left side of window now
         for ind, val in enumerate(chi2_values[best[0]][left:k]):
             if val > break2[1]:
                 break2[1] = val
-                break2[0] = ind
-        
-        # 4, take higher chi2 value as the p-value
-        p_val = min(chisqprob(chi2_values[break2[0]],1), chisqprob(chi2_values[k], 1))
+                break2[0] = ind + left
 
-        # now add back to solutions
-        # TODO: check if this is the right way
-        aln_pos = [min(break2[0], k), max(break2[0])]
+        # 4, take higher chi2 value as the p-value based on the left and right windows
+        # Define primary and paired break regions
+        half_window = (right - left) // 2
 
-        rec_name, parents = identify_recombinant(triplet, aln_pos)
+        # Determine which side was stronger and compute the paired chi2
+        if break2[0] < k:  # signal stronger on the left side
+            # Paired is right side
+            paired_seq1 = seq1[k:k+half_window]
+            paired_seq2 = seq2[k:k+half_window]
+            fixed_seq1 = seq1[k-half_window:k]
+            fixed_seq2 = seq2[k-half_window:k]
+        else:
+            # Paired is left side
+            paired_seq1 = seq1[k-half_window:k]
+            paired_seq2 = seq2[k-half_window:k]
+            fixed_seq1 = seq1[k:k+half_window]
+            fixed_seq2 = seq2[k:k+half_window]
 
-        self.raw_results.append((rec_name, parents, aln_pos, p_val))
 
+        # Compute contingency table and chi2
+        c_table = self.compute_contingency_table(paired_seq1, paired_seq2, fixed_seq1, fixed_seq2)
+        paired_chi2, paired_pval = calculate_chi2(c_table)
 
-        return
+        if paired_chi2:
+            # Now compare to original optimized chi2
+            final_chi2 = max(best[1], paired_chi2)
+            final_p_value = chisq.sf(final_chi2, 1)  # assuming df=1 for 2x2 test
+
+            # now add back to solutions
+            # TODO: check if the indentify_recombinant function is the right way
+
+            aln_pos = [min((break2[0], k)), max((break2[0], k))]
+
+            rec_name, parents = identify_recombinant(triplet, aln_pos)
+
+            self.raw_results.append((rec_name, parents, *aln_pos, final_p_value))
+
+            return

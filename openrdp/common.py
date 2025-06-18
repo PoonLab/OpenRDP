@@ -106,11 +106,10 @@ def read_fasta(handle):
     return headers, seqs
 
 
-def calculate_chi2(c_table, max_pvalue):
+def calculate_chi2(c_table):
     """
     Computes the chi-squared value and returns the chi-squared and p-value if the difference is significant
     :param c_table: a 2x2 contingency table
-    :param max_pvalue: the p-value threshold
     :return: a tuple containing the chi-squared value and p-value
     """
     # Compute chi-squared value if the expected frequencies are valid
@@ -119,8 +118,7 @@ def calculate_chi2(c_table, max_pvalue):
         chi2, p_value, _, _ = chi2_contingency(c_table)
 
         # Record only significant events
-        if p_value < max_pvalue:
-            return chi2, p_value
+        return chi2, p_value
 
     return None, None
 

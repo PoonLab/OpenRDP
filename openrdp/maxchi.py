@@ -85,7 +85,7 @@ class MaxChi:
         Get the left and right half of the window
         :param seq1: the first sequence
         :param seq2: the second sequence
-        :param k: the offset for the window
+        :param k: midpoint of the l r windows
         :param l,r: the left and right index of the sequence
         :return: the left and right regions on either side of the partition
         """
@@ -257,7 +257,7 @@ class MaxChi:
                 else:
                     fail_count += 1
 
-                # Apply the move explicitly
+                # Apply the move 
                 if best_move == 'expand':
                     left -= 1
                     right += 1
@@ -270,32 +270,33 @@ class MaxChi:
         # 3, determine if left or right side of the new window is the best
         left_peak = chi2_values[best[0]][left]
         right_peak = chi2_values[best[0]][right]
+        midpoint = left - (left - right)//2
         if left_peak > right_peak:
             primary_breakpoint = left
         else:
-            primary_breakpoint = right
-        
-        break1 = primary_breakpoint
-
-        window_size = right - left
+            primary_breakpoint = midpoint
 
         # Try placing second breakpoint at the mirrored opposite side
         # Option A: if primary is left, then second is right, and vice versa
         if primary_breakpoint == left:
-            second_break = right
+            second_break = midpoint
         else:
-            second_break = left
+            second_break = right
 
-        # Recalculate chi² for this second breakpoint
-        reg1_l, reg2_l, reg1_r, reg2_r = self.get_window_positions(seq1, seq2, second_break, second_break - window_size // 2, second_break + window_size // 2)
+        # this way, primary will always be leftmost index
+        midpoint = second_break - (second_break - primary_breakpoint)//2
+
+        # Recalculate chi2 for this second breakpoint
+        reg1_l, reg2_l, reg1_r, reg2_r = self.get_window_positions(seq1, seq2, midpoint, primary_breakpoint, second_break)
         c_table = self.compute_contingency_table(reg1_r, reg2_r, reg1_l, reg2_l)
         chi2_b2, _ = calculate_chi2(c_table)
+        
+        if chi2_b2:
+            best_score = max(best_score, chi2_b2)
+        final_p = chisq.sf(best_score, df=1)
 
-        final_chi2 = max(best_score, chi2_b2)
-        final_p = chisq.sf(final_chi2, df=1)
 
-
-        aln_pos = [min((primary_breakpoint, second_break)), max((primary_breakpoint, second_break))]
+        aln_pos = [primary_breakpoint,second_break]
 
         rec_name, parents = identify_recombinant(triplet, aln_pos)
 

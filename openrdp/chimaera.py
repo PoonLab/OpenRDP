@@ -286,7 +286,7 @@ class Chimaera:
                     final_chi2 = best_score
                 final_p = chisq.sf(final_chi2, df=1)
 
-                aln_pos = [min((primary_breakpoint, second_break)), max((primary_breakpoint, second_break))]
+                aln_pos = [primary_breakpoint, second_break]
                 rec_name, parents = identify_recombinant(triplet, aln_pos)
                 self.raw_results.append((rec_name, parents, *aln_pos, final_p))
 

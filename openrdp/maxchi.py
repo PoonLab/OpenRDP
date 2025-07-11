@@ -168,7 +168,9 @@ class MaxChi:
                 r += 1
 
         # Smooth chi2-values
-        
+        for i, j in enumerate(chi2_values):
+            chi2_values[i] = gaussian_filter1d(j, 1.5)
+
         # p_values = gaussian_filter1d(p_values, 1.5)
         # self.plot_chi2_values(chi2_values, p_values)
 
@@ -185,10 +187,10 @@ class MaxChi:
         ##### problem outlined:
         # assuming you have an array of integers, n, with a start index, k, and a left and right value index of the window. You have to expand and contract this window to get the max value. 
         # However, you are limited by your actions. You can either increase one end of the window by 1 position or contract the window by 1 position. If the new window has a lower max value than the previous best, you add a counter to fail. if you reach 100 fails you automatically return the best max window.
-        # NOTE BY WILL: i coulnd't find how RDP solved this problem, so i'm going to use a greedy algorithm to expand the window similar to LeetCode 1004
-        # NOTE 2: a dp solution is probably the optimal choice. gets out of [100, ... n * fails limit -1, 10001]
+        # NOTE BY @williamzekaiwang: i coulnd't find how RDP solved this problem, so i'm going to use a greedy algorithm to expand the window
+        # NOTE 2: a dp solution is a more optimal choice. gets out of [100, ... n * fails limit -1, 10001]
         k = best[2] # the midpoint to start expanding the window from
-        if chisq.sf(best[1],1) < 0.05/len(chi2_values[0]) * 3: #BF correction
+        if chisq.sf(best[1],1) < 0.05/l: #BF correction (l variable form above increases per chi2 calculation)
 
             # using degree of freedom of 1 because of 2x2 chi2 test
             initial_window = self.win_size
@@ -267,39 +269,39 @@ class MaxChi:
                     right -= 1
 
 
-        # 3, determine if left or right side of the new window is the best
-        left_peak = chi2_values[best[0]][left]
-        right_peak = chi2_values[best[0]][right]
-        midpoint = left - (left - right)//2
-        if left_peak > right_peak:
-            primary_breakpoint = left
-        else:
-            primary_breakpoint = midpoint
+            # 3, determine if left or right side of the new window is the best
+            left_peak = chi2_values[best[0]][left]
+            right_peak = chi2_values[best[0]][right]
+            midpoint = left - (left - right)//2
+            if left_peak > right_peak:
+                primary_breakpoint = left
+            else:
+                primary_breakpoint = midpoint
 
-        # Try placing second breakpoint at the mirrored opposite side
-        # Option A: if primary is left, then second is right, and vice versa
-        if primary_breakpoint == left:
-            second_break = midpoint
-        else:
-            second_break = right
+            # Try placing second breakpoint at the mirrored opposite side
+            # Option A: if primary is left, then second is right, and vice versa
+            if primary_breakpoint == left:
+                second_break = midpoint
+            else:
+                second_break = right
 
-        # this way, primary will always be leftmost index
-        midpoint = second_break - (second_break - primary_breakpoint)//2
+            # this way, primary will always be leftmost index
+            midpoint = second_break - (second_break - primary_breakpoint)//2
 
-        # Recalculate chi2 for this second breakpoint
-        reg1_l, reg2_l, reg1_r, reg2_r = self.get_window_positions(seq1, seq2, midpoint, primary_breakpoint, second_break)
-        c_table = self.compute_contingency_table(reg1_r, reg2_r, reg1_l, reg2_l)
-        chi2_b2, _ = calculate_chi2(c_table)
-        
-        if chi2_b2:
-            best_score = max(best_score, chi2_b2)
-        final_p = chisq.sf(best_score, df=1)
+            # Recalculate chi2 for this second breakpoint
+            reg1_l, reg2_l, reg1_r, reg2_r = self.get_window_positions(seq1, seq2, midpoint, primary_breakpoint, second_break)
+            c_table = self.compute_contingency_table(reg1_r, reg2_r, reg1_l, reg2_l)
+            chi2_b2, _ = calculate_chi2(c_table)
+            
+            if chi2_b2:
+                best_score = max(best_score, chi2_b2)
+            final_p = chisq.sf(best_score, df=1)
 
 
-        aln_pos = [primary_breakpoint,second_break]
+            aln_pos = [primary_breakpoint,second_break]
 
-        rec_name, parents = identify_recombinant(triplet, aln_pos)
+            rec_name, parents = identify_recombinant(triplet, aln_pos)
 
-        self.raw_results.append((rec_name, parents, *aln_pos, final_p))
+            self.raw_results.append((rec_name, parents, *aln_pos, final_p))
 
         return

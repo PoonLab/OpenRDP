@@ -179,7 +179,7 @@ class Siscan:
         """
         # use f1 and f2 to keep the intervals where it is found to be significant
         m1_intervals, m2_intervals = [], []
-        z_cut = norm.ppf(1-(0.05/(len(close)//self.win_size))) 
+        z_cut = norm.ppf(1-(0.05/(self.align.shape[1]//self.step_size))) 
         # check per pattern/sum
         for ps in range(4):
 
@@ -310,6 +310,7 @@ class Siscan:
     def execute(self, triplet, tree):
         """
         Do Sister-scanning as described in Gibbs, Armstrong, and Gibbs (2000), using a randomized 4th sequence
+        updated with notes from Darren on how RDP4/5 works
         :param triplet: a triplet object
         :param tree: node object from upgma
         """
@@ -379,8 +380,6 @@ class Siscan:
                 if pop_std_patsum[num] == 0:
                     continue
                 z_sum_counts[num] = (value - pop_mean_patsum[num]) / pop_std_patsum[num]
-    
-            
 
             # update to total by middle of window
             z_pattern_values[(window + win_end)//2] = z_pat_counts
@@ -422,10 +421,8 @@ class Siscan:
         for signals in [min1, min2]:
             for ind, (start, end, signal, lr) in enumerate(signals):
                 a,b,c = triplet.sequences
-                seqs = [a,b,c]
 
                 # TODO make sequence d an outgroup rather than randomized sequences of the three
-
 
                 # this is a much cleaner way
                 sequence_orders = [
@@ -445,24 +442,3 @@ class Siscan:
 
                 zscore = self.shuffle(x, y, z, out, lr)
                 self.raw_results.append((recombinant, (parent1, parent2), start, end, norm.sf(zscore)))
-            
-        # this is from max_chi, likely wrong
-        # i'm just gonna keep it here for reference
-
-        # peaks = find_peaks(sum_pat_zscore, distance=self.win_size)
-        # for k, peak in enumerate(peaks[0]):
-        #     search_win_size = 1
-        #     while peak - search_win_size > 0 \
-        #             and peak + search_win_size < len(sum_pat_zscore) - 1 \
-        #             and sum_pat_zscore[peak + search_win_size] > 0.3 * sum_pat_zscore[peak] \
-        #             and sum_pat_zscore[peak - search_win_size] > 0.3 * sum_pat_zscore[peak]:
-        #         search_win_size += 1
-
-        #     if sum_pat_zscore[peak + search_win_size] > sum_pat_zscore[peak - search_win_size]:
-        #         aln_pos = (int(peak), int(peak + search_win_size + self.win_size))
-        #     else:
-        #         aln_pos = (int(peak - search_win_size), int(peak + self.win_size))
-
-        #     rec_name, parents = identify_recombinant(triplet, aln_pos)
-        #     if (rec_name, parents, *aln_pos, abs(sum_pat_zscore[peak])) not in self.raw_results:
-        #         self.raw_results.append((rec_name, parents, *aln_pos, abs(sum_pat_zscore[peak])))

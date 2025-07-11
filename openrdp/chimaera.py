@@ -138,6 +138,49 @@ class Chimaera:
                 comp_seq.append(1)
         return comp_seq
 
+    def refine_nt(self, seq, start, end):
+        """
+        adjust the range of nucleotide positions to match the significant patterns for start
+        
+        seq, compressed bit string
+        start int, left index breakpoint
+        end int, right index breakpoint
+        """
+        adj = 0
+        l, r = False, False
+        final = [None,None] # final left and right index
+        while start - adj >= 0 or  start + adj < len(seq):
+            # prioritize the contraction over expansion
+            if start + adj < len(seq):
+                if seq[start + adj] == 1:
+                    final[0] = start + adj
+                    break
+            if start - adj < len(seq):
+                if seq[start - adj] == 1:
+                    final[0] = start - adj
+                    break
+            adj += 1
+        
+        if not final[0]: # couldn't fine a refined spot
+            final[0] = start
+
+        adj = 0
+        while end - adj > start or end + adj < len(seq):
+            # prioritize the contraction over expansion
+            if start + adj < len(seq):
+                if seq[end - adj] == 1:
+                    final[1] = end - adj
+                    break
+            if start - adj < len(seq):
+                if seq[end + adj] == 1:
+                    final[1] = end + adj
+                    break
+            adj += 1
+
+        if not final[1]:
+            final[1] = end 
+        return final
+
     def execute(self, triplet):
         """
         Executes the Chimaera algorithm
@@ -194,7 +237,7 @@ class Chimaera:
 
             # start same algorithm in maxchi
             k = best[1]
-            if chisq.sf(best[0],1) < 0.05/len(chi2_values): #bf correction
+            if chisq.sf(best[0],1) < 0.05/len(comp_seq) - win_size: #bf correction
                 
                 initial_window = self.win_size
 
@@ -285,28 +328,10 @@ class Chimaera:
                 else:
                     final_chi2 = best_score
                 final_p = chisq.sf(final_chi2, df=1)
-
-                aln_pos = [primary_breakpoint, second_break]
+                
+                aln_pos = self.refine_nt(comp_seq, primary_breakpoint, second_break)
                 rec_name, parents = identify_recombinant(triplet, aln_pos)
                 self.raw_results.append((rec_name, parents, *aln_pos, final_p))
 
-
-            # for k, peak in enumerate(peaks[0]):
-                # search_win_size = 1
-                # while peak - search_win_size > 0 \
-                #         and peak + search_win_size < len(chi2_values) - 1 \
-                #         and chi2_values[peak + search_win_size] > 0.3 * chi2_values[peak] \
-                #         and chi2_values[peak - search_win_size] > 0.3 * chi2_values[peak]:
-                #     search_win_size += 1
-
-                # if chi2_values[peak + search_win_size] > chi2_values[peak - search_win_size]:
-                #     aln_pos = (int(peak), int(peak + search_win_size + self.win_size))
-                # else:
-                #     aln_pos = (int(peak - search_win_size), int(peak + self.win_size))
-
-                # # Check that breakpoint has not already been detected
-                # rec_name, parents = identify_recombinant(triplet, aln_pos)
-                # if (rec_name, parents, *aln_pos) not in self.raw_results and p_values[peak] != 1.0 and p_values[peak] != 0.0:
-                #     self.raw_results.append((rec_name, parents, *aln_pos, p_values[peak]))
 
         return

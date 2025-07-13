@@ -255,7 +255,6 @@ class Siscan:
         seqs = list(map(np.array, seqs))
         ps, ind = ps_ind
 
-
         p = self.count_patterns(seqs)
         if ps:
             true_val = p[ind]
@@ -423,7 +422,6 @@ class Siscan:
                 a,b,c = triplet.sequences
 
                 # TODO make sequence d an outgroup rather than randomized sequences of the three
-
                 # this is a much cleaner way
                 sequence_orders = [
                     (b, c, a),
@@ -440,5 +438,9 @@ class Siscan:
                 if end == start:
                     continue 
 
-                zscore = self.shuffle(x, y, z, out, lr)
-                self.raw_results.append((recombinant, (parent1, parent2), start, end, norm.sf(zscore)))
+                p_val = norm.sf(self.shuffle(x, y, z, out, lr))
+                
+                if p_val < 0.05/(len(range(0, self.align.shape[1], self.step_size))):
+                    self.raw_results.append((recombinant, (parent1, parent2), start, end, p_val))
+
+        return

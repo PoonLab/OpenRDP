@@ -315,7 +315,7 @@ class Chimaera:
                 else:
                     second_break = right
 
-                # new midpoint for recalculation for chi2
+                # new midpoint for recalculation for chi2 for final p-value
                 midpoint = second_break - (second_break - primary_breakpoint)//2
 
                 reg_left, reg_right = comp_seq[primary_breakpoint:midpoint], comp_seq[midpoint:second_break]
@@ -330,8 +330,9 @@ class Chimaera:
                 final_p = chisq.sf(final_chi2, df=1)
                 
                 aln_pos = self.refine_nt(comp_seq, primary_breakpoint, second_break)
-                rec_name, parents = identify_recombinant(triplet, aln_pos)
-                self.raw_results.append((rec_name, parents, *aln_pos, final_p))
 
+                # parents are determined by the way we create the bitstring
+                rec_name, parent = triplet.seq_names[run[0]], [triplet.seq_names[run[1]], triplet.seq_names[run[2]]]
+                self.raw_results.append((rec_name, parent, *aln_pos, final_p))
 
         return

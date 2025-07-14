@@ -191,7 +191,6 @@ class MaxChi:
         # NOTE 2: a dp solution is a more optimal choice. gets out of [100, ... n * fails limit -1, 10001]
         k = best[2] # the midpoint to start expanding the window from
         if chisq.sf(best[1],1) < 0.05/l: #BF correction (l variable form above increases per chi2 calculation)
-
             # using degree of freedom of 1 because of 2x2 chi2 test
             initial_window = self.win_size
                         
@@ -217,8 +216,6 @@ class MaxChi:
                     c_table = self.compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left)
                     chi2, p_value = calculate_chi2(c_table)
 
-                    # print(c_table)
-
                     if chi2:
                         candidates.append(('expand', chi2))
 
@@ -228,8 +225,6 @@ class MaxChi:
                     reg1_left, reg2_left, reg1_right, reg2_right = self.get_window_positions(seq1, seq2, k, cl, right)
                     c_table = self.compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left)
                     chi2, p_value = calculate_chi2(c_table)
-
-                    # print(c_table)
 
                     if chi2:
                         candidates.append(('contract_left', chi2))
@@ -241,8 +236,6 @@ class MaxChi:
                     reg1_left, reg2_left, reg1_right, reg2_right = self.get_window_positions(seq1, seq2, k, left, cr)
                     c_table = self.compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left)
                     chi2, p_value = calculate_chi2(c_table)
-
-                    # print(c_table)
 
                     if chi2:
                         candidates.append(('contract_right', chi2))
@@ -268,7 +261,6 @@ class MaxChi:
                 elif best_move == 'contract_right':
                     right -= 1
 
-
             # 3, determine if left or right side of the new window is the best
             left_peak = chi2_values[best[0]][left]
             right_peak = chi2_values[best[0]][right]
@@ -292,11 +284,9 @@ class MaxChi:
             reg1_l, reg2_l, reg1_r, reg2_r = self.get_window_positions(seq1, seq2, midpoint, primary_breakpoint, second_break)
             c_table = self.compute_contingency_table(reg1_r, reg2_r, reg1_l, reg2_l)
             chi2_b2, _ = calculate_chi2(c_table)
-            
             if chi2_b2:
                 best_score = max(best_score, chi2_b2)
             final_p = chisq.sf(best_score, df=1)
-
 
             aln_pos = [primary_breakpoint,second_break]
 

@@ -7,7 +7,7 @@ from .common import calculate_chi2, identify_recombinant
 
 
 class Chimaera:
-    def __init__(self, align, max_pvalue=0.05, win_size=200, strip_gaps=True, fixed_win_size=True,
+    def __init__(self, align, max_pvalue=0.05, win_size=60, strip_gaps=True, fixed_win_size=True,
                  num_var_sites=None, frac_var_sites=None, settings=None, ref_align=None, verbose=False):
         """
         Constructs a Chimaera Object

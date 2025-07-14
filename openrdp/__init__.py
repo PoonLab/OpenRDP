@@ -330,7 +330,6 @@ class Scanner:
                         tmethod.execute(triplet)
 
             if 'bootscan' in self.methods:
-                # should probably make setters and getters
                 tmethods['bootscan'].raw_results = [l for j in temp for l in j]
 
                 if os.path.exists(tmethods['bootscan'].dt_matrix_file):
@@ -342,7 +341,7 @@ class Scanner:
                 if alias == 'bootscan':
                     results.dict[alias] = tmethod.merge_breakpoints()
                 else:
-                    results.dict[alias] = merge_breakpoints(tmethod.raw_results, tmethod.max_pvalues)
+                    results.dict[alias] = merge_breakpoints(tmethod.raw_results)
             return results
 
 
@@ -404,7 +403,7 @@ class Scanner:
                 if alias == 'bootscan':
                     rank_result[alias] = tmethod.merge_breakpoints()
                 else:
-                    rank_result[alias] = merge_breakpoints(tmethod.raw_results, tmethod.max_pvalues)
+                    rank_result[alias] = merge_breakpoints(tmethod.raw_results)
             comm.Barrier()
             total_ranks = comm.gather(rank_result, root=0)
 

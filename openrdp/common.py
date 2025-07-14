@@ -22,7 +22,7 @@ class node:
         self.terminal = terminal # is terminal branch 
 
         
-def merge_breakpoints(raw_results, max_pvalue=100):
+def merge_breakpoints(raw_results):
     """
     took from siscan
     added max_pvalue clause
@@ -65,8 +65,7 @@ def merge_breakpoints(raw_results, max_pvalue=100):
             start = region[0]
             end = region[1]
             p_value = region[2]
-            if float(p_value) < max_pvalue:
-                    results.append((rec_name, parents, start, end, p_value))
+            results.append((rec_name, parents, start, end, p_value))
 
     return results
 

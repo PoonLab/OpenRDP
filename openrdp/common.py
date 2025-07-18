@@ -186,7 +186,7 @@ def setup_upgma(seqs, names):
 
     # get list of of ndoes, all are terminal with names of seuqences
     tree = [node(name=name) for name in names]
-    matrix = [[0 for j in names] for i in names] # emtpy distance matrix with size of len(seq)
+    matrix = [[0.000 for j in names] for i in names] # emtpy distance matrix with size of len(seq)
 
     for y, seq in enumerate(seqs):
         seq = np.array(seq)
@@ -201,6 +201,10 @@ def setup_upgma(seqs, names):
     matrix += matrix.T
     return tree, matrix
 
+def print_tree(n, indent=0):
+    print('  ' * indent + f"{n.name} (dist={n.dist:.2f}, p_dist={n.p_dist:.2f})")
+    if n.left: print_tree(n.left, indent + 1)
+    if n.right: print_tree(n.right, indent + 1)
 
 def recalculate_dist(matrix, pos1, pos2):
     """
@@ -208,72 +212,71 @@ def recalculate_dist(matrix, pos1, pos2):
 
     Parameters:
     matrix (np.ndarray): Pairwise distance matrix.
-    pos1 (int): Index of the first cluster (to keep).
-    pos2 (int): Index of the second cluster (to merge and remove).
+    pos1 (int): Index of the first cluster
+    pos2 (int): Index of the second cluster 
 
     Returns:
     np.ndarray: Updated distance matrix.
     """
+    if pos1 > pos2:
+        pos1, pos2 = pos2, pos1
     # Create a copy of the distance matrix
     new_dist_mat = matrix.copy()
 
     # Update distances for the merged cluster
     for i in range(len(matrix)):
-        if i != pos1 and i != pos2:  # Skip the merged clusters
+        if i != pos1 and i != pos2:
             dist1 = matrix[pos1, i]
             dist2 = matrix[pos2, i]
-            new_dist_mat[pos1, i] = (dist1 + dist2) / 2
-            new_dist_mat[i, pos1] = (dist1 + dist2) / 2
-
+            avg = (dist1 + dist2) / 2
+            new_dist_mat[pos1, i] = avg
+            new_dist_mat[i, pos1] = avg
     # Remove the row and column corresponding to pos2
     new_dist_mat = np.delete(new_dist_mat, pos2, axis=0)
     new_dist_mat = np.delete(new_dist_mat, pos2, axis=1)
-
     return new_dist_mat
 
 def upgma(headers, matrix):
     """
-    headers, list, ids/nodes
-    matrix, numpy 2d array
-
-    returns: root node, 
+    headers: list of node objects
+    matrix: numpy 2D array of distances
+    Returns: root node of the tree
     """
-    # get closest
-    (x, y), smallest = find_min(matrix)
-    id1, id2 = headers[x], headers[y]
-    b_len = smallest / 2 
-
-    # turn closest into new node
-    new = node(name = id1.name + ';' + id2.name, left = id1, right = id2, dist = smallest/2, terminal=False)
-    id1.p_dist = b_len - id1.dist
-    id2.p_dist = b_len - id2.dist
-    
-    # update nodes
-    headers[x] = new
-    headers.pop(y)
-    
-    # create new distance matrix
-    new_dist_matrix = recalculate_dist(matrix, x, y)
-    
-    if len(headers) == 1: # last node
+    if len(headers) == 1:
         return headers[0], matrix
 
-    return upgma(headers, new_dist_matrix)
-        
+    # Get closest pair
+    (x, y), smallest = find_min(matrix)
+    x, y = min(x, y), max(x, y)
+    b_len = smallest / 2
+
+    id1, id2 = headers[x], headers[y]
+
+    # Create new node
+    new = node(name=f"{id1.name};{id2.name}", left=id1, right=id2, dist=b_len, terminal=False)
+    id1.p_dist = b_len - id1.dist
+    id2.p_dist = b_len - id2.dist
+
+    # Update headers
+    headers[x] = new
+    headers.pop(y)
+
+    # Update distance matrix
+    new_matrix = recalculate_dist(matrix, x, y)
+
+    return upgma(headers, new_matrix)        
     
 def find_min(matrix):
-    """
-    matrix, adj matrix
-    return inds, (column, row indexes) of closest
-    """
     smallest = np.inf
     ind = None
-    for row_ind, row in enumerate(matrix):
-        for column_ind, value in enumerate(row):
-            if value != 0 and value < smallest:
-                ind = (column_ind, row_ind)
+    for i in range(len(matrix)):
+        for j in range(i + 1, len(matrix)):
+            value = matrix[i][j]
+            if value < smallest:
                 smallest = value
+                ind = (i, j)
     return ind, smallest
+
 
 def find_dist(curr, n1, n2):
     

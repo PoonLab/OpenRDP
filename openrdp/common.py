@@ -1,5 +1,4 @@
 from itertools import combinations, product
-
 import numpy as np
 from scipy.stats import chi2_contingency
 from scipy.stats import pearsonr
@@ -65,6 +64,7 @@ def merge_breakpoints(raw_results):
             results.append((rec_name, parents, start, end, p_value))
 
     return results
+
 
 def read_fasta(handle):
     """
@@ -317,7 +317,10 @@ def identify_recombinant(trp, aln_pos):
     """
     Find the most likely recombinant sequence using the PhPr method described in the RDP5 documentation
     and Weiler GF (1998) Phylogenetic profiles: A graphical method for detecting genetic recombinations
-    in homologous sequences. Mol Biol Evol 15: 326–335
+    in homologous sequences. Mol Biol Evol 15: 326-335
+    
+    :param trp:  object of class Triplet
+    :param aln_pos:  tuple, 
     :return: name of the recombinant sequence and the names of the parental sequences
     """
     upstream_dists = []
@@ -405,6 +408,9 @@ class TripletGenerator:
 
 class Triplet:
     def __init__(self, seqs, names, idxs=None):
+        """
+        :param seqs:  numpy.array
+        """
         self.sequences = seqs
         self.names = names
         self.idxs = idxs
@@ -427,21 +433,23 @@ class Triplet:
 
     def remove_uninformative_sites(self):
         """
-        Remove sites that are all the same or all different
+        Remove sites that are all the same or all different, leaving 
+        phylogenetically-informative sites.
+        :return:  numpy.Array, alignment containing only informative sites
+                  list, integer indices of informative sites in original alignment
+                  list, integer indices of non-informative sites in original alignment
         """
         infor_sites = []
         uninfor_sites = []
-        # Find positions of sites that are all the same sites or all sites that are different
         for i in range(self.sequences.shape[1]):
             col = self.sequences[:, i]
             if np.unique(col).shape[0] == 2:
-                infor_sites.append(i)
+                infor_sites.append(i)  # store index
             else:
                 uninfor_sites.append(i)
 
         # Build "new alignment"
         new_aln = self.sequences[:, infor_sites]
-
         return new_aln, infor_sites, uninfor_sites
 
     def remove_monomorphic_sites(self):

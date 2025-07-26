@@ -1,0 +1,18 @@
+,,,Breakpoint Positions
+,,In Alignment, ,In Recombinant Sequence, ,Relative to Test1 	,, , , , , , Detection Methods
+Recombination Event Number, Number In .RDP File, Begin, End,Begin, End,Begin, End, Recombinant Sequence(s), Minor Parental Sequence(s), Major Parental Sequence(s), RDP, GENECONV, Bootscan, Maxchi, Chimaera, SiSscan,PhylPro, LARD, 3Seq
+ 1 ,1~, 204, 751, 204, 751, 204, 751,^Test2,Test1 	,Test3, 1.23315898965532E-03, 4.18822656450412E-03, 2.6948327468661E-04, 2.12941229231105E-06,NS, 3.06490897848341E-19,NS,NS, 3.31816041310162E-09,
+
+ 2 ,2~, 160, 188, 160, 188, 160, 188,^Test4,Unknown (Test1 	),Test3,NS, 2.38078773729715E-03,NS,NS,NS,NS,NS,NS, 3.88273220440809E-02,
+
+Table Key:
+~            = It is possible that this apparent recombination signal could have been caused by an evolutionary
+               process other than recombination.
+*            = The actual breakpoint position is undetermined (it was most likely overprinted by a subsequent 
+               recombination event).
+^            = The recombinant sequence may have been misidentified (one of the identified parents might be the recombinant)
+Minor Parent = Parent contributing the smaller fraction of sequence.
+Major Parent = Parent contributing the larger fraction of sequence.
+Unknown      = Only one parent and a recombinant need be in the alignment for a recombination event to be detectable.
+               The sequence listed as unknown was used to infer the existance of a missing parental sequence.
+NS           = No significant P-value was recorded for this recombination event using this method.

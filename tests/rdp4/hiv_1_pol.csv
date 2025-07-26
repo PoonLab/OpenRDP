@@ -1,0 +1,18 @@
+,,,Breakpoint Positions
+,,In Alignment, ,In Recombinant Sequence, ,Relative to MT027077.1 HIV-1 strain 194604 from Uganda gag pro,, , , , , , Detection Methods
+Recombination Event Number, Number In .RDP File, Begin, End,Begin, End,Begin, End, Recombinant Sequence(s), Minor Parental Sequence(s), Major Parental Sequence(s), RDP, GENECONV, Bootscan, Maxchi, Chimaera, SiSscan,PhylPro, LARD, 3Seq
+ 1 ,1~, 4121, 352, 4121, 352, 4121, 352,^MT027082.1 HIV-1 strain 275027 from Uganda gag pro,MT027078.1 HIV-1 strain 210070 from Uganda gag pro,MT027080.1 HIV-1 strain 270535 from Uganda gag pro, 5.00229404049036E-23,NS, 1.23768047649357E-21, 5.4347579560971E-10, 1.139222590847E-10, 6.47042780569587E-17,NS,NS, 1.33226762955019E-15,
+
+ 2 ,2~, 3964, 4234, 3964, 4234, 3964, 4234,^MT027080.1 HIV-1 strain 270535 from Uganda gag pro,MT027078.1 HIV-1 strain 210070 from Uganda gag pro,MT027077.1 HIV-1 strain 194604 from Uganda gag pro, 7.4089303983742E-05,NS, 3.13438470226202E-06,NS,NS,NS,NS,NS, 2.02906416948944E-02,
+
+Table Key:
+~            = It is possible that this apparent recombination signal could have been caused by an evolutionary
+               process other than recombination.
+*            = The actual breakpoint position is undetermined (it was most likely overprinted by a subsequent 
+               recombination event).
+^            = The recombinant sequence may have been misidentified (one of the identified parents might be the recombinant)
+Minor Parent = Parent contributing the smaller fraction of sequence.
+Major Parent = Parent contributing the larger fraction of sequence.
+Unknown      = Only one parent and a recombinant need be in the alignment for a recombination event to be detectable.
+               The sequence listed as unknown was used to infer the existance of a missing parental sequence.
+NS           = No significant P-value was recorded for this recombination event using this method.

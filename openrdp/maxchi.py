@@ -111,7 +111,6 @@ class MaxChi:
         c_table = [[0, 0, 0],
                    [0, 0, 0],
                    [0, 0, 0]]
-
         reg1_left = np.array(reg1_left)
         reg2_left = np.array(reg2_left)
         reg1_right = np.array(reg1_right)

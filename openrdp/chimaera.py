@@ -7,7 +7,7 @@ from .common import calculate_chi2, identify_recombinant
 
 
 class Chimaera:
-    def __init__(self, align, max_pvalue=0.05, win_size=60, strip_gaps=True, fixed_win_size=True,
+    def __init__(self, align, win_size=60, strip_gaps=True, fixed_win_size=True,
                  num_var_sites=None, frac_var_sites=None, settings=None, ref_align=None, verbose=False):
         """
         Constructs a Chimaera Object
@@ -21,7 +21,6 @@ class Chimaera:
             self.set_options_from_config(settings)
             self.validate_options(align)
         else: # pragma: no cover
-            self.max_pvalues = max_pvalue
             self.win_size = win_size
             self.strip_gaps = strip_gaps
             self.fixed_win_size = fixed_win_size
@@ -39,7 +38,6 @@ class Chimaera:
         :param settings: a dictionary of settings
         """
         self.win_size = abs(int(settings['win_size']))
-        self.max_pvalues = abs(float(settings['max_pvalue']))
 
         if settings['strip_gaps'] == 'False':
             self.strip_gaps = False
@@ -138,7 +136,8 @@ class Chimaera:
                 comp_seq.append(1)
         return comp_seq
 
-    def refine_nt(self, seq, start, end):
+    @staticmethod
+    def refine_nt(seq, start, end):
         """
         adjust the range of nucleotide positions to match the significant patterns for start
         
@@ -147,15 +146,14 @@ class Chimaera:
         end int, right index breakpoint
         """
         adj = 0
-        l, r = False, False
         final = [None,None] # final left and right index
-        while start - adj >= 0 or  start + adj < len(seq):
+        while start - adj >= 0 or  start + adj < end:
             # prioritize the contraction over expansion
-            if start + adj < len(seq):
+            if start + adj < end:
                 if seq[start + adj] == 1:
                     final[0] = start + adj
                     break
-            if start - adj < len(seq):
+            if start - adj > 0:
                 if seq[start - adj] == 1:
                     final[0] = start - adj
                     break
@@ -167,11 +165,11 @@ class Chimaera:
         adj = 0
         while end - adj > start or end + adj < len(seq):
             # prioritize the contraction over expansion
-            if start + adj < len(seq):
+            if end - adj > start:
                 if seq[end - adj] == 1:
                     final[1] = end - adj
                     break
-            if start - adj < len(seq):
+            if end + adj <= len(seq):
                 if seq[end + adj] == 1:
                     final[1] = end + adj
                     break

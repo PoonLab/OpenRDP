@@ -9,9 +9,6 @@ import sys
 class node:
     """
     node class for UPGMA tree
-
-    dist is distance from parent 
-    total_dist is distance from current node to the end of the tree
     """
     def __init__(self, name=None, left=None, right=None, dist=0, p_dist=0, terminal=True):
         self.left = left
@@ -305,6 +302,7 @@ def find_dist(curr, n1, n2):
     # if this node contains no children/itself isn't the node we care about
     return 0, False
 
+    
 
 def all_items_equal(x):
     """

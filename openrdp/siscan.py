@@ -155,19 +155,21 @@ class Siscan:
         ind of list to start looking
         ps int, ind of which p/s on the array of maj is the one we care about
         """
-        z_cut = norm.ppf(1-(0.05/(len(close)//self.win_size)))  # zscore corrected to number of windows
+        z_cut = norm.ppf(1 - (0.05 / (len(close) // self.win_size)))
         end = ind
-        while True: 
+        while True:
+            if end >= len(maj):
+                break
             if maj[end][ps] and close[end][ps]:
                 if maj[end][ps] > close[end][ps] and maj[end][ps] > z_cut:
                     end += 1
                 else:
                     break
-            else: # it's none so move forward a NT
-                end += 1
-            if end == len(maj)-1:
+            else:
                 break
-        return ind, end
+
+        return ind, end - 1
+
 
     def find_signal(self, close, maj1, maj2, signal):
         """
@@ -179,7 +181,7 @@ class Siscan:
         """
         # use f1 and f2 to keep the intervals where it is found to be significant
         m1_intervals, m2_intervals = [], []
-        z_cut = norm.ppf(1-(0.05/(self.align.shape[1]//self.step_size))) 
+        z_cut = norm.ppf(1-(0.05/(len(self.align[0])//self.step_size))) 
         # check per pattern/sum
         for ps in range(4):
 
@@ -211,6 +213,7 @@ class Siscan:
 
         return m1_intervals, m2_intervals        
 
+    
     def adjust_nt_f(self, eq1, eq2, diff, start, end):
         """
         adjust the range of nucleotide positions to match the significant patterns for start
@@ -250,7 +253,6 @@ class Siscan:
         """
 
         #TODO find a way to not calculate all numbers and just find the one you care about
-        # ps_ind doesn't work the way you want it to right now
         seqs = [parent1, parent2, recombinant, out]
         seqs = list(map(np.array, seqs))
         ps, ind = ps_ind
@@ -267,7 +269,8 @@ class Siscan:
             # Generate 4 vertically randomized sequences (shuffle the values in the columns)
             a1 = np.apply_along_axis(np.random.permutation, 0, seqs)
 
-            curr_p = self.count_patterns(a1)    
+            curr_p = self.count_patterns(a1)
+            
             # Count number of patterns and sum counts
             if ps: # it's a pattern we care about
                 null_dist.append(curr_p[ind])
@@ -275,7 +278,6 @@ class Siscan:
             else: # it's a sum we care about
                 curr_s = self.sum_pattern_counts(curr_p)
                 null_dist.append(curr_s[ind])
-
 
         mean = np.mean(null_dist)
         sd = np.std(null_dist, axis=0)

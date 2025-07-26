@@ -15,7 +15,7 @@ from openrdp.maxchi import MaxChi
 from openrdp.rdp import RdpMethod
 from openrdp.siscan import Siscan
 from openrdp.threeseq import ThreeSeq
-from openrdp.common import merge_breakpoints
+from openrdp.common import *
 
 
 # list of all recombination detection methods
@@ -274,6 +274,19 @@ class Scanner:
         # stops them from running over and over in every process
         # Run methods with external binaries
         if my_rank == 0: 
+
+            # do upgma clustering to find major and minor parents
+            tree, upgma_mat = setup_upgma(self.alignment, self.seq_names)
+            tree, upgma_mat = upgma(tree, upgma_mat)
+
+            # debugging            
+            # def dfs(node):
+            #     print(node.name, node.dist, node.p_dist)
+            #     if not node.terminal:
+            #         dfs(node.left)
+            #         dfs(node.right)
+            # dfs(tree[0])
+
             if 'threeseq' in self.methods:
                 three_seq = ThreeSeq(infile)
                 self.print("Starting 3Seq Analysis")
@@ -311,11 +324,12 @@ class Scanner:
                 for alias, tmethod in tmethods.items():
                     if alias == 'bootscan':
                         temp.append(tmethod.execute((trp_count, triplet)))
+                    elif alias == 'siscan':
+                        tmethod.execute(triplet, tree = tree)
                     else:
                         tmethod.execute(triplet)
 
             if 'bootscan' in self.methods:
-                # should probably make setters and getters
                 tmethods['bootscan'].raw_results = [l for j in temp for l in j]
 
                 if os.path.exists(tmethods['bootscan'].dt_matrix_file):
@@ -327,7 +341,7 @@ class Scanner:
                 if alias == 'bootscan':
                     results.dict[alias] = tmethod.merge_breakpoints()
                 else:
-                    results.dict[alias] = merge_breakpoints(tmethod.raw_results, tmethod.max_pvalues)
+                    results.dict[alias] = merge_breakpoints(tmethod.raw_results)
             return results
 
 
@@ -389,7 +403,7 @@ class Scanner:
                 if alias == 'bootscan':
                     rank_result[alias] = tmethod.merge_breakpoints()
                 else:
-                    rank_result[alias] = merge_breakpoints(tmethod.raw_results, tmethod.max_pvalues)
+                    rank_result[alias] = merge_breakpoints(tmethod.raw_results)
             comm.Barrier()
             total_ranks = comm.gather(rank_result, root=0)
 

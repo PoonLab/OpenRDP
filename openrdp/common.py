@@ -5,8 +5,20 @@ from scipy.stats import pearsonr
 import copy
 import sys
 
+class node:
+    """
+    node class for UPGMA tree
+    """
+    def __init__(self, name=None, left=None, right=None, dist=0, p_dist=0, terminal=True):
+        self.left = left
+        self.right = right
+        self.name = name
+        self.dist = dist
+        self.p_dist = p_dist # distance from parent node to this node
+        self.terminal = terminal # is terminal branch 
 
-def merge_breakpoints(raw_results, max_pvalue=100):
+        
+def merge_breakpoints(raw_results):
     """
     took from siscan
     added max_pvalue clause
@@ -49,8 +61,7 @@ def merge_breakpoints(raw_results, max_pvalue=100):
             start = region[0]
             end = region[1]
             p_value = region[2]
-            if float(p_value) < max_pvalue:
-                    results.append((rec_name, parents, start, end, p_value))
+            results.append((rec_name, parents, start, end, p_value))
 
     return results
 
@@ -91,11 +102,10 @@ def read_fasta(handle):
     return headers, seqs
 
 
-def calculate_chi2(c_table, max_pvalue):
+def calculate_chi2(c_table):
     """
     Computes the chi-squared value and returns the chi-squared and p-value if the difference is significant
     :param c_table: a 2x2 contingency table
-    :param max_pvalue: the p-value threshold
     :return: a tuple containing the chi-squared value and p-value
     """
     # Compute chi-squared value if the expected frequencies are valid
@@ -104,8 +114,7 @@ def calculate_chi2(c_table, max_pvalue):
         chi2, p_value, _, _ = chi2_contingency(c_table)
 
         # Record only significant events
-        if p_value < max_pvalue:
-            return chi2, p_value
+        return chi2, p_value
 
     return None, None
 
@@ -140,6 +149,160 @@ def jc_distance(s1, s2):
         return 1
     return -0.75 * np.log(1 - (p_dist * 4 / 3)) if p_dist else 0
 
+
+def find_parent(id1, id2, id3, root):
+    """
+    determine which of the two are the closest related
+
+    id1, id2, id3: names of the sequences in the triplet
+    root: root node of dendrogram
+
+    return: two seq ids
+    """
+    d1 = find_dist(root, id1, id2)
+    d2 = find_dist(root, id1, id3)
+    d3 = find_dist(root, id2, id3)
+
+    res = [(d1, id1, id2), (d2, id1, id3), (d3, id2, id3)]
+
+    # return the two ids that are the smallest, these are the major parents
+    # should probably clean this up
+    return res[list(map(lambda x:x[0], res)).index(min(map(lambda x:x[0], res)))][1:]
+
+
+def setup_upgma(seqs, names):
+    """
+    calculate the pairwise distance matrix for upgma and get list of tree nodes
+    
+    :param seqs: list of nucleotide sequence from import_data
+    :param names: list of sequence names from import_data
+
+    :return tree: list, nodes
+    :return matrix: pairwise distance matrix where [y][x] is the two sequences indexed by tree
+    """
+
+    # get list of of ndoes, all are terminal with names of seuqences
+    tree = [node(name=name) for name in names]
+    matrix = [[0.000 for j in names] for i in names] # emtpy distance matrix with size of len(seq)
+
+    for y, seq in enumerate(seqs):
+        seq = np.array(seq)
+        for x, seq2 in enumerate(seqs[y:]):
+            x += y
+            seq2 = np.array(seq2)
+
+            matrix[y][x] = sum(seq!=seq2)
+
+
+    matrix = np.array([np.array(row) for row in matrix])
+    matrix += matrix.T
+    return tree, matrix
+
+def print_tree(n, indent=0):
+    print('  ' * indent + f"{n.name} (dist={n.dist:.2f}, p_dist={n.p_dist:.2f})")
+    if n.left: print_tree(n.left, indent + 1)
+    if n.right: print_tree(n.right, indent + 1)
+
+def recalculate_dist(matrix, pos1, pos2):
+    """
+    Recalculate the distance matrix after merging two clusters.
+
+    Parameters:
+    matrix (np.ndarray): Pairwise distance matrix.
+    pos1 (int): Index of the first cluster
+    pos2 (int): Index of the second cluster 
+
+    Returns:
+    np.ndarray: Updated distance matrix.
+    """
+    if pos1 > pos2:
+        pos1, pos2 = pos2, pos1
+    # Create a copy of the distance matrix
+    new_dist_mat = matrix.copy()
+
+    # Update distances for the merged cluster
+    for i in range(len(matrix)):
+        if i != pos1 and i != pos2:
+            dist1 = matrix[pos1, i]
+            dist2 = matrix[pos2, i]
+            avg = (dist1 + dist2) / 2
+            new_dist_mat[pos1, i] = avg
+            new_dist_mat[i, pos1] = avg
+    # Remove the row and column corresponding to pos2
+    new_dist_mat = np.delete(new_dist_mat, pos2, axis=0)
+    new_dist_mat = np.delete(new_dist_mat, pos2, axis=1)
+    return new_dist_mat
+
+def upgma(headers, matrix):
+    """
+    headers: list of node objects
+    matrix: numpy 2D array of distances
+    Returns: root node of the tree
+    """
+    if len(headers) == 1:
+        return headers[0], matrix
+
+    # Get closest pair
+    (x, y), smallest = find_min(matrix)
+    x, y = min(x, y), max(x, y)
+    b_len = smallest / 2
+
+    id1, id2 = headers[x], headers[y]
+
+    # Create new node
+    new = node(name=f"{id1.name};{id2.name}", left=id1, right=id2, dist=b_len, terminal=False)
+    id1.p_dist = b_len - id1.dist
+    id2.p_dist = b_len - id2.dist
+
+    # Update headers
+    headers[x] = new
+    headers.pop(y)
+
+    # Update distance matrix
+    new_matrix = recalculate_dist(matrix, x, y)
+
+    return upgma(headers, new_matrix)        
+    
+def find_min(matrix):
+    smallest = np.inf
+    ind = None
+    for i in range(len(matrix)):
+        for j in range(i + 1, len(matrix)):
+            value = matrix[i][j]
+            if value < smallest:
+                smallest = value
+                ind = (i, j)
+    return ind, smallest
+
+
+def find_dist(curr, n1, n2):
+    
+    if curr.terminal: # this is the last node
+        if curr.name in (n1, n2):
+            return curr.p_dist, True
+        
+        return 0, False
+    
+    # recursively traverse the tree
+    l1, f1 = find_dist(curr.left, n1, n2)
+    l2, f2 = find_dist(curr.right, n1, n2)
+
+    # both terminal nodes are found, don't add distance upwards now
+    if f1 and f2:
+        return l1 + l2, True
+    
+    # if found only one, don't add otherside
+    if f1:
+        return l1 + curr.p_dist, True
+    
+    # other case
+    if f2:
+        return l2 + curr.p_dist, True
+
+    # if this node contains no children/itself isn't the node we care about
+    return 0, False
+
+    
 
 def all_items_equal(x):
     """

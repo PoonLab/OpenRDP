@@ -5,13 +5,14 @@ from scipy.stats import pearsonr
 import copy
 import sys
 
-class node:
+class Node:
     """
     node class for UPGMA tree
     """
-    def __init__(self, name=None, left=None, right=None, dist=0, p_dist=0, terminal=True):
+    def __init__(self, name=None, left=None, right=None, middle=None, dist=0, p_dist=0, terminal=True):
         self.left = left
         self.right = right
+        self.middle = middle
         self.name = name
         self.dist = dist
         self.p_dist = p_dist # distance from parent node to this node
@@ -182,7 +183,7 @@ def setup_upgma(seqs, names):
     """
 
     # get list of of ndoes, all are terminal with names of seuqences
-    tree = [node(name=name) for name in names]
+    tree = [Node(name=name) for name in names]
     matrix = [[0.000 for j in names] for i in names] # emtpy distance matrix with size of len(seq)
 
     for y, seq in enumerate(seqs):
@@ -250,7 +251,7 @@ def upgma(headers, matrix):
     id1, id2 = headers[x], headers[y]
 
     # Create new node
-    new = node(name=f"{id1.name};{id2.name}", left=id1, right=id2, dist=b_len, terminal=False)
+    new = Node(name=f"{id1.name};{id2.name}", left=id1, right=id2, dist=b_len, terminal=False)
     id1.p_dist = b_len - id1.dist
     id2.p_dist = b_len - id2.dist
 

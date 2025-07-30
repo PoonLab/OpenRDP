@@ -1,20 +1,11 @@
-"""
-changes made from original LARD scripts
-
-exhaustive point/region search for original breakpoint:
-- always use gamma with 4 rate categories and JC69 subst. model
-"""
-
-
 import numpy as np
-from scipy.ndimage import gaussian_filter1d
 from scipy.optimize import minimize
 from scipy.stats import chi2 as chisq
 from scipy.stats import chi2_contingency
-from common import Node
+from .common import identify_recombinant
 
 class Lard:
-    def __init__(self, align, step_size=20, min_win_size=100):
+    def __init__(self, align, step_size=20, min_win_size=100, settings=None, ref_align=None, verbose=False):
         """
         Constructs a MaxChi Object
         :param step_size: the step size made in exhaustive search to determine recombination point
@@ -26,33 +17,31 @@ class Lard:
         self.min_win_size = min_win_size
         self.name = 'lard'
 
-    
-    def generate_null_tree(self, triplet):
+    def optimize_tree_null(self, seq_lenghts):
         """
-        generate tree for null hypothesis assuming that there is no recombination
-        should 1 internal node with three terminal nodes connected to root node
+        given a tree, find the optimized tree lengths and return the -loglikelihood to be use as null
 
-        param tiplet: triplet object from commmon
+        param lengths: list of lengths
 
-        return root: Node object of the one internal node
+        return: result.x list, internal node tree lengths
+        return: result.fun float, -loglikelihood
         """
-        seq1, seq2, seq3 = Node(name=triplet.names[0], dist=1), Node(name=triplet.names[1], dist=1), Node(triplet.names[2], dist=1)
-        root = Node(name='root', left=seq1, middle=seq2, right=seq3, terminal=False)
-        return root
+        result = minimize(self.log_likelihood, seq_lenghts, method='L-BFGS-B', bounds=[(1e-5, 100)] * 3)
+
+        return result.x, result.fun
 
 
     def optimize_tree(self, seq_lenghts, seqs):
         """
-        given a tree, find the optimized tree lengths
+        given a tree, find the optimized tree lengths. function to be used in scipy.optimize
 
         param lengths: list of lengths
 
-        return: list, internal node tree lengths
+        return: result.x list, internal node tree lengths
         """
-        result = minimize(self.log_likelihood, (seq_lenghts, seqs), method='L-BFGS-B', bounds=[(1e-5, 100)] * 3)
+        result = minimize(lambda x: self.log_likelihood(x,seqs), seq_lenghts, method='L-BFGS-B', bounds=[(1e-5, 100)] * 3)
 
-        # update node length values
-        return result.x
+        return result.x, result.fun
 
     def jc69_prob(self, i, j, t):
         """
@@ -75,7 +64,7 @@ class Lard:
             likelihood += 0.25 * p1 * p2 * p3  # prior for x is 0.25 under JC69
         return np.log(likelihood)
 
-    def log_likelihood(self, cur_tip_lens, len_seq, seqs):
+    def log_likelihood(self, cur_tip_lens, seqs=None):
         """
         log prob for JC across all sites, used in scipy to minimize
 
@@ -83,18 +72,22 @@ class Lard:
         param len_seq: int, NT length of the alignment for a given sequnece 
 
         """
+        if seqs is None:
+            seqs = self.align # need to check this
+
         t1, t2, t3 = cur_tip_lens
         if any(t <= 0.00001 for t in (t1, t2, t3)):
             return 1e10  # penalize small or negative branch lengths
+
         total = 0.0
-        for i in range(len_seq):
+        for i in range(len(seqs)):
             site = seqs[:, i]
             try:
                 total += self.site_likelihood(site, t1, t2, t3)
             except:
                 return 1e10
-        return -total  # minimize negative log-likelihood
-
+        return -total
+    
     def exhaustive_point(self):
         """
         perform an exhaustive search for the location of breakpoints assuming there is only 1 breakpoint
@@ -102,7 +95,7 @@ class Lard:
         return likelihoods, list, value for likelihood of recombination
         reutn best, int, index for lowest log likelihood value
         """
-        seq1, seq2, seq3 = self.align
+        seq1, seq2, seq3 = self.align # need to check this
         likelihoods = [1e10 for i in range(len(seq1))] # null array
         single_breakpoints = []
 
@@ -114,8 +107,8 @@ class Lard:
             left_tree, right_tree = [10,10,10],[10,10,10] # initialization values [dist node 1, dist2, dist3]
             
             # find likelihood
-            left_likelihood = self.optimize_tree(left_tree, np.array([seq1_left, seq2_left, seq3_left]))
-            right_likelihood = self.optimize_tree(right_tree, np.array([seq1_right, seq2_right, seq3_right]))
+            _, left_likelihood = self.optimize_tree(left_tree, np.array([seq1_left, seq2_left, seq3_left]))
+            _, right_likelihood = self.optimize_tree(right_tree, np.array([seq1_right, seq2_right, seq3_right]))
             likelihoods[breakpoint]= left_likelihood+right_likelihood
 
             # save likelihood
@@ -136,31 +129,41 @@ class Lard:
         """
         seq1, seq2, seq3 = self.align
         likelihoods = []
-        best = np.inf # track index of best
 
         # check over all possible recombination points with the given step size, starting at stepsize
-        for breakpoint in range(self.step_size, len(seq1) - self.step_size - self.win_size, self.step_size):
+        for breakpoint in range(self.step_size, len(seq1) - self.step_size - self.min_win_size, self.step_size):
             left_likelihood = left_likihoods[breakpoint]
 
-            for right_breakpoint in range(breakpoint + self.min_win_size, len(seq1) - self.step_size - self.win_size, self.step_size):
+            for right_breakpoint in range(breakpoint + self.min_win_size, len(seq1) - self.step_size - self.min_win_size, self.step_size):
                 seq1_right = seq1[right_breakpoint:]
                 seq2_right = seq2[right_breakpoint:]
                 seq3_right = seq3[right_breakpoint:]
-                right_tree = [10,10,10],[10,10,10] # initialization values [dist node 1, dist2, dist3]
+                right_tree = [10,10,10] # initialization values [dist node 1, dist2, dist3]
                 
                 # find likelihood
-                right_likelihood = self.optimize_tree(right_tree, np.array([seq1_right, seq2_right, seq3_right]))
+                _, right_likelihood = self.optimize_tree(right_tree, np.array([seq1_right, seq2_right, seq3_right]))
                 curr_likelihood = left_likelihood+right_likelihood
-                best = min(curr_likelihood, best)
                 likelihoods.append((breakpoint, right_likelihood, curr_likelihood))
 
-        return likelihoods, best
+        return likelihoods
 
-    def remove_insignificant(self, breakpoints):
+    def remove_insignificant(self, breakpoints, null):
         """
-        takes the input of exhaustive searches
+        takes the input of exhaustive searches, filters out insig ones
+
+        breakpoints, list tuple, breakpoint output from exhuast point/region        
         """
-        return
+        valid = []
+        num_trials = len(breakpoints)
+
+        for breakpoint in breakpoints:
+            ratio = 2 * (breakpoint[-1] - null)
+            pval = 1 - chisq.cdf(ratio, 3) # DF of 3
+            
+            if pval < 0.05/num_trials:
+                valid.append((pval, *breakpoint)) 
+        
+        return valid
 
     def execute(self, triplet):
         """
@@ -168,11 +171,10 @@ class Lard:
         """
 
         # initialize tree
-        root = self.generate_null_tree(triplet.sequences)
+        dists = [1,1,1]
 
-        # find the optimized branch lengths for the null tree
-        root = self.optimize_tree(root, self.align)
-
+        # find the optimized branch lengths for the null tree and null likelihood
+        dists, null = self.optimize_tree_null(dists)
         # assuming only 1 breakpoint location
         left_likelihood, single_breakpoints = self.exhaustive_point()
 
@@ -180,8 +182,16 @@ class Lard:
         region_breakpoints = self.exhaustive_region(left_likelihood)
 
         # remove the ones with high p-value
-        single_breakpoints = self.remove_insignificant()
-        region_breakpoints = self.remove_insignificant()
+        single_breakpoints = self.remove_insignificant(single_breakpoints, null)
+        region_breakpoints = self.remove_insignificant(region_breakpoints, null)
     
-        self.raw_results.append(single_breakpoints)
-        self.raw_results.append(region_breakpoints)
+        # format into raw_results acceptable tuples while adding parents
+        # (rec_name, parents, *aln_pos, final_p)
+        for breakpoint in single_breakpoints:
+            # breakpoint is (pval, breakpoint pos, likelihood)
+            recs, parents = identify_recombinant(triplet, breakpoint[1])
+            self.raw_results.append((recs, parents, breakpoint[2], breakpoint[0]))
+
+        for breakpoint in region_breakpoints:
+            recs, parents = identify_recombinant(triplet, breakpoint[1:3])
+            self.raw_results.append((recs, parents, breakpoint[1:3], breakpoint[0]))

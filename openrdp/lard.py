@@ -7,7 +7,7 @@ from .common import identify_recombinant
 class Lard:
     def __init__(self, align, step_size=20, min_win_size=100, settings=None, ref_align=None, verbose=False):
         """
-        Constructs a MaxChi Object
+        Constructs a Lard Object
         :param step_size: the step size made in exhaustive search to determine recombination point
         :param min_win_size: size of the region that undergoes the region for recombination (THIS IS SUPER IMPORTANT THIS DETERMINES THE SMALLEST VALUE THE BREAKPOINT WILL BE, see exhaust_region())
         """
@@ -15,6 +15,7 @@ class Lard:
         self.raw_results = []
         self.step_size = step_size
         self.min_win_size = min_win_size
+        self.nt_to_idx = {'A': 0, 'C': 1, 'G': 2, 'T': 3}
         self.name = 'lard'
 
     def optimize_tree_null(self, seq_lenghts):
@@ -56,11 +57,14 @@ class Lard:
         """
         JC log prob at one site given three nucleotides
         """
+        if not all(base in self.nt_to_idx for base in site):
+            return 0
+        
         likelihood = 0.0
         for x in range(4):  # internal node state
-            p1 = self.jc69_prob(x, site[0], t1)
-            p2 = self.jc69_prob(x, site[1], t2)
-            p3 = self.jc69_prob(x, site[2], t3)
+            p1 = self.jc69_prob(x, self.nt_to_idx[site[0]], t1)
+            p2 = self.jc69_prob(x, self.nt_to_idx[site[1]], t2)
+            p3 = self.jc69_prob(x, self.nt_to_idx[site[2]], t3)
             likelihood += 0.25 * p1 * p2 * p3  # prior for x is 0.25 under JC69
         return np.log(likelihood)
 
@@ -86,6 +90,7 @@ class Lard:
                 total += self.site_likelihood(site, t1, t2, t3)
             except:
                 return 1e10
+
         return -total
     
     def exhaustive_point(self):
@@ -104,7 +109,7 @@ class Lard:
             seq1_left, seq1_right = seq1[:breakpoint], seq1[breakpoint:]
             seq2_left, seq2_right = seq2[:breakpoint], seq2[breakpoint:]
             seq3_left, seq3_right = seq3[:breakpoint], seq3[breakpoint:]
-            left_tree, right_tree = [10,10,10],[10,10,10] # initialization values [dist node 1, dist2, dist3]
+            left_tree, right_tree = [1,1,1],[1,1,1] # initialization values [dist node 1, dist2, dist3]
             
             # find likelihood
             _, left_likelihood = self.optimize_tree(left_tree, np.array([seq1_left, seq2_left, seq3_left]))
@@ -134,7 +139,7 @@ class Lard:
         for breakpoint in range(self.step_size, len(seq1) - self.step_size - self.min_win_size, self.step_size):
             left_likelihood = left_likihoods[breakpoint]
 
-            for right_breakpoint in range(breakpoint + self.min_win_size, len(seq1) - self.step_size - self.min_win_size, self.step_size):
+            for right_breakpoint in range(breakpoint + self.min_win_size, min(len(seq1) - self.step_size, len(seq1) - self.min_win_size), self.step_size):
                 seq1_right = seq1[right_breakpoint:]
                 seq2_right = seq2[right_breakpoint:]
                 seq3_right = seq3[right_breakpoint:]
@@ -143,7 +148,7 @@ class Lard:
                 # find likelihood
                 _, right_likelihood = self.optimize_tree(right_tree, np.array([seq1_right, seq2_right, seq3_right]))
                 curr_likelihood = left_likelihood+right_likelihood
-                likelihoods.append((breakpoint, right_likelihood, curr_likelihood))
+                likelihoods.append((breakpoint, right_breakpoint, curr_likelihood))
 
         return likelihoods
 
@@ -165,11 +170,40 @@ class Lard:
         
         return valid
 
+    def merge_contiguous_regions(self, tuples):
+        """
+        Merge tuples with incrementally increasing start values (index 1) that are part of a contiguous region.
+        
+        tuples: list of 4-element tuples (pval, start, end, stat)
+        step: expected increment between consecutive starts to consider as contiguous
+        
+        List of merged tuples.
+        """
+        if not tuples:
+            return []
+
+        merged = []
+        current = list(tuples[0])
+
+        for next_t in tuples[1:]:
+            # Check if next region is contiguous with current
+            if next_t[1] == current[1] + self.step_size:
+                current[0] = min(current[0], next_t[0])  # min p-value
+                current[2] = next_t[2]  # update end
+                current[3] = next_t[3]  # use latest stat (or average if preferred)
+                current[1] = current[1]  # keep original start
+            else:
+                merged.append(tuple(current))
+                current = list(next_t)
+
+        merged.append(tuple(current))
+        return merged
+
+
     def execute(self, triplet):
         """
         run the thing
         """
-
         # initialize tree
         dists = [1,1,1]
 
@@ -184,14 +218,18 @@ class Lard:
         # remove the ones with high p-value
         single_breakpoints = self.remove_insignificant(single_breakpoints, null)
         region_breakpoints = self.remove_insignificant(region_breakpoints, null)
-    
+
+        # merge same region so it makes identify_recombinant computationally lighter
+        single_breakpoints = self.merge_contiguous_regions(single_breakpoints)
+        region_breakpoints = self.merge_contiguous_regions(region_breakpoints)
+
         # format into raw_results acceptable tuples while adding parents
         # (rec_name, parents, *aln_pos, final_p)
-        for breakpoint in single_breakpoints:
-            # breakpoint is (pval, breakpoint pos, likelihood)
-            recs, parents = identify_recombinant(triplet, breakpoint[1])
-            self.raw_results.append((recs, parents, breakpoint[2], breakpoint[0]))
-
         for breakpoint in region_breakpoints:
             recs, parents = identify_recombinant(triplet, breakpoint[1:3])
-            self.raw_results.append((recs, parents, breakpoint[1:3], breakpoint[0]))
+            self.raw_results.append((recs, parents, breakpoint[1], breakpoint[2], breakpoint[0]))
+
+        for breakpoint in single_breakpoints:
+            recs, parents = identify_recombinant(triplet, breakpoint[1])
+            self.raw_results.append((recs, parents, breakpoint[1], breakpoint[1], breakpoint[0]))
+

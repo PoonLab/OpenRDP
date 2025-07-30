@@ -15,6 +15,7 @@ from openrdp.maxchi import MaxChi
 from openrdp.rdp import RdpMethod
 from openrdp.siscan import Siscan
 from openrdp.threeseq import ThreeSeq
+from openrdp.lard import Lard
 from openrdp.common import *
 
 
@@ -26,7 +27,8 @@ aliases = {
     'siscan': {'key': 'Siscan', 'method': Siscan},
     'chimaera': {'key': "Chimaera", 'method': Chimaera},
     'threeseq': {'key': "3Seq", 'method': ThreeSeq},
-    'rdp': {'key': "RDP", 'method': RdpMethod}
+    'rdp': {'key': "RDP", 'method': RdpMethod},
+    'lard': {'key': "Lard", 'method': Lard}
 }
 DNA_ALPHABET = ['A', 'T', 'G', 'C', '-', 'N']
 
@@ -54,7 +56,6 @@ class ScanResults:
         outstr = '\n' + '\t'.join([
             'Method  ', 'Start', 'End', 'Recombinant', 'Parent1', 'Parent2',
             'Pvalue']) + '\n' + '-'*72 + '\n'
-
         for method, events in self.dict.items():
             key = aliases[method]['key']
             for e in events:

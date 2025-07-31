@@ -1,16 +1,12 @@
 # OpenRDP
 
 OpenRDP is an open-source re-implementation of the [RDP](http://web.cbio.uct.ac.za/~darren/rdp.html) recombination detection program.
-RDP is a widely popular program for detecting recombination in genetic sequences - however, it has only been available as Windows binaries
-(These binaries are not compatible with Windows 11).
+RDP is a widely popular program for detecting recombination using a suite of methods to compare each sequence to other sequences in a multiple alignment.
+However, it has only been available as Windows binaries, with limited support for the most recent versions of that OS.
+OpenRDP is **not** a replacement for [RDP](http://web.cbio.uct.ac.za/~darren/rdp.html).
+Our objective is to re-implement a subset of its functionality as a community resource &mdash; it was not feasible to reproduce the original program exactly and completely.
 
-* **CAVEAT**:  __OpenRDP is still under development and testing__.  Although it is a public repository, it is probably not yet ready for practical use.
-* OpenRDP is **not** a replacement for [RDP](http://web.cbio.uct.ac.za/~darren/rdp.html).  We hope to build a reasonable approximation for Linux and macOS, but it is not feasible to make an exact copy.
-
-The developers of RDP, specifically [Darren Martin](http://www.idm.uct.ac.za/Darren_Martin), kindly provided the source code for the most recent version ([RDP5](https://academic.oup.com/ve/article/7/1/veaa087/6020281)) and permission to modify and redistribute this code.
-This program runs a suite of methods to detect recombination events by comparing a nucleotide sequence to other sequences in a multiple alignment.
-
-We have re-implemented its recombination detection methods in the [Python](https://python.org) programming language, with the exception of some of the standalone third-party binaries ([3Seq](https://mol.ax/software/3seq/) and [GENECONV](https://www.math.wustl.edu/~sawyer/geneconv/index.html)).
+We have re-implemented methods from RDP in the [Python](https://python.org) programming language, with the exception of some of the standalone third-party binaries ([3Seq](https://mol.ax/software/3seq/) and [GENECONV](https://www.math.wustl.edu/~sawyer/geneconv/index.html)).
 [3Seq](https://mol.ax/software/3seq/) is released under the Creative Commons license ([CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)), which restricts commerical use.
 Similarly, [GENECONV](https://www.math.wustl.edu/~sawyer/geneconv/index.html) is licensed for academic use and distribution, but commercial use is restricted.
 For your convenience, we package these binaries along with their respective licenses.

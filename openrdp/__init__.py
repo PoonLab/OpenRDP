@@ -304,6 +304,7 @@ class Scanner:
                 results.dict['geneconv'] = geneconv.execute(infile)
                 self.print("Finished GENECONV Analysis")
 
+
         if nprocs == 1:
             if 'bootscan' in self.methods:
                 if bootset:
@@ -346,6 +347,13 @@ class Scanner:
 
 
         elif nprocs > 1:
+            # make everyone get the tree so siscan can run
+            if not my_rank == 0:
+                tree = None
+
+            comm.Barrier()
+            tree = comm.bcast(tree, root=0)
+
             if 'bootscan' in self.methods:
                 if bootset:
                     boot = aliases['bootscan']['method'](self.alignment, settings = bootset,
@@ -376,6 +384,7 @@ class Scanner:
 
                 # give dt_matrix to all processes so execute can run
                 boot_scan = comm.bcast(boot_scan, root=0)
+
                 boot.dt_matrix_file = boot_scan 
                 tmethods.update({'bootscan': boot})
 
@@ -387,6 +396,8 @@ class Scanner:
                     for alias, tmethod in tmethods.items():
                         if alias == 'bootscan':
                             temp.append(tmethod.execute((trp_count, triplet)))
+                        elif alias == 'siscan':
+                            tmethod.execute(triplet, tree=tree)
                         else:
                             tmethod.execute(triplet)
 

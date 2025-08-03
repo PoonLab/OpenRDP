@@ -244,7 +244,6 @@ class Chimaera:
 
                 fail_count, best_score = 0, 0
                 while fail_count < 100:
-                    print(left, right)
                     candidates = []
 
                     half_win_size = (right - left) //2

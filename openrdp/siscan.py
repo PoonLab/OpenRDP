@@ -9,7 +9,7 @@ from .common import identify_recombinant, find_parent
 
 
 class Siscan:
-    def __init__(self, align, win_size=30, step_size=20, strip_gaps=True, pvalue_perm_num=1000,
+    def __init__(self, align, win_size=30, step_size=20, strip_gaps=True, pvalue_perm_num=100,
                  scan_perm_num=100, random_seed=3, max_pvalue=0.05, settings=None, 
                  ref_align=None, verbose=False):
         """

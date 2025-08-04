@@ -1,13 +1,9 @@
 # OpenRDP
 
-OpenRDP is an open-source re-implementation of the [RDP](http://web.cbio.uct.ac.za/~darren/rdp.html) recombination detection program.
+OpenRDP is an open-source project to re-implement functionality from the [RDP](http://web.cbio.uct.ac.za/~darren/rdp.html) recombination detection program.
 RDP is a widely popular program for detecting recombination using a suite of methods to compare each sequence to other sequences in a multiple alignment.
 However, it has only been available as Windows binaries, with limited support for the most recent versions of that OS.
-OpenRDP is **not** a replacement for [RDP](http://web.cbio.uct.ac.za/~darren/rdp.html).
-Our objective is to re-implement a subset of its functionality as a community resource &mdash; it was not feasible to reproduce the original program exactly and completely.
-
-The developers of RDP, specifically [Darren Martin](http://www.idm.uct.ac.za/Darren_Martin), kindly provided the source code for the most recent version ([RDP5](https://academic.oup.com/ve/article/7/1/veaa087/6020281)) and permission to modify and redistribute this code.
-This program runs a suite of methods to detect recombination events by comparing a nucleotide sequence to other sequences in a multiple alignment.
+We are grateful to the developers of RDP, specifically [Darren Martin](http://www.idm.uct.ac.za/Darren_Martin), for providing source code for ([RDP](https://academic.oup.com/ve/article/7/1/veaa087/6020281)).
 
 We have re-implemented methods from RDP in the [Python](https://python.org) programming language, with the exception of some of the standalone third-party binaries ([3Seq](https://mol.ax/software/3seq/) and [GENECONV](https://www.math.wustl.edu/~sawyer/geneconv/index.html)).
 [3Seq](https://mol.ax/software/3seq/) is released under the Creative Commons license ([CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)), which restricts commerical use.
@@ -17,21 +13,26 @@ For your convenience, we package these binaries along with their respective lice
 
 ### **CAVEATS** 
 
-__OpenRDP is still under development and testing__.  Although it is a public repository, it is probably not yet ready for practical use. We have done testing with sequences with and without recombination and have gotten realistic results, but it is not exhaustive. OpenRDP is **not** a replacement for [RDP](http://web.cbio.uct.ac.za/~darren/rdp.html). We hope to build a reasonable approximation for Linux and macOS, but it is not feasible to make an exact copy.
+__OpenRDP is still under development and testing__.
+Although it is a public repository, it is probably not yet ready for practical use.
+Please verify any results if you wish to use OpenRDP for research.
+We have done some testing with sequences with and without recombination and have obtained reasonable results, but this testing was far from exhaustive.
+OpenRDP is **not** a replacement for [RDP](http://web.cbio.uct.ac.za/~darren/rdp.html). 
+We hope to build a reasonable approximation as a community resource, but it has not been feasible to reproduce the original program exactly and completely.
 
 #### General Notes
 * We do not filter out false positives, however, we do use Bonferroni correction to adjust for multiple testing.
-* RDP4 uses their HMM model, BURT, to assist in finding/refining breakpoint positions; we do not use an HMM. We currently only use the methods themselves to find the breakpoints, which could give different results.
-* Our methods are adapted from the source files of RDP4, but are not a 1-1 replica. Some values, detailed below, are different.
-* We currently do not support LARD, PhylPro, or VISRD.
+* RDP4 uses a hidden Markov model (HMM), BURT, to assist in finding/refining breakpoint positions; we do not use an HMM.  We currently only report breakpoint predictions from the different methods in RDP.
+* Our methods are adapted from the documentation and source files of RDP4, but are not a 1-1 replica. Some values, detailed below, are different.
+* We currently do not have implementations for the LARD, PhylPro, or VISRD methods.
 * Changing the default window sizes/step sizes for any method can dramatically change results. We highly recommend users to adjust the values based on their input. Current values are based on the default RDP4 settings.
 * A lot of these methods are computationally intensive and not optimized. Testing with alignments of 9k nucleotides in length and 10 different sequences will take >10 minutes to run without MPI, thus, we highly recommend using parallel processing.
 
 #### Method Specific Notes
 * MaxChi
-  * Within each triplet of sequences, there are 3 pairwise comparisons made. Currently, we only take the strongest single between each comparison which may cause it to miss some signlas.
-  * The method we use to determine which sequence, between a given triplet, is a recombinant isn't too accurate, i.e. if the program output says sequence A/B are the parents to sequence C, there is chance that either A or B could be the real recombinant.
-  * After the main method found in the original MaxChi paper runs (Maynard Smith, 1992), we follow RDP4/5 in running a window optimization method that tries to maximize the value of the test statistic over a given window. This method continues to try to change nucleotide position one by one until it fails to increase the optimized value of the window 100 times. This value can be changed, and like window size, may change the final breakpoint indexes.
+  * Within each triplet of sequences, there are 3 pairwise comparisons made. Currently, we only take the strongest single between each comparison which may cause it to miss some signals.
+  * The method we use to determine which sequence (in a given triplet) is a recombinant is currently not reliable, *i.e.*, if the program output says sequence A/B are the parents to sequence C, there is chance that either A or B could be the real recombinant.
+  * After running the main method described in the original MaxChi paper (Maynard Smith, 1992), we follow RDP4/5 in running a window optimization method that tries to maximize the value of the test statistic over a given window. This method continues to change nucleotide positions one by one until it fails to increase the optimized value of the window 100 times. This value can be changed, and like window size, may change the final breakpoint indexes.
 * Chimaera:
   * Same as MaxChi for the window finding function.
 * SiScan:

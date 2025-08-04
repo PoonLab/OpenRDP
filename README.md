@@ -21,16 +21,22 @@ __OpenRDP is still under development and testing__.  Although it is a public rep
 
 #### General Notes
 * We do not filter out false positives, however, we do use Bonferroni correction to adjust for multiple testing.
-RDP4 uses their HMM model, BURT, to assist in finding/refining breakpoint positions. We do not do this. We currently only use the methods themselves to find the breakpoints, which could give different results.
+* RDP4 uses their HMM model, BURT, to assist in finding/refining breakpoint positions; we do not use an HMM. We currently only use the methods themselves to find the breakpoints, which could give different results.
 * Our methods are adapted from the source files of RDP4, but are not a 1-1 replica. Some values, detailed below, are different.
 * We currently do not support LARD, PhylPro, or VISRD.
 * Changing the default window sizes/step sizes for any method can dramatically change results. We highly recommend users to adjust the values based on their input. Current values are based on the default RDP4 settings.
 * A lot of these methods are computationally intensive and not optimized. Testing with alignments of 9k nucleotides in length and 10 different sequences will take >10 minutes to run without MPI, thus, we highly recommend using parallel processing.
 
 #### Method Specific Notes
-* MaxChi: Within each triplet of sequences, there are 3 pairwise comparisons made. Currently, we only take the strongest single between each comparison which may cause it to miss. The determination of which sequence is the recombinant isn't too accurate, i.e. if the program output says sequence A/B are the parents to sequence C, there is chance that either A or B could be the real recombinant. After the main method found in the original MaxChi paper runs (Maynard Smith, 1992), we follow RDP4/5 in running a window optimization method that tries to maximize the value of the test statistic over a given window. This method continues to try to change nucleotide position one by one until it fails to increase the optimized value of the window 100 times. This value can be changed, and like window size, may change the final breakpoint indexes.
-* Chimaera: Same as MaxChi for the window finding function.
-* SiScan: We use an UPGMA tree to determine which sequences are most closely related to each other in the triplet for downstream tests. We do not offer alternatives. This method also generates a null distribution of its test statistic and this step is seeded in numpy for reproducibility. Additionally, RDP4/5 use an additional sequence found in the alignment as an outgroup; we use a random permuation of one of the sequneces as the outgroup (as per Gibbs et al., 2000).
+* MaxChi
+  * Within each triplet of sequences, there are 3 pairwise comparisons made. Currently, we only take the strongest single between each comparison which may cause it to miss some signlas.
+  * The method we use to determine which sequence, between a given triplet, is a recombinant isn't too accurate, i.e. if the program output says sequence A/B are the parents to sequence C, there is chance that either A or B could be the real recombinant.
+  * After the main method found in the original MaxChi paper runs (Maynard Smith, 1992), we follow RDP4/5 in running a window optimization method that tries to maximize the value of the test statistic over a given window. This method continues to try to change nucleotide position one by one until it fails to increase the optimized value of the window 100 times. This value can be changed, and like window size, may change the final breakpoint indexes.
+* Chimaera:
+  * Same as MaxChi for the window finding function.
+* SiScan:
+  *   We use an UPGMA tree to determine which sequences are most closely related to each other in the triplet for downstream tests. We do not offer alternatives. This method also generates a null distribution of its test statistic and this step is seeded in numpy for reproducibility.
+  *   RDP4/5 use an additional sequence found in the alignment as an outgroup; we use a random permuation of one of the sequences as the outgroup, which Gibbs et al., 2000 provided as an option as well.
 
 
 ## Dependencies 

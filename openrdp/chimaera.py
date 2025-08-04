@@ -1,12 +1,13 @@
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
+from scipy.stats import chi2 as chisq
 
 from .common import calculate_chi2, identify_recombinant
 
 
 class Chimaera:
-    def __init__(self, align, max_pvalue=0.05, win_size=200, strip_gaps=True, fixed_win_size=True,
+    def __init__(self, align, win_size=60, strip_gaps=True, fixed_win_size=True,
                  num_var_sites=None, frac_var_sites=None, settings=None, ref_align=None, verbose=False):
         """
         Constructs a Chimaera Object
@@ -20,7 +21,6 @@ class Chimaera:
             self.set_options_from_config(settings)
             self.validate_options(align)
         else: # pragma: no cover
-            self.max_pvalues = max_pvalue
             self.win_size = win_size
             self.strip_gaps = strip_gaps
             self.fixed_win_size = fixed_win_size
@@ -38,7 +38,6 @@ class Chimaera:
         :param settings: a dictionary of settings
         """
         self.win_size = abs(int(settings['win_size']))
-        self.max_pvalues = abs(float(settings['max_pvalue']))
 
         if settings['strip_gaps'] == 'False':
             self.strip_gaps = False
@@ -137,6 +136,49 @@ class Chimaera:
                 comp_seq.append(1)
         return comp_seq
 
+    @staticmethod
+    def refine_nt(seq, start, end):
+        """
+        adjust the range of nucleotide positions to match the significant patterns for start
+        
+        seq, compressed bit string
+        start int, left index breakpoint
+        end int, right index breakpoint
+        """
+        adj = 0
+        final = [None,None] # final left and right index
+        while start - adj >= 0 or  start + adj < end:
+            # prioritize the contraction over expansion
+            if start + adj < end:
+                if seq[start + adj] == 1:
+                    final[0] = start + adj
+                    break
+            if start - adj > 0:
+                if seq[start - adj] == 1:
+                    final[0] = start - adj
+                    break
+            adj += 1
+        
+        if not final[0]: # couldn't fine a refined spot
+            final[0] = start
+
+        adj = 0
+        while end - adj > start or end + adj < len(seq):
+            # prioritize the contraction over expansion
+            if end - adj > start:
+                if seq[end - adj] == 1:
+                    final[1] = end - adj
+                    break
+            if end + adj <= len(seq):
+                if seq[end + adj] == 1:
+                    final[1] = end + adj
+                    break
+            adj += 1
+
+        if not final[1]:
+            final[1] = end 
+        return final
+
     def execute(self, triplet):
         """
         Executes the Chimaera algorithm
@@ -172,20 +214,8 @@ class Chimaera:
 
                 c_table = self.compute_contingency_table(reg_left, reg_right, half_win_size)
 
-                # Using notation from Maynard Smith (1992)
-                n = self.win_size
-                k2 = half_win_size
-                s = np.sum(reg_left == reg_right)
-                r = np.sum(reg_left != reg_right)
-
-                # Avoid dividing by 0 (both "parental" sequences are identical in the window)
-                if s > 0:
-                    cur_val = (float(n) * (k2 * s - n * r) * (k2 * s - n * r)) / (float(k2 * s) * (n - k2) * (n - s))
-                else:
-                    cur_val = -1
-
                 # Compute chi-squared value
-                chi2, p_value = calculate_chi2(c_table, self.max_pvalues)
+                chi2, p_value = calculate_chi2(c_table)
                 if chi2 is not None and p_value is not None:
                     # Insert p-values and chi2 values so they correspond to positions in the original alignment
                     chi2_values[triplet.poly_sites[k + half_win_size]] = chi2  # centred window
@@ -198,23 +228,108 @@ class Chimaera:
             chi2_values = gaussian_filter1d(chi2_values, 1.5)
 
             # Locate "peaks" in chi2 values as "peaks" represent potential breakpoints
-            peaks = find_peaks(chi2_values, distance=self.win_size)
-            for k, peak in enumerate(peaks[0]):
-                search_win_size = 1
-                while peak - search_win_size > 0 \
-                        and peak + search_win_size < len(chi2_values) - 1 \
-                        and chi2_values[peak + search_win_size] > 0.3 * chi2_values[peak] \
-                        and chi2_values[peak - search_win_size] > 0.3 * chi2_values[peak]:
-                    search_win_size += 1
+            best = (0,0) # maxCHI2, ind
+            for i, value in enumerate(chi2_values):
+                if value > best[0]:
+                    best = (value, i)
 
-                if chi2_values[peak + search_win_size] > chi2_values[peak - search_win_size]:
-                    aln_pos = (int(peak), int(peak + search_win_size + self.win_size))
+            # start same algorithm in maxchi
+            k = best[1]
+            if chisq.sf(best[0],1) < 0.05/len(comp_seq) - win_size: #bf correction
+                
+                initial_window = self.win_size
+
+                # initial variables
+                left, right = best[1] - initial_window // 2, best[1] + initial_window // 2
+
+                fail_count, best_score = 0, 0
+                while fail_count < 100:
+                    candidates = []
+
+                    half_win_size = (right - left) //2
+
+                    # expand left and right at the same time
+                    if left > 0 and right < len(chi2_values):
+                        el = left - 1
+                        er = right + 1
+                        reg_left, reg_right = comp_seq[el:k], comp_seq[k:er]
+                        c_table = self.compute_contingency_table(reg_left, reg_right, half_win_size)
+                        chi2, p_value = calculate_chi2(c_table)
+                        if chi2:
+                            candidates.append(('expand', chi2))
+
+                    # contract left
+                    if left < k:
+                        cl = left + 1
+                        reg_left, reg_right = comp_seq[cl:k], comp_seq[k:right]
+                        c_table = self.compute_contingency_table(reg_left, reg_right, half_win_size)
+                        chi2, p_value = calculate_chi2(c_table)
+                        if chi2:
+                            candidates.append(('contract_left', chi2))
+
+                    # contract right
+                    if right > k:
+                        cr = right - 1
+                        reg_left, reg_right = comp_seq[left:k], comp_seq[k:cr]
+                        c_table = self.compute_contingency_table(reg_left, reg_right, half_win_size)
+                        chi2, p_value = calculate_chi2(c_table)
+                        if chi2:
+                            candidates.append(('contract_right', chi2))      
+
+                    if not candidates:
+                        break
+
+                    else:
+                        best_move, best_chi2 = max(candidates, key=lambda x: x[1])
+
+                        if best_chi2 > best_score:
+                            best_score = best_chi2
+
+                        else:
+                            fail_count += 1
+
+                        # Apply the move
+                        if best_move == 'expand':
+                            left -= 1
+                            right += 1
+                        elif best_move == 'contract_left':
+                            left += 1
+                        elif best_move == 'contract_right':
+                            right -= 1
+
+                left_peak = chi2_values[left]
+                right_peak = chi2_values[right]
+                midpoint = left - (left - right)//2
+
+                # determine which way is the second breakpoint
+                if left_peak > right_peak:
+                    primary_breakpoint = left
                 else:
-                    aln_pos = (int(peak - search_win_size), int(peak + self.win_size))
+                    primary_breakpoint = midpoint
 
-                # Check that breakpoint has not already been detected
-                rec_name, parents = identify_recombinant(triplet, aln_pos)
-                if (rec_name, parents, *aln_pos) not in self.raw_results and p_values[peak] != 1.0 and p_values[peak] != 0.0:
-                    self.raw_results.append((rec_name, parents, *aln_pos, p_values[peak]))
+                if primary_breakpoint == left:
+                    second_break = midpoint
+                else:
+                    second_break = right
+
+                # new midpoint for recalculation for chi2 for final p-value
+                midpoint = second_break - (second_break - primary_breakpoint)//2
+
+                reg_left, reg_right = comp_seq[primary_breakpoint:midpoint], comp_seq[midpoint:second_break]
+
+                c_table = self.compute_contingency_table(reg_left, reg_right,  (second_break - primary_breakpoint)//2)
+                chi2, p_value = calculate_chi2(c_table)
+
+                if chi2:
+                    final_chi2 = max(best_score, chi2)
+                else:
+                    final_chi2 = best_score
+                final_p = chisq.sf(final_chi2, df=1)
+                
+                aln_pos = self.refine_nt(comp_seq, primary_breakpoint, second_break)
+
+                # parents are determined by the way we create the bitstring
+                rec_name, parent = triplet.seq_names[run[0]], [triplet.seq_names[run[1]], triplet.seq_names[run[2]]]
+                self.raw_results.append((rec_name, parent, *aln_pos, final_p))
 
         return

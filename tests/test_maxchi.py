@@ -71,18 +71,14 @@ class TestMaxChi(unittest.TestCase):
         exp_reg1_left = 'ATGCT'
         exp_reg2_right = 'TGGTG'
         exp_reg2_left = 'AACCT'
-        exp_reg1 = 'ATGCTGACGA'
-        exp_reg2 = 'AACCTTGGTG'
 
         seq1 = self.short_triplets[0].sequences[0]
         seq2 = self.short_triplets[0].sequences[1]
 
-        res_reg1_left, res_reg2_left, res_reg1_right, res_reg2_right, res_reg1, res_reg2 = \
-            MaxChi.get_window_positions(seq1, seq2, 0, 10)
+        res_reg1_left, res_reg2_left, res_reg1_right, res_reg2_right = \
+            MaxChi.get_window_positions(seq1, seq2, 5, 0, 10)
 
         self.assertEqual(exp_reg1_right, ''.join(res_reg1_right))
-        self.assertEqual(exp_reg1, ''.join(res_reg1))
-        self.assertEqual(exp_reg2, ''.join(res_reg2))
         self.assertEqual(exp_reg1_left, ''.join(res_reg1_left))
         self.assertEqual(exp_reg2_right, ''.join(res_reg2_right))
         self.assertEqual(exp_reg2_left, ''.join(res_reg2_left))
@@ -93,20 +89,14 @@ class TestMaxChi(unittest.TestCase):
         exp_reg1_left = 'AAAAACCTCTACTCGGACGCGCTGCGCGTTTGAAGTCGCCGCGCGCGATC'
         exp_reg2_right = 'AAGGGGCGGGGGTGACTTATCTGGAGCCGTCCGCCAGCCAAATCAGGCAT'
         exp_reg2_left = 'AAAAACATCGACCCGCACCCGCTGCGCGTTTGAAGTCGCCGCACGTGACC'
-        exp_reg1 = 'AAAAACCTCTACTCGGACGCGCTGCGCGTTTGAAGTCGCCGCGCGCGATCAAGGCGCGGGAGT' \
-                   'GACTTATTTAGAGCCGTCCGCCAGCCAAATCGGGCAT'
-        exp_reg2 = 'AAAAACATCGACCCGCACCCGCTGCGCGTTTGAAGTCGCCGCACGTGACCAAGGGGCGGGGGTG' \
-                   'ACTTATCTGGAGCCGTCCGCCAGCCAAATCAGGCAT'
 
         seq1 = self.long_triplets[1].sequences[1]
         seq2 = self.long_triplets[1].sequences[2]
 
-        res_reg1_left, res_reg2_left, res_reg1_right, res_reg2_right, res_reg1, res_reg2 = \
-            MaxChi.get_window_positions(seq1, seq2, 0, 100)
+        res_reg1_left, res_reg2_left, res_reg1_right, res_reg2_right = \
+            MaxChi.get_window_positions(seq1, seq2, 50, 0, 100)
 
         self.assertEqual(exp_reg1_right, ''.join(res_reg1_right))
-        self.assertEqual(exp_reg1, ''.join(res_reg1))
-        self.assertEqual(exp_reg2, ''.join(res_reg2))
         self.assertEqual(exp_reg1_left, ''.join(res_reg1_left))
         self.assertEqual(exp_reg2_right, ''.join(res_reg2_right))
         self.assertEqual(exp_reg2_left, ''.join(res_reg2_left))
@@ -121,120 +111,67 @@ class TestMaxChi(unittest.TestCase):
                          'TACCAGTTGACCCAGGGGAAGTAGAAGAGGCCAACGAAGGAGAAGAC'
         exp_reg2_left = 'GAATTCTGGAAGGGTTAATTTACTCTAAGAAAAGGCAAGAGATCCTTGATTTGT' \
                         'GGGTCTATCACACACAAGGCTACTTCCCTGATTGGCACAACTACAC'
-        exp_reg1 = '------------------------------------------------------------' \
-                   '------------------------------------------------------------' \
-                   '------------------------------------------------------------' \
-                   '--------------------'
-        exp_reg2 = 'GAATTCTGGAAGGGTTAATTTACTCTAAGAAAAGGCAAGAGATCCTTGATTTGTGGGTCT' \
-                   'ATCACACACAAGGCTACTTCCCTGATTGGCACAACTACACACCAGGACCAGGGACCAGAT' \
-                   'TTCCACTGACTTTTGGGTGGTGCTTCAAGCTAGTACCAGTTGACCCAGGGGAAGTAGAAG' \
-                   'AGGCCAACGAAGGAGAAGAC'
 
         seq1 = self.hiv_triplets[0].sequences[0]
         seq2 = self.hiv_triplets[0].sequences[2]
 
-        res_reg1_left, res_reg2_left, res_reg1_right, res_reg2_right, res_reg1, res_reg2 = \
-            MaxChi.get_window_positions(seq1, seq2, 0, 200)
+        res_reg1_left, res_reg2_left, res_reg1_right, res_reg2_right = \
+            MaxChi.get_window_positions(seq1, seq2, 100, 0, 200)
 
         self.assertEqual(exp_reg1_right, ''.join(res_reg1_right))
-        self.assertEqual(exp_reg1, ''.join(res_reg1))
-        self.assertEqual(exp_reg2, ''.join(res_reg2))
         self.assertEqual(exp_reg1_left, ''.join(res_reg1_left))
         self.assertEqual(exp_reg2_right, ''.join(res_reg2_right))
         self.assertEqual(exp_reg2_left, ''.join(res_reg2_left))
 
     def test_compute_contingency_table_short(self):
-        reg1_right = 'GACGA'
-        reg2_right = 'TGGTG'
-        reg1_left = 'ATGCT'
-        reg2_left = 'AACCT'
-        half_win_size = 5
+        reg1_right = np.array(list('GACGA'))
+        reg2_right = np.array(list('TGGTG'))
+        reg1_left  = np.array(list('ATGCT'))
+        reg2_left  = np.array(list('AACCT'))
 
-        expected = [[0, 5, 5],
+        expected = [[3, 2, 5],
                     [0, 5, 5],
-                    [0, 10, 10]]
-        result = MaxChi.compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left, half_win_size)
-        self.assertEqual(expected, result)
+                    [3, 7, 10]]
+        result = MaxChi.compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left)
+        self.assertEqual(expected, result.tolist())
 
     def test_compute_contingency_table_long(self):
-        reg1_right = 'AAGGCGCGGGAGTGACTTATTTAGAGCCGTCCGCCAGCCAAATCGGGCAT'
-        reg1_left = 'AAAAACCTCTACTCGGACGCGCTGCGCGTTTGAAGTCGCCGCGCGCGATC'
-        reg2_right = 'AAGGGGCGGGGGTGACTTATCTGGAGCCGTCCGCCAGCCAAATCAGGCAT'
-        reg2_left = 'AAAAACATCGACCCGCACCCGCTGCGCGTTTGAAGTCGCCGCACGTGACC'
-        half_win_size = 50
+        reg1_right = np.array(list('AAGGCGCGGGAGTGACTTATTTAGAGCCGTCCGCCAGCCAAATCGGGCAT'))
+        reg1_left  = np.array(list('AAAAACCTCTACTCGGACGCGCTGCGCGTTTGAAGTCGCCGCGCGCGATC'))
+        reg2_right = np.array(list('AAGGGGCGGGGGTGACTTATCTGGAGCCGTCCGCCAGCCAAATCAGGCAT'))
+        reg2_left  = np.array(list('AAAAACATCGACCCGCACCCGCTGCGCGTTTGAAGTCGCCGCACGTGACC'))
 
-        expected = [[0, 50, 50],
-                    [0, 50, 50],
-                    [0, 100, 100]]
-        result = MaxChi.compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left, half_win_size)
-        self.assertEqual(expected, result)
+        expected = [[42, 8, 50],
+                    [45, 5, 50],
+                    [87, 13, 100]]
+        
+        result = MaxChi.compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left)
+        self.assertEqual(expected, result.tolist())
 
     def test_compute_contingency_table_hiv(self):
-        reg1_right = '----------------------------------------------------' \
-                     '------------------------------------------------'
-        reg1_left = '-----------------------------------------------------' \
-                    '-----------------------------------------------'
-        reg2_right = 'ACCAGGACCAGGGACCAGATTTCCACTGACTTTTGGGTGGTGCTTCAAGCTAG' \
-                     'TACCAGTTGACCCAGGGGAAGTAGAAGAGGCCAACGAAGGAGAAGAC'
-        reg2_left = 'GAATTCTGGAAGGGTTAATTTACTCTAAGAAAAGGCAAGAGATCCTTGATTTGT' \
-                    'GGGTCTATCACACACAAGGCTACTTCCCTGATTGGCACAACTACAC'
-        half_win_size = 100
+        reg1_right = np.array(list(
+            '----------------------------------------------------'
+            '------------------------------------------------'
+        ))
+
+        reg1_left = np.array(list(
+            '-----------------------------------------------------'
+            '-----------------------------------------------'
+        ))
+
+        reg2_right = np.array(list(
+            'ACCAGGACCAGGGACCAGATTTCCACTGACTTTTGGGTGGTGCTTCAAGCTAG'
+            'TACCAGTTGACCCAGGGGAAGTAGAAGAGGCCAACGAAGGAGAAGAC'
+        ))
+
+        reg2_left = np.array(list(
+            'GAATTCTGGAAGGGTTAATTTACTCTAAGAAAAGGCAAGAGATCCTTGATTTGT'
+            'GGGTCTATCACACACAAGGCTACTTCCCTGATTGGCACAACTACAC'
+        ))
 
         expected = [[0, 100, 100], [0, 100, 100], [0, 200, 200]]
-        result = MaxChi.compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left, half_win_size)
-        self.assertEqual(expected, result)
-
-    def test_execute_short(self):
-        expected = [('A', ('B', 'C'), 2, 25, 0.8780986177504423),
-                    ('A', ('B', 'D'), 4, 23, 0.5578254003710748),
-                    ('A', ('B', 'E'), 10, 26, 0.5578254003710748),
-                    ('A', ('C', 'D'), 9, 22, 0.5578254003710748),
-                    ('A', ('C', 'E'), 4, 21, 0.5578254003710748),
-                    ('A', ('D', 'E'), 12, 22, 0.5578254003710748),
-                    ('B', ('A', 'E'), 10, 20, 0.5578254003710748),
-                    ('B', ('C', 'D'), 2, 23, 0.8780986177504423),
-                    ('B', ('C', 'E'), 3, 22, 0.8780986177504423),
-                    ('B', ('D', 'E'), 4, 20, 0.5578254003710748),
-                    ('C', ('D', 'E'), 10, 21, 0.5578254003710748),
-                    ('D', ('A', 'C'), 6, 16, 0.5578254003710748),
-                    ('D', ('A', 'E'), 12, 21, 0.9553750807650524),
-                    ('D', ('C', 'E'), 3, 13, 0.8780986177504423),
-                    ('E', ('A', 'B'), 5, 17, 0.8780986177504423),
-                    ('E', ('A', 'D'), 6, 17, 0.5578254003710748)]
-
-        for trp in self.short_triplets:
-            self.test_short.execute(trp)
-        result = merge_breakpoints(self.test_short.raw_results, self.test_short.max_pvalues)
-        self.assertEqual(expected, result)
-
-    def test_execute_long(self):
-        expected = [('Test1 ', ('Test2', 'Test3'), 475, 518, 0.04042768199451279),
-                    ('Test1 ', ('Test2', 'Test4'), 475, 518, 0.04042768199451279),
-                    ('Test1 ', ('Test3', 'Test4'), 439, 482, 0.04042768199451279)]
-
-        for trp in self.long_triplets:
-            self.test_long.execute(trp)
-        result = merge_breakpoints(self.test_long.raw_results, self.test_long.max_pvalues)
-        self.assertEqual(expected, result)
-
-    def test_execute_hiv(self):
-        expected = [('B', ('07_BC', 'C'), 431, 584, 1.3857496123286656e-17),
-                    ('B', ('07_BC', 'C'), 760, 865, 1.1539403917027959e-05),
-                    ('B', ('07_BC', 'C'), 4138, 4430, 0.004935527092627837),
-                    ('B', ('07_BC', 'C'), 5043, 5246, 0.03739498509166499),
-                    ('B', ('07_BC', 'C'), 7673, 7811, 0.03739106813700015),
-                    ('B', ('07_BC', 'C'), 8241, 8392, 0.004821912746418881),
-                    ('C', ('07_BC', 'B'), 620, 725, 9.2704597756479e-17)]
-        for trp in self.hiv_triplets:
-            self.test_hiv.execute(trp)
-        result = merge_breakpoints(self.test_hiv.raw_results, self.test_hiv.max_pvalues)
-
-        for index, exp_tuple in enumerate(expected):
-            self.assertEqual(exp_tuple[0], result[index][0])
-            self.assertEqual(exp_tuple[1], result[index][1])
-            self.assertEqual(exp_tuple[2], result[index][2])
-            self.assertEqual(exp_tuple[3], result[index][3])
-            self.assertAlmostEqual(exp_tuple[4], result[index][4])
+        result = MaxChi.compute_contingency_table(reg1_right, reg2_right, reg1_left, reg2_left)
+        self.assertEqual(expected, result.tolist())
 
 
 if __name__ == '__main__':

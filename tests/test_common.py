@@ -80,7 +80,7 @@ class TestCommon(unittest.TestCase):
                    [463, 519, 982]]
         exp_chi2 = 1.12
         exp_p_value = 0.891
-        res_chi2, res_p_value = calculate_chi2(c_table, 500)
+        res_chi2, res_p_value = calculate_chi2(c_table)
         self.assertEqual(exp_chi2, round(res_chi2, 2))
         self.assertEqual(exp_p_value, round(res_p_value, 3))
 
@@ -159,7 +159,112 @@ class TestCommon(unittest.TestCase):
             s2 = self.hiv_align[pair[1]]
             result = jc_distance(s1, s2)
             self.assertEqual(expected[i], result)
+            
+    def test_update_matrix(self):
+        matrix = np.array([
+            np.array([0,1,3,4]),
+            np.array([1,0,2,3]),
+            np.array([0,0,0,3]),
+            np.array([0,0,0,0])
+        ])
+        headers = [node(name='ab'),node(name='c'),node(name='d')]
+        expected = np.array([
+            np.array([0,2.5,3.5]),
+            np.array([0,0,3]),
+            np.array([0,0,0]) 
+        ])
+        matrix += matrix.T
+        matrix = matrix.astype(object)
+        expected += expected.T
+        expected = expected.astype(object)
+        self.assertEqual(recalculate_dist(matrix,1,0).tolist(), expected.tolist())
+    
+    def test_upgma_matrix(self):
+        matrix = np.array([
+            np.array([0,1,3,9]),
+            np.array([0,0,2,4]),
+            np.array([0,0,0,5]),
+            np.array([0,0,0,0])
+        ])
+        headers = [node(name='a'),node(name='b'),node(name='c'),node(name='d')]
+        expected = np.array([
+            np.array([0])
+        ])
+        matrix += matrix.T
+        expected += expected.T
+        matrix = matrix.astype(object)
+        expected = expected.astype(object)
+        h, out = upgma(headers, matrix)
+        self.assertEqual(out.tolist(), expected.tolist())
+    
+    def test_upgma_trees(self):
+        matrix = np.array([
+            np.array([0,1.0000,3,9]),
+            np.array([0,0,2,4]),
+            np.array([0,0,0,5]),
+            np.array([0,0,0,0])
+        ])
+        matrix += matrix.T
+        a = node(name='a', dist=0, p_dist=0, terminal=True)
+        b = node(name='b', dist=0, p_dist=0, terminal=True)
+        c = node(name='c', dist=0, p_dist=0, terminal=True)
+        d = node(name='d', dist=0, p_dist=0, terminal=True)
+        headers=[a,b,c,d]
 
+        root, out = upgma(headers, matrix)
+
+        # Check root node
+        self.assertEqual(root.name, 'a;b;c;d')
+        self.assertAlmostEqual(root.dist, 2.875)
+        self.assertEqual(root.left.name, 'a;b;c')
+        self.assertEqual(root.right.name, 'd')
+        self.assertAlmostEqual(root.right.p_dist, 2.875)
+
+        # Check middle layer
+        self.assertEqual(root.left.left.name, 'a;b')
+        self.assertEqual(root.left.right.name, 'c')
+        self.assertAlmostEqual(root.left.right.p_dist, 1.25)
+
+        # Check bottom layer
+        self.assertEqual(root.left.left.left.name, 'a')
+        self.assertEqual(root.left.left.right.name, 'b')
+        self.assertAlmostEqual(root.left.left.left.p_dist, 0.5)
+        self.assertAlmostEqual(root.left.left.right.p_dist, 0.5)
+
+
+    def test_find_min(self):
+        matrix = np.array([
+            np.array([0,1,3,4]),
+            np.array([0,0,2,3]),
+            np.array([0,0,0,3]),
+            np.array([0,0,0,0])
+        ])
+        matrix += matrix.T
+        matrix = matrix.astype(object)
+        expected = ((0,1), 1)
+        self.assertEqual(find_min(matrix), expected)
+
+    def test_find_dist(self):
+        a = node(name='a', dist=0, p_dist=2, terminal=True)
+        b = node(name='b', dist=0, p_dist=3, terminal=True)
+        c = node(name='c', dist=0, p_dist=2, terminal=True)
+        ab = node(name='a;b', left=a, right=b, dist=5, p_dist=4, terminal=False)
+        abc = node(name='a;b;c', left=ab, right=c, dist=6, p_dist=0, terminal=False)
+
+        expected = (8, True)
+
+        self.assertEqual(find_dist(abc, 'a', 'c'), expected)
+
+    def test_find_parent(self):
+        a = node(name='a', dist=0, p_dist=2, terminal=True)
+        b = node(name='b', dist=0, p_dist=3, terminal=True)
+        c = node(name='c', dist=0, p_dist=2, terminal=True)
+        ab = node(name='a;b', left=a, right=b, dist=5, p_dist=4, terminal=False)
+        abc = node(name='a;b;c', left=ab, right=c, dist=6, p_dist=0, terminal=False)
+
+        expected = ('a','b')
+        
+        self.assertEqual(find_parent('a','b','c',abc), expected)
 
 class TestTriplet(unittest.TestCase):
     def setUp(self):

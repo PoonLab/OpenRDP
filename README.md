@@ -100,8 +100,6 @@ openrdp <input FASTA>
 You can specify a different [configuration file](https://docs.python.org/3/library/configparser.html#supported-ini-file-structure) using the `-c` flag.  For example:
 ```console
 art@Wernstrom OpenRDP % openrdp -c tests/test_cfg.ini tests/test_neisseria.fasta
-Loading configuration from openrdp/tests/test_cfg.ini
-
 
 Method          Start   End     Recombinant     Parent1 Parent2 Pvalue
 ------------------------------------------------------------------------

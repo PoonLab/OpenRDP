@@ -10,7 +10,7 @@ from .common import identify_recombinant, find_parent
 
 class Siscan:
     def __init__(self, align, win_size=30, step_size=20, strip_gaps=True, pvalue_perm_num=100,
-                 scan_perm_num=100, random_seed=3, max_pvalue=0.05, settings=None, 
+                 scan_perm_num=100, max_pvalue=0.05, settings=None, 
                  ref_align=None, verbose=False):
         """
         Constructs a Siscan object
@@ -31,7 +31,6 @@ class Siscan:
             self.strip_gaps = strip_gaps
             self.pvalue_perm_num = pvalue_perm_num
             self.scan_perm_num = scan_perm_num
-            self.random_seed = random_seed
             self.max_pvalues = max_pvalue
 
         self.raw_results = []
@@ -54,7 +53,6 @@ class Siscan:
 
         self.pvalue_perm_num = int(settings['pvalue_perm_num'])
         self.scan_perm_num = int(settings['scan_perm_num'])
-        self.random_seed = int(settings['random_seed'])
 
     def validate_options(self, align):
         """
@@ -70,16 +68,12 @@ class Siscan:
             self.step_size = 20
 
         if self.pvalue_perm_num <= 0:
-            print("Invalid option for 'pvalue_perm_num'.\nUsing default value (1100) instead.")
-            self.pvalue_perm_num = 1100
+            print("Invalid option for 'pvalue_perm_num'.\nUsing default value (1000) instead.")
+            self.pvalue_perm_num = 1000
 
         if self.scan_perm_num <= 0:
             print("Invalid option for 'scan_perm_num'.\nUsing default value (100) instead.")
             self.scan_perm_num = 100
-
-        if self.random_seed <= 0:
-            print("Invalid option for 'random_seed'.\nUsing default value (3) instead.")
-            self.random_seed = 3
 
     @staticmethod
     def count_patterns(seq_array):
@@ -308,15 +302,16 @@ class Siscan:
         return signal_orders[signal][ind][lr]
 
 
-    def execute(self, triplet, tree):
+    def execute(self, triplet, tree, random_seed):
         """
         Do Sister-scanning as described in Gibbs, Armstrong, and Gibbs (2000), using a randomized 4th sequence
         updated with notes from Darren on how RDP4/5 works
         :param triplet: a triplet object
         :param tree: node object from upgma
+        :param random_seed: random seed for permuations
         """
-        random.seed(self.random_seed)
-        np.random.seed(self.random_seed)
+        random.seed(random_seed)
+        np.random.seed(random_seed)
 
         # Initialize list to map z_values to window positions
         z_pattern_values = [[None for i in range(14)] for j in range(triplet.sequences.shape[1])]

@@ -101,25 +101,7 @@ You can specify a different [configuration file](https://docs.python.org/3/libra
 ```console
 art@Wernstrom OpenRDP % openrdp -c tests/test_cfg.ini tests/test_neisseria.fasta
 Loading configuration from openrdp/tests/test_cfg.ini
-Starting 3Seq Analysis
-Finished 3Seq Analysis
-Starting GENECONV Analysis
-Finished GENECONV Analysis
-Setting up bootscan analysis...
-Starting Scanning Phase of Bootscan/Recscan
-Finished Scanning Phase of Bootscan/Recscan
-Setting up maxchi analysis...
-Setting up siscan analysis...
-Setting up chimaera analysis...
-Setting up rdp analysis...
-Scanning triplet 1 / 4
-Scanning triplet 0 / 4
-Scanning triplet 2 / 4
-Scanning triplet 3 / 4
-Scanning triplet 1 / 4
-Scanning triplet 2 / 4
-Scanning triplet 3 / 4
-Scanning triplet 4 / 4
+
 
 Method          Start   End     Recombinant     Parent1 Parent2 Pvalue
 ------------------------------------------------------------------------
@@ -151,54 +133,6 @@ RDP             6       18      X64866          X64869  X64873  2.36E+01
 You can also provide a parental reference sequence using the `-r` flag. For example:
 ```console
 (venv) sandeep@Jesry:~/OpenRDP$ openrdp -c tests/test_cfg.ini tests/short.fasta -r tests/short_ref.fasta
-Loading configuration from tests/test_cfg.ini
-Starting 3Seq Analysis
-Finished 3Seq Analysis
-Starting GENECONV Analysis
-Finished GENECONV Analysis
-Setting up bootscan analysis...
-Starting Scanning Phase of Bootscan/Recscan
-Finished Scanning Phase of Bootscan/Recscan
-Setting up maxchi analysis...
-Invalid option for 'win_size'.
-Using default value (200) instead.
-Setting up siscan analysis...
-Invalid option for 'win_size'.
-Using default value (200) instead.
-Setting up chimaera analysis...
-Invalid option for 'win_size'.
-Using default value (200) instead.
-Setting up rdp analysis...
-Scanning triplet 1 / 15
-Scanning triplet 3 / 15
-Scanning triplet 2 / 15
-Scanning triplet 4 / 15
-Scanning triplet 5 / 15
-Scanning triplet 7 / 15
-Scanning triplet 6 / 15
-Scanning triplet 8 / 15
-Scanning triplet 9 / 15
-Scanning triplet 10 / 15
-Scanning triplet 11 / 15
-Scanning triplet 13 / 15
-Scanning triplet 12 / 15
-Scanning triplet 14 / 15
-Scanning triplet 15 / 15
-Scanning triplet 1 / 15
-Scanning triplet 2 / 15
-Scanning triplet 3 / 15
-Scanning triplet 4 / 15
-Scanning triplet 5 / 15
-Scanning triplet 6 / 15
-Scanning triplet 7 / 15
-Scanning triplet 8 / 15
-Scanning triplet 9 / 15
-Scanning triplet 10 / 15
-Scanning triplet 11 / 15
-Scanning triplet 12 / 15
-Scanning triplet 13 / 15
-Scanning triplet 14 / 15
-Scanning triplet 15 / 15
 
 Method          Start   End     Recombinant     Parent1 Parent2 Pvalue
 ------------------------------------------------------------------------
@@ -217,6 +151,41 @@ Siscan          3       205     D               J       K       7.57E-01
 Siscan          2       205     E               J       R       7.67E-01
 Siscan          2       205     E               K       R       7.08E-01
 Siscan          2       205     E               J       K       7.60E-01
+```
+To change the seed and the number of times you let MaxChi/Chimaera fail while trying to maximize the window size, you can use the flags, `-s` and `-f` respectively. The following example sets the seed to 100 and the number fails to 100 as well.
+```
+(test) will@Mac OpenRDP % openrdp tests/CRF_07_test.fasta -s 100 -f 100
+
+Method          Start   End     Recombinant     Parent1 Parent2 Pvalue
+------------------------------------------------------------------------
+Geneconv        8972    9114    B               07_BC   -       0.00E+00
+Geneconv        4416    5139    C               07_BC   -       1.17E-03
+Geneconv        5927    5957    B               07_BC   -       9.04E-03
+Geneconv        8219    8322    C               07_BC   -       3.10E-02
+Geneconv        8972    9118    C               -       -       0.00E+00
+Geneconv        2193    2365    C               -       -       1.70E-04
+Geneconv        4416    5139    B               -       -       7.58E-03
+Geneconv        5700    5771    C               -       -       1.92E-02
+Geneconv        1       1229    B               -       -       2.10E-02
+Geneconv        5927    5957    C               -       -       6.17E-02
+Bootscan        580     1260    07_BC           B       C       1.02E-09
+Bootscan        1280    1340    07_BC           B       C       2.40E-02
+Bootscan        2060    2560    07_BC           B       C       1.74E-06
+Bootscan        2620    2900    07_BC           B       C       2.15E-07
+Bootscan        3000    3160    07_BC           B       C       3.49E-03
+Bootscan        3260    5680    07_BC           B       C       1.52E-40
+Bootscan        8960    9140    07_BC           B       C       1.01E-03
+Bootscan        100     560     B               07_BC   C       3.54E-19
+Bootscan        1280    1340    B               07_BC   C       2.20E-02
+Bootscan        2060    2560    B               07_BC   C       1.68E-11
+Bootscan        3000    3160    B               07_BC   C       8.36E-08
+Bootscan        8960    9140    B               07_BC   C       1.51E-05
+Bootscan        580     1260    C               07_BC   B       4.11E-02
+Bootscan        2620    2900    C               07_BC   B       2.24E-04
+Bootscan        3260    5680    C               07_BC   B       9.29E-34
+MaxChi          501     540     C               07_BC   B       1.63E-01
+3Seq            1989    2644    C               07_BC   B       1.27E-11
+RDP             6550    6647    B               07_BC   C       1.01E+02
 ```
 If you wish to run openrdp with `mpi4py`, you can do so with the following commands, where `-n` is the number of cores. Given the excessive text output, messages are mute. If you wish to display them anyways, use `-v`
 ```console

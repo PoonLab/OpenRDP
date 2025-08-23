@@ -130,7 +130,7 @@ class MaxChi:
         ])
         return c_table
 
-    def execute(self, triplet):
+    def execute(self, triplet, fail=100):
         """
         Executes the MaxChi algorithm
         :param triplet: a triplet object
@@ -201,9 +201,8 @@ class MaxChi:
             # initalize variables to expand the window
             left, right = best[2] - initial_window // 2, best[2] + initial_window // 2
 
-            # TODO: the 100 is arbitrary
             fail_count, best_score = 0, 0
-            while fail_count < 100:
+            while fail_count < fail:
                 candidates = []
 
                 # expand left and right at the same time

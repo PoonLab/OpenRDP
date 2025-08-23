@@ -82,7 +82,7 @@ class ScanResults:
 
 
 class Scanner:
-    def __init__(self, cfg=None, methods=None, verbose=False):
+    def __init__(self, cfg=None, methods=None, verbose=False, seed=None, fail=None):
         """
         :param cfg:  str, path to configuration file.  Defaults to None, causing
                      each method to use default settings.
@@ -100,6 +100,16 @@ class Scanner:
             methods = list(aliases.keys())
         self.methods = methods
         self.verbose = verbose
+        
+        if seed is None:
+            self.seed = 3
+        else:
+            self.seed = int(seed)
+
+        if fail is None:
+            self.fail = 100
+        else:
+            self.fail = int(fail)
 
         self.config = configparser.ConfigParser()
         self.cfg_file = cfg
@@ -326,7 +336,9 @@ class Scanner:
                     if alias == 'bootscan':
                         temp.append(tmethod.execute((trp_count, triplet)))
                     elif alias == 'siscan':
-                        tmethod.execute(triplet, tree = tree)
+                        tmethod.execute(triplet, tree = tree, random_seed=self.seed)
+                    elif alias in ('maxchi', 'chimaera'):
+                        tmethod.execute(triplet, fail=self.fail)
                     else:
                         tmethod.execute(triplet)
 
@@ -397,7 +409,7 @@ class Scanner:
                         if alias == 'bootscan':
                             temp.append(tmethod.execute((trp_count, triplet)))
                         elif alias == 'siscan':
-                            tmethod.execute(triplet, tree=tree)
+                            tmethod.execute(triplet, tree=tree, random_seed = self.seed)
                         else:
                             tmethod.execute(triplet)
 

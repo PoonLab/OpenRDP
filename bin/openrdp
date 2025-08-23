@@ -30,6 +30,8 @@ if __name__ == "__main__":
                         choices=all_methods, metavar="")
     parser.add_argument('-v', '--verbose', help='Show progress messages',
                         action='store_true')
+    parser.add_argument('-s', '--seed', type=int, help = 'set seed integer for siscan permutation. Defaults to 3')
+    parser.add_argument('-f', '--fail', type=int, help = 'set the number of times to run MaxChi/Siscan to try and maximize the Chi2 value with a given window. Defaults to 100')
     args = parser.parse_args()
 
     # check that config file exists
@@ -40,7 +42,7 @@ if __name__ == "__main__":
         args.methods = all_methods  # run all methods by default
 
     scanner = openrdp.Scanner(cfg=args.cfg, methods=tuple(args.methods),
-                              verbose=args.verbose)
+                              verbose=args.verbose, seed=args.seed, fail=args.fail)
     results = scanner.run_scans(args.infile, args.ref)
 
     if results: # in mpi, only root should have results

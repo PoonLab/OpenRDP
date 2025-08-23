@@ -179,7 +179,7 @@ class Chimaera:
             final[1] = end 
         return final
 
-    def execute(self, triplet):
+    def execute(self, triplet, fail=100):
         """
         Executes the Chimaera algorithm
         :param triplets: a triplet object
@@ -243,7 +243,7 @@ class Chimaera:
                 left, right = best[1] - initial_window // 2, best[1] + initial_window // 2
 
                 fail_count, best_score = 0, 0
-                while fail_count < 100:
+                while fail_count < fail:
                     candidates = []
 
                     half_win_size = (right - left) //2

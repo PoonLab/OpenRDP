@@ -181,15 +181,27 @@ class MaxChi:
                 if chi > best[1]:
                     best = [pair, chi, pos]
 
-        # 2. find optimized window of maxChi values by expanding and contracting the window and recalc Chi2 while counting fails
+        # 2. find optimized window of maxChi values by expanding and 
+        # contracting the window and recalc Chi2 while counting fails
 
         ##### problem outlined:
-        # assuming you have an array of integers, n, with a start index, k, and a left and right value index of the window. You have to expand and contract this window to get the max value. 
-        # However, you are limited by your actions. You can either increase one end of the window by 1 position or contract the window by 1 position. If the new window has a lower max value than the previous best, you add a counter to fail. if you reach 100 fails you automatically return the best max window.
-        # NOTE BY @williamzekaiwang: i coulnd't find how RDP solved this problem, so i'm going to use a greedy algorithm to expand the window
-        # NOTE 2: a dp solution is a more optimal choice. gets out of [100, ... n * fails limit -1, 10001]
-        k = best[2] # the midpoint to start expanding the window from
-        if chisq.sf(best[1],1) < 0.05/l: #BF correction (l variable form above increases per chi2 calculation)
+        # assuming you have an array of integers, n, with a start index, k, and 
+        # a left and right value index of the window. You have to expand and 
+        # contract this window to get the max value. 
+        # However, you are limited by your actions. You can either increase one 
+        # end of the window by 1 position or contract the window by 1 position. 
+        # If the new window has a lower max value than the previous best, you 
+        # add a counter to fail. if you reach 100 fails you automatically 
+        # return the best max window.
+        # NOTE BY @williamzekaiwang: i coulnd't find how RDP solved this 
+        # problem, so i'm going to use a greedy algorithm to expand the window
+        # NOTE 2: a dp solution is a more optimal choice. gets out of 
+        # [100, ... n * fails limit -1, 10001]
+        
+        k = best[2]  # the midpoint to start expanding the window from
+        
+        # BF correction (l variable form above increases per chi2 calculation)
+        if chisq.sf(best[1],1) < 0.05 / l:
             # using degree of freedom of 1 because of 2x2 chi2 test
             initial_window = self.win_size
                         
@@ -207,7 +219,7 @@ class MaxChi:
                 candidates = []
 
                 # expand left and right at the same time
-                if left > 0 and right < len(seq1):
+                if left > 0 and right < len(seq1)-1:
                     el = left - 1
                     er = right + 1
 
@@ -253,12 +265,12 @@ class MaxChi:
 
                 # Apply the move 
                 if best_move == 'expand':
-                    left -= 1
-                    right += 1
+                    left = el
+                    right = er
                 elif best_move == 'contract_left':
-                    left += 1
+                    left = cl
                 elif best_move == 'contract_right':
-                    right -= 1
+                    right = cr
 
             # 3, determine if left or right side of the new window is the best
             left_peak = chi2_values[best[0]][left]
